@@ -37,13 +37,31 @@ function makeRandomRewardHandler() {
 }
 
 // ── ログ ──
+let _logBuffer = [];
+let _logPaused = false;
+
 function addLog(text, highlight = false, html = false) {
+  if (_logPaused) {
+    _logBuffer.push({ text, highlight, html });
+    return;
+  }
+  _appendLog(text, highlight, html);
+}
+
+function _appendLog(text, highlight, html) {
   const el = document.createElement('div');
   el.className = 'log-entry' + (highlight ? ' highlight' : '');
   if (html) el.innerHTML = text;
   else el.textContent = text;
   els.mainPanel.appendChild(el);
   els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
+}
+
+function pauseLog()  { _logPaused = true; }
+function resumeLog() {
+  _logPaused = false;
+  _logBuffer.forEach(({ text, highlight, html }) => _appendLog(text, highlight, html));
+  _logBuffer = [];
 }
 
 // ── 物語ビューア ──
@@ -71,6 +89,7 @@ async function openStory(storyId) {
 
   els.storyViewerTitle.textContent = story.title;
   els.storyOverlay.classList.add('open');
+  pauseLog();
   renderViewerBody(getState());
 }
 
@@ -125,6 +144,7 @@ function closeStory() {
   els.storyOverlay.classList.remove('open');
   _viewerPages = [];
   _viewerStoryId = null;
+  resumeLog();
 }
 
 // ── 物語リスト描画 ──
