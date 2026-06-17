@@ -5,8 +5,11 @@ const ACTIONS = {
   explore: {
     id: 'explore',
     label: '探索',
-    duration: 5000, // ms
+    duration: 20000, // ms
     rewards: [{ resource: 'fragment', amount: 10 }],
+    randomRewards: [
+      { resource: 'fragment', amount: 1, minMs: 4000, maxMs: 9000 },
+    ],
   },
 };
 
@@ -87,8 +90,39 @@ function notify() {
 }
 
 let _timer = null;
+let _randomRewardTimers = [];
 
-function startAction(actionId) {
+function scheduleRandomRewards(action, onReward) {
+  if (!action.randomRewards) return;
+
+  for (const reward of action.randomRewards) {
+    const { minMs, maxMs } = reward;
+
+    function schedule() {
+      const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+      const t = setTimeout(() => {
+        if (!state.activeAction) return;
+        const newResources = { ...state.resources };
+        newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
+        state = { ...state, resources: newResources };
+        saveToStorage(state);
+        notify();
+        if (onReward) onReward(reward);
+        schedule();
+      }, delay);
+      _randomRewardTimers.push(t);
+    }
+
+    schedule();
+  }
+}
+
+function clearRandomRewardTimers() {
+  _randomRewardTimers.forEach(t => clearTimeout(t));
+  _randomRewardTimers = [];
+}
+
+function startAction(actionId, { onRandomReward } = {}) {
   if (state.activeAction) return { ok: false, reason: 'already_active' };
   const action = ACTIONS[actionId];
   if (!action) return { ok: false, reason: 'unknown_action' };
@@ -103,6 +137,7 @@ function startAction(actionId) {
   notify();
 
   _timer = setTimeout(() => completeAction(actionId), duration);
+  scheduleRandomRewards(action, onRandomReward);
   return { ok: true };
 }
 
@@ -115,6 +150,7 @@ function completeAction(actionId) {
     newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
   }
 
+  clearRandomRewardTimers();
   state = { ...state, resources: newResources, activeAction: null };
   saveToStorage(state);
   notify();
