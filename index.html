@@ -674,13 +674,41 @@
       color: #7ec88a;
     }
 
-    /* ── タブ点滅（新解放通知） ── */
-    @keyframes tab-notify {
-      0%, 100% { color: var(--text); }
-      50% { color: var(--accent); }
+    /* ── タブトースト ── */
+    #tab-toast {
+      position: relative;
+      height: 0;
+      overflow: visible;
+      pointer-events: none;
     }
-    .tab-btn--notify {
-      animation: tab-notify 0.8s ease-in-out infinite;
+    #tab-toast .toast-bubble {
+      position: absolute;
+      bottom: 0.5rem;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      color: var(--accent);
+      font-size: 0.78rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    #tab-toast .toast-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--accent-border);
+      border-bottom: none;
+    }
+    #tab-toast .toast-bubble.visible {
+      opacity: 1;
+      transform: translateY(0);
     }
   </style>
 </head>
@@ -783,6 +811,9 @@
       <div id="story-body"></div>
     </div>
   </div>
+
+  <!-- タブトースト -->
+  <div id="tab-toast"></div>
 
   <!-- フッター -->
   <div id="footer">

@@ -400,6 +400,43 @@ function maybeStartPostExplore() {
   });
 }
 
+// ── タブトースト ──
+let _toastTimer = null;
+
+function showTabToast(targetTabSelector, text) {
+  const toast = document.getElementById('tab-toast');
+  const tab = document.querySelector(targetTabSelector);
+  if (!toast || !tab) return;
+
+  // 既存バブルを削除
+  toast.innerHTML = '';
+  clearTimeout(_toastTimer);
+
+  const bubble = document.createElement('div');
+  bubble.className = 'toast-bubble';
+  bubble.textContent = text;
+  toast.appendChild(bubble);
+
+  // タブの中央にバブルを位置合わせ
+  const tabRect = tab.getBoundingClientRect();
+  const toastRect = toast.getBoundingClientRect();
+  const centerX = tabRect.left + tabRect.width / 2 - toastRect.left;
+  bubble.style.left = `${centerX}px`;
+  bubble.style.transform = `translateX(-50%) translateY(4px)`;
+
+  // 表示
+  requestAnimationFrame(() => {
+    bubble.style.transform = `translateX(-50%) translateY(4px)`;
+    requestAnimationFrame(() => bubble.classList.add('visible'));
+  });
+
+  // 3秒後にフェードアウト
+  _toastTimer = setTimeout(() => {
+    bubble.classList.remove('visible');
+    bubble.addEventListener('transitionend', () => bubble.remove(), { once: true });
+  }, 3000);
+}
+
 // ── 同行タブ描画 ──
 const COMPANION_DATA = {
   yuuya: { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
@@ -489,14 +526,10 @@ function renderCharTab(state) {
 
   view.appendChild(benchSection);
 
-  // 新同行者解放時にタブを点滅
+  // 新同行者解放時にトースト表示
   const newlyUnlocked = unlocked.filter(id => !_prevUnlockedCompanions.includes(id));
   if (newlyUnlocked.length > 0) {
-    const tabBtn = document.querySelector('.tab-btn[data-view="view-chars"]');
-    if (tabBtn) {
-      tabBtn.classList.add('tab-btn--notify');
-      tabBtn.addEventListener('click', () => tabBtn.classList.remove('tab-btn--notify'), { once: true });
-    }
+    showTabToast('.tab-btn[data-view="view-chars"]', '同行者を選択できます');
   }
   _prevUnlockedCompanions = [...unlocked];
 }
