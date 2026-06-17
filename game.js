@@ -342,7 +342,7 @@ function forceUnlockStory(storyId) {
   state = {
     ...state,
     unlockedStories: [...state.unlockedStories, storyId],
-    storyProgress: { ...state.storyProgress, [storyId]: 1 },
+    storyProgress: { ...state.storyProgress, [storyId]: 0 },
   };
   saveToStorage(state);
   notify();
@@ -386,7 +386,7 @@ function unlockNextPage(storyId) {
     newResources[cost.resource] -= cost.amount;
   }
 
-  const current = state.storyProgress[storyId] ?? 1;
+  const current = state.storyProgress[storyId] ?? 0;
   state = {
     ...state,
     resources: newResources,

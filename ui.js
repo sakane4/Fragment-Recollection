@@ -77,6 +77,7 @@ function resumeLog() {
 // 現在開いている物語のページ一覧をキャッシュ
 let _viewerPages = [];
 let _viewerStoryId = null;
+let _viewerPrevUnlockedPages = 0;
 
 async function openStory(storyId) {
   const story = STORIES[storyId];
@@ -95,6 +96,7 @@ async function openStory(storyId) {
 
   _viewerPages = pages;
   _viewerStoryId = storyId;
+  _viewerPrevUnlockedPages = 0; // 開いた直後は全ページを新規扱いにしない
   // プロローグのページ数をキャッシュ（全開放検知に使う）
   if (storyId === 'prologue') _prologueTotalPages = pages.length;
 
@@ -107,16 +109,17 @@ async function openStory(storyId) {
 function renderViewerBody(state) {
   if (!_viewerStoryId) return;
   const story = STORIES[_viewerStoryId];
-  const unlockedPages = state.storyProgress[_viewerStoryId] ?? 1;
+  const unlockedPages = state.storyProgress[_viewerStoryId] ?? 0;
   const totalPages = _viewerPages.length;
 
   els.storyBody.innerHTML = '';
   document.getElementById('story-fin-bar').textContent = '';
 
   // 解放済みページを順に表示
+  const isNewPage = (i) => i >= _viewerPrevUnlockedPages && _viewerPrevUnlockedPages > 0;
   for (let i = 0; i < Math.min(unlockedPages, totalPages); i++) {
     const block = document.createElement('p');
-    block.className = 'story-page';
+    block.className = 'story-page' + (isNewPage(i) ? ' story-page-new' : '');
     block.textContent = _viewerPages[i];
     els.storyBody.appendChild(block);
 
@@ -146,6 +149,7 @@ function renderViewerBody(state) {
     document.getElementById('story-fin-bar').textContent = '— END —';
   }
 
+  _viewerPrevUnlockedPages = unlockedPages;
   els.storyBody.scrollTop = els.storyBody.scrollHeight;
 }
 
@@ -197,10 +201,10 @@ function renderStoryList(state) {
       cost.textContent = `解放: ${costLabel}`;
       info.appendChild(cost);
     } else {
-      const pages = state.storyProgress[story.id] ?? 1;
+      const pages = state.storyProgress[story.id] ?? 0;
       const progress = document.createElement('div');
       progress.className = 'story-cost';
-      progress.textContent = `${pages} ページ解放済み`;
+      progress.textContent = pages > 0 ? `${pages} ページ解放済み` : '未読';
       info.appendChild(progress);
     }
 

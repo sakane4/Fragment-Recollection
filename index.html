@@ -376,7 +376,16 @@
       gap: 1rem;
     }
 
+    @keyframes story-fadein {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
     .story-page { white-space: pre-wrap; }
+
+    .story-page-new {
+      animation: story-fadein 1.2s ease both;
+    }
 
     .story-sep {
       height: 1h; /* ページ間に本文1行分の空白 */
