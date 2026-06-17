@@ -1,8 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
+import { startOpeningTutorial, startPostExploreStory, startPostExplore2Story } from './tutorial.js';
 
 const els = {
   resourceList: document.getElementById('resource-list'),
@@ -23,11 +24,24 @@ const RESOURCE_LABELS = {
   herb: '薬草',
 };
 
+// ── ユーティリティ ──
+function actionDisplayLabel(action, sep = ' / ') {
+  const loc = LOCATIONS[action.locationId];
+  return loc?.label ? `${loc.label}${sep}${action.label}` : action.label;
+}
+
+function makeRandomRewardHandler() {
+  return ({ resource, amount }) => {
+    addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
+  };
+}
+
 // ── ログ ──
-function addLog(text, highlight = false) {
+function addLog(text, highlight = false, html = false) {
   const el = document.createElement('div');
   el.className = 'log-entry' + (highlight ? ' highlight' : '');
-  el.textContent = text;
+  if (html) el.innerHTML = text;
+  else el.textContent = text;
   els.mainPanel.appendChild(el);
   els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
 }
@@ -89,11 +103,11 @@ function renderViewerBody(state) {
     const costLabel = story.pageCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
     const btn = document.createElement('button');
     btn.className = 'story-next-btn';
-    btn.textContent = `続きを読む (${costLabel})`;
+    btn.textContent = `思い出す (${costLabel})`;
     btn.addEventListener('click', () => {
       const result = unlockNextPage(_viewerStoryId);
       if (!result.ok && result.reason === 'insufficient_resources') {
-        addLog(`【物語】続きを読むには ${costLabel} が必要です`);
+        addLog(`【記憶】思い出すには ${costLabel} が必要です`);
       }
     });
     els.storyBody.appendChild(btn);
@@ -114,10 +128,18 @@ function closeStory() {
 }
 
 // ── 物語リスト描画 ──
+function storyIsVisible(story, state) {
+  if (state.unlockedStories.includes(story.id)) return true; // 解放済みは常に表示
+  if (!story.showCondition) return true;
+  const { resource, amount } = story.showCondition;
+  return (state.resources[resource] ?? 0) >= amount;
+}
+
 function renderStoryList(state) {
   els.storyList.innerHTML = '';
 
   for (const story of Object.values(STORIES)) {
+    if (!storyIsVisible(story, state)) continue;
     const unlocked = state.unlockedStories.includes(story.id);
     const costLabel = story.unlockCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
 
@@ -190,9 +212,8 @@ function render(state) {
 
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
-    const location = LOCATIONS[action.locationId];
-    addLog(`【${location.label} / ${action.label}】開始`);
-    els.actionPickerBtn.disabled = true;
+    addLog(`【${actionDisplayLabel(action)}】開始`, true);
+    els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
     els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
   }
@@ -201,32 +222,43 @@ function render(state) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     if (!_cancelled) {
       const action = ACTIONS[prevActive.actionId];
-      const location = LOCATIONS[action.locationId];
-      const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
-      addLog(`【${location.label} / ${action.label}】完了 — ${rewards}`, true);
+      const hasBonus = (state.activeCompanions ?? []).length > 0;
+      const rewardsHtml = action.rewards.map(r => {
+        const label = RESOURCE_LABELS[r.resource] ?? r.resource;
+        return hasBonus
+          ? `<span class="log-resource">${label}</span> +${r.amount}<span class="log-bonus"> +${r.amount}</span>`
+          : `<span class="log-resource">${label}</span> +${r.amount}`;
+      }).join(', ');
+      addLog(`【${actionDisplayLabel(action)}】完了 — ${rewardsHtml}`, true, true);
     }
     const wasCancelled = _cancelled;
     _cancelled = false;
-    els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
+    const selAction = ACTIONS[selectedActionId];
+    els.actionPickerBtn.textContent = selAction ? actionDisplayLabel(selAction, ' — ') : '探索';
     if (!wasCancelled) {
-      startAction(selectedActionId, {
-        onRandomReward: ({ resource, amount }) => {
-          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
-        },
-      });
+      if (_postExplorePending) {
+        // render() 完了後にポスト探索ストーリー001を開始
+        setTimeout(() => maybeStartPostExplore(), 0);
+      } else if (!state.postExplore2Done && (state.activeCompanions ?? []).length > 0) {
+        // ユウヤ同行中の初回探索完了 → ストーリー002
+        setTimeout(() => maybeStartPostExplore2(state), 0);
+      } else {
+        // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
+        setTimeout(() => startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler() }), 0);
+      }
     }
   }
 
   for (const id of state.unlockedStories) {
     if (!prevUnlocked.includes(id)) {
-      addLog(`【物語】「${STORIES[id].title}」を解放しました`, true);
+      addLog(`【記憶】「${STORIES[id].title}」を解放しました`, true);
     }
   }
 
   for (const id of state.unlockedLocations) {
-    if (!prevUnlockedLocations.includes(id)) {
+    if (!prevUnlockedLocations.includes(id) && LOCATIONS[id]?.label) {
       addLog(`【発見】新しい場所「${LOCATIONS[id].label}」を見つけた`, true);
     }
   }
@@ -234,7 +266,10 @@ function render(state) {
     if (!prevUnlockedActions.includes(id)) {
       const action = ACTIONS[id];
       const location = LOCATIONS[action.locationId];
-      addLog(`【発見】${location.label} で「${action.label}」ができるようになった`, true);
+      const msg = location?.label
+        ? `${location.label} で「${action.label}」ができるようになった`
+        : `「${action.label}」ができるようになった`;
+      addLog(msg, true);
     }
   }
 
@@ -243,7 +278,14 @@ function render(state) {
   prevUnlockedLocations = [...state.unlockedLocations];
   prevUnlockedActions = [...state.unlockedActions];
 
+  // フラグメント50個達成ヒント
+  if (!state.fragmentHintShown && (state.resources.fragment ?? 0) >= 50) {
+    setFragmentHintShown();
+    showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
+  }
+
   renderStoryList(state);
+  renderCharTab(state);
 
   // ビューアが開いていればページ表示を更新
   if (_viewerStoryId) renderViewerBody(state);
@@ -289,10 +331,12 @@ function renderActionList() {
     const group = document.createElement('div');
     group.className = 'action-group';
 
-    const groupLabel = document.createElement('div');
-    groupLabel.className = 'action-group-label';
-    groupLabel.textContent = location.label;
-    group.appendChild(groupLabel);
+    if (location.label) {
+      const groupLabel = document.createElement('div');
+      groupLabel.className = 'action-group-label';
+      groupLabel.textContent = location.label;
+      group.appendChild(groupLabel);
+    }
 
     for (const action of actions) {
       const card = document.createElement('div');
@@ -319,11 +363,36 @@ function renderActionList() {
       card.appendChild(info);
       card.appendChild(meta);
 
-      card.addEventListener('click', () => {
+      // カードタップ → 選択のみ
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.action-start-btn')) return;
         selectedActionId = action.id;
-        els.actionPickerBtn.textContent = `${location.label} — ${action.label}`;
+        if (!getState().activeAction) {
+          els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+        }
         renderActionList();
       });
+
+      // 開始ボタン → 現在の行動を中断して即開始
+      const startBtn = document.createElement('button');
+      startBtn.className = 'action-start-btn';
+      startBtn.textContent = '開始';
+      startBtn.addEventListener('click', () => {
+        const running = getState().activeAction;
+        if (running) {
+          const curAction = ACTIONS[running.actionId];
+          if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+          _cancelled = true;
+          cancelAction();
+          addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
+        }
+        selectedActionId = action.id;
+        els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+        renderActionList();
+        switchTab('view-items');
+        startAction(action.id, { onRandomReward: makeRandomRewardHandler() });
+      });
+      card.appendChild(startBtn);
 
       group.appendChild(card);
     }
@@ -348,6 +417,188 @@ function initStoryViewer() {
   });
 }
 
+// ── チュートリアル起動 ──
+let _postExploreCleanup = null;
+let _postExplorePending = false;
+
+function launchTutorial() {
+  resetTutorial();
+  startOpeningTutorial({
+    onComplete: () => {
+      setTutorialDone();
+      _postExplorePending = true;
+    },
+  });
+}
+
+function maybeStartPostExplore2(state) {
+  setPostExplore2Done();
+  let cleanup = null;
+  cleanup = startPostExplore2Story(els.mainPanel, {
+    onComplete: () => {
+      addLog('フラグメントをもっと集めてみよう...', false);
+      if (cleanup) { cleanup(); cleanup = null; }
+      // ストーリー後は停止状態を維持
+    },
+  });
+}
+
+function maybeStartPostExplore() {
+  if (!_postExplorePending) return;
+  const state = getState();
+  if (state.postExploreDone) return;
+  _postExplorePending = false;
+  setPostExploreDone();
+
+  if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
+  _postExploreCleanup = startPostExploreStory(els.mainPanel, {
+    onNameDecided: (name) => {
+      setPlayerName(name);
+      renderCharTab(getState());
+    },
+    onComplete: () => {
+      unlockCompanion('yuuya');
+      addLog('【同行】ユウヤが仲間になった', true);
+      renderCharTab(getState());
+      if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
+    },
+  });
+}
+
+// ── タブトースト ──
+let _toastTimer = null;
+
+function showTabToast(targetTabSelector, text) {
+  const toast = document.getElementById('tab-toast');
+  const tab = document.querySelector(targetTabSelector);
+  if (!toast || !tab) return;
+
+  // 既存バブルを削除
+  toast.innerHTML = '';
+  clearTimeout(_toastTimer);
+
+  const bubble = document.createElement('div');
+  bubble.className = 'toast-bubble';
+  bubble.textContent = text;
+  toast.appendChild(bubble);
+
+  // タブの中央にバブルを位置合わせ
+  const tabRect = tab.getBoundingClientRect();
+  const toastRect = toast.getBoundingClientRect();
+  const centerX = tabRect.left + tabRect.width / 2 - toastRect.left;
+  bubble.style.left = `${centerX}px`;
+  bubble.style.transform = `translateX(-50%) translateY(4px)`;
+
+  // 表示
+  requestAnimationFrame(() => {
+    bubble.style.transform = `translateX(-50%) translateY(4px)`;
+    requestAnimationFrame(() => bubble.classList.add('visible'));
+  });
+
+  // 3秒後にフェードアウト
+  _toastTimer = setTimeout(() => {
+    bubble.classList.remove('visible');
+    bubble.addEventListener('transitionend', () => bubble.remove(), { once: true });
+  }, 3000);
+}
+
+// ── 同行タブ描画 ──
+const COMPANION_DATA = {
+  yuuya: { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
+};
+
+let _prevUnlockedCompanions = [];
+
+function renderCharTab(state) {
+  const view = document.getElementById('view-chars');
+  view.innerHTML = '<div class="sub-title">同行</div>';
+
+  const active = state.activeCompanions ?? [];
+  const unlocked = state.unlockedCompanions ?? [];
+  const bench = unlocked.filter(id => !active.includes(id));
+
+  // ── 同行中エリア ──
+  const activeSection = document.createElement('div');
+  activeSection.className = 'party-section';
+  const activeLabel = document.createElement('div');
+  activeLabel.className = 'party-label';
+  activeLabel.textContent = '同行中';
+  activeSection.appendChild(activeLabel);
+
+  // プレイヤーは常に固定表示
+  const playerName = state.playerName || 'あなた';
+  const playerCard = document.createElement('div');
+  playerCard.className = 'companion-card companion-card--fixed';
+  playerCard.innerHTML = `<div class="companion-name">${playerName}</div><div class="companion-desc">（あなた）</div>`;
+  activeSection.appendChild(playerCard);
+
+  for (const id of active) {
+    const data = COMPANION_DATA[id];
+    if (!data) continue;
+    const card = document.createElement('div');
+    card.className = 'companion-card companion-card--active';
+    card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
+    const btn = document.createElement('button');
+    btn.className = 'companion-btn companion-btn--remove';
+    btn.textContent = '別行動';
+    btn.addEventListener('click', () => setActiveCompanion(id, false));
+    card.appendChild(btn);
+    activeSection.appendChild(card);
+  }
+
+  if (active.length > 0) {
+    const bonus = document.createElement('div');
+    bonus.className = 'party-bonus';
+    bonus.textContent = '探索報酬 ×2';
+    activeSection.appendChild(bonus);
+  }
+
+  view.appendChild(activeSection);
+
+  // ── 控えエリア ──
+  const benchSection = document.createElement('div');
+  benchSection.className = 'party-section';
+  const benchLabel = document.createElement('div');
+  benchLabel.className = 'party-label';
+  benchLabel.textContent = '別行動';
+  benchSection.appendChild(benchLabel);
+
+  if (bench.length === 0 && unlocked.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'party-empty';
+    empty.textContent = 'まだ誰もいない';
+    benchSection.appendChild(empty);
+  } else if (bench.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'party-empty';
+    empty.textContent = '全員が同行中';
+    benchSection.appendChild(empty);
+  }
+
+  for (const id of bench) {
+    const data = COMPANION_DATA[id];
+    if (!data) continue;
+    const card = document.createElement('div');
+    card.className = 'companion-card';
+    card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
+    const btn = document.createElement('button');
+    btn.className = 'companion-btn companion-btn--add';
+    btn.textContent = '同行する';
+    btn.addEventListener('click', () => setActiveCompanion(id, true));
+    card.appendChild(btn);
+    benchSection.appendChild(card);
+  }
+
+  view.appendChild(benchSection);
+
+  // 新同行者解放時にトースト表示
+  const newlyUnlocked = unlocked.filter(id => !_prevUnlockedCompanions.includes(id));
+  if (newlyUnlocked.length > 0) {
+    showTabToast('.tab-btn[data-view="view-chars"]', '同行者を選択できます');
+  }
+  _prevUnlockedCompanions = [...unlocked];
+}
+
 function initDevTools() {
   const modeBtn = document.getElementById('dev-mode-btn');
   const modeDesc = document.getElementById('dev-mode-desc');
@@ -370,14 +621,21 @@ function initDevTools() {
 
   document.getElementById('dev-unlock-all-stories').addEventListener('click', unlockAllStories);
   document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
+  document.getElementById('dev-unlock-all-actions').addEventListener('click', unlockAllActions);
+  document.getElementById('dev-lock-all-actions').addEventListener('click', lockAllActions);
 }
 
 export function init() {
   subscribe(render);
-  render(getState());
+  const initialState = getState();
+  render(initialState);
   initTabs();
   initStoryViewer();
   initDevTools();
+
+  if (!initialState.tutorialDone) {
+    launchTutorial();
+  }
 
   initActionPicker();
 
@@ -385,18 +643,13 @@ export function init() {
     const active = getState().activeAction;
     if (active) {
       const action = ACTIONS[active.actionId];
-      const location = LOCATIONS[action?.locationId];
-      const label = location ? `${location.label} / ${action.label}` : (action?.label ?? '行動');
+      const label = action ? actionDisplayLabel(action) : '行動';
       if (stopFlavor) { stopFlavor(); stopFlavor = null; }
       _cancelled = true;
       cancelAction();
-      addLog(`【${label}】中断`);
+      addLog(`【${label}】中断`, true);
     } else {
-      startAction(selectedActionId, {
-        onRandomReward: ({ resource, amount }) => {
-          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
-        },
-      });
+      startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler() });
     }
   });
 

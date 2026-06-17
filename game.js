@@ -2,6 +2,7 @@
 import { STORIES } from './stories.js';
 
 const LOCATIONS = {
+  wherever:   { id: 'wherever',   label: '' },          // 場所不明の初期状態
   forest:     { id: 'forest',     label: 'はじまりの森' },
   tower_city: { id: 'tower_city', label: '塔都' },
 };
@@ -10,8 +11,8 @@ const ACTIONS = {
   forest_explore: {
     id: 'forest_explore',
     label: '探索',
-    locationId: 'forest',
-    description: '森の奥へ踏み込む。フラグメントが手に入るかもしれない。',
+    locationId: 'wherever',
+    description: 'なにもない世界を探索する。',
     duration: 20000,
     rewards: [{ resource: 'fragment', amount: 10 }],
     randomRewards: [
@@ -55,8 +56,15 @@ const INITIAL_STATE = {
   activeAction: null,
   unlockedStories: [],
   storyProgress: {},
-  unlockedLocations: Object.keys(LOCATIONS), // 開発中は全解放
-  unlockedActions: Object.keys(ACTIONS),     // 開発中は全解放
+  unlockedLocations: ['wherever'],
+  unlockedActions: ['forest_explore'],
+  tutorialDone: false,        // オープニングチュートリアル完了フラグ
+  postExploreDone: false,     // 探索後ストーリー完了フラグ
+  postExplore2Done: false,    // 探索後ストーリー002完了フラグ
+  fragmentHintShown: false,   // フラグメント50個ヒント表示済みフラグ
+  playerName: '',             // プレイヤーネーム
+  unlockedCompanions: [],     // 解放済み同行者IDの配列
+  activeCompanions: [],       // 同行中の同行者IDの配列
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -105,6 +113,18 @@ function unlockAllStories() {
 
 function lockAllStories() {
   state = { ...state, unlockedStories: [], storyProgress: {} };
+  saveToStorage(state);
+  notify();
+}
+
+function unlockAllActions() {
+  state = { ...state, unlockedLocations: Object.keys(LOCATIONS), unlockedActions: Object.keys(ACTIONS) };
+  saveToStorage(state);
+  notify();
+}
+
+function lockAllActions() {
+  state = { ...state, unlockedLocations: ['wherever'], unlockedActions: ['forest_explore'] };
   saveToStorage(state);
   notify();
 }
@@ -193,8 +213,9 @@ function completeAction(actionId) {
   if (!action) return;
 
   const newResources = { ...state.resources };
+  const multiplier = state.activeCompanions.length > 0 ? 2 : 1;
   for (const reward of action.rewards) {
-    newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
+    newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount * multiplier;
   }
 
   // 発見判定
@@ -297,6 +318,9 @@ function init() {
     storyProgress: { ...INITIAL_STATE.storyProgress, ...saved.storyProgress },
     unlockedLocations: saved.unlockedLocations ?? INITIAL_STATE.unlockedLocations,
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
+    activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
+    postExplore2Done: saved.postExplore2Done ?? INITIAL_STATE.postExplore2Done,
+    fragmentHintShown: saved.fragmentHintShown ?? INITIAL_STATE.fragmentHintShown,
   };
 
   if (state.activeAction) {
@@ -311,4 +335,53 @@ function init() {
 
 init();
 
-export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories };
+function setTutorialDone() {
+  state = { ...state, tutorialDone: true };
+  saveToStorage(state);
+}
+
+function setPostExploreDone() {
+  state = { ...state, postExploreDone: true };
+  saveToStorage(state);
+}
+
+function setPostExplore2Done() {
+  state = { ...state, postExplore2Done: true };
+  saveToStorage(state);
+}
+
+function setFragmentHintShown() {
+  state = { ...state, fragmentHintShown: true };
+  saveToStorage(state);
+}
+
+function setPlayerName(name) {
+  state = { ...state, playerName: name };
+  saveToStorage(state);
+  notify();
+}
+
+function unlockCompanion(id) {
+  if (state.unlockedCompanions.includes(id)) return;
+  state = { ...state, unlockedCompanions: [...state.unlockedCompanions, id] };
+  saveToStorage(state);
+  notify();
+}
+
+function setActiveCompanion(id, active) {
+  const current = state.activeCompanions;
+  const next = active
+    ? (current.includes(id) ? current : [...current, id])
+    : current.filter(c => c !== id);
+  state = { ...state, activeCompanions: next };
+  saveToStorage(state);
+  notify();
+}
+
+function resetTutorial() {
+  state = { ...state, tutorialDone: false, postExploreDone: false, postExplore2Done: false, fragmentHintShown: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
+  saveToStorage(state);
+  notify();
+}
+
+export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
