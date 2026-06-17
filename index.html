@@ -447,29 +447,24 @@
     }
 
     /* ── アクションバー ガイド ── */
-    #action-guide {
-      display: none;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(13,15,26,0.95);
-      border: 1px solid var(--accent-border);
-      border-radius: 8px;
-      padding: 0.7rem 1.2rem;
-      font-size: 0.82rem;
-      color: var(--accent);
-      pointer-events: auto;
-      z-index: 150;
-      white-space: nowrap;
-      animation: fadeIn 0.3s ease;
+    #action-guide-wrap {
+      position: relative;
+      height: 0;
+      overflow: visible;
+      pointer-events: none;
     }
-
-    #action-guide.visible { display: block; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translate(-50%, -55%); }
-      to   { opacity: 1; transform: translate(-50%, -50%); }
+    #action-guide {
+      position: absolute;
+      bottom: 0.5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    #action-guide.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
     }
 
     /* ── ストーリーログ(メインパネル内) ── */
@@ -726,6 +721,10 @@
 
   <!-- アクション行 -->
   <div>
+    <!-- アクションガイド -->
+    <div id="action-guide-wrap">
+      <div id="action-guide" class="toast-bubble">〈ここから行動できます〉</div>
+    </div>
     <div id="action-bar">
       <button id="action-picker-btn">探索</button>
       <button id="action-btn">開始</button>
@@ -797,9 +796,6 @@
       <button id="tutorial-btn" hidden></button>
     </div>
   </div>
-
-  <!-- アクションガイド -->
-  <div id="action-guide">〈ここから行動できます〉</div>
 
   <!-- 物語ポップアップ -->
   <div id="story-overlay">
