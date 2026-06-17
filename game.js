@@ -61,6 +61,7 @@ const INITIAL_STATE = {
   postExploreDone: false,     // 探索後ストーリー完了フラグ
   playerName: '',             // プレイヤーネーム
   unlockedCompanions: [],     // 解放済み同行者IDの配列
+  activeCompanions: [],       // 同行中の同行者IDの配列
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -197,8 +198,9 @@ function completeAction(actionId) {
   if (!action) return;
 
   const newResources = { ...state.resources };
+  const multiplier = state.activeCompanions.length > 0 ? 2 : 1;
   for (const reward of action.rewards) {
-    newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
+    newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount * multiplier;
   }
 
   // 発見判定
@@ -301,6 +303,7 @@ function init() {
     storyProgress: { ...INITIAL_STATE.storyProgress, ...saved.storyProgress },
     unlockedLocations: saved.unlockedLocations ?? INITIAL_STATE.unlockedLocations,
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
+    activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
   };
 
   if (state.activeAction) {
@@ -338,9 +341,19 @@ function unlockCompanion(id) {
   notify();
 }
 
+function setActiveCompanion(id, active) {
+  const current = state.activeCompanions;
+  const next = active
+    ? (current.includes(id) ? current : [...current, id])
+    : current.filter(c => c !== id);
+  state = { ...state, activeCompanions: next };
+  saveToStorage(state);
+  notify();
+}
+
 function resetTutorial() {
-  state = { ...state, tutorialDone: false, postExploreDone: false, playerName: '', unlockedCompanions: [] };
+  state = { ...state, tutorialDone: false, postExploreDone: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
   saveToStorage(state);
 }
 
-export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };

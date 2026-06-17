@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, resetTutorial } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, startPostExploreStory } from './tutorial.js';
@@ -250,6 +250,7 @@ function render(state) {
   prevUnlockedActions = [...state.unlockedActions];
 
   renderStoryList(state);
+  renderCharTab(state);
 
   // ビューアが開いていればページ表示を更新
   if (_viewerStoryId) renderViewerBody(state);
@@ -389,31 +390,105 @@ function maybeStartPostExplore() {
   });
 }
 
-// ── キャラクタータブ描画 ──
+// ── 同行タブ描画 ──
 const COMPANION_DATA = {
   yuuya: { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
 };
 
+let _prevUnlockedCompanions = [];
+
 function renderCharTab(state) {
   const view = document.getElementById('view-chars');
-  view.innerHTML = '<div class="sub-title">キャラクター</div>';
+  view.innerHTML = '<div class="sub-title">同行</div>';
 
-  if (state.unlockedCompanions.length === 0) {
-    const p = document.createElement('div');
-    p.className = 'placeholder';
-    p.textContent = '準備中';
-    view.appendChild(p);
-    return;
+  const active = state.activeCompanions ?? [];
+  const unlocked = state.unlockedCompanions ?? [];
+  const bench = unlocked.filter(id => !active.includes(id));
+
+  // ── 同行中エリア ──
+  const activeSection = document.createElement('div');
+  activeSection.className = 'party-section';
+  const activeLabel = document.createElement('div');
+  activeLabel.className = 'party-label';
+  activeLabel.textContent = '同行中';
+  activeSection.appendChild(activeLabel);
+
+  // プレイヤーは常に固定表示
+  const playerName = state.playerName || 'あなた';
+  const playerCard = document.createElement('div');
+  playerCard.className = 'companion-card companion-card--fixed';
+  playerCard.innerHTML = `<div class="companion-name">${playerName}</div><div class="companion-desc">（あなた）</div>`;
+  activeSection.appendChild(playerCard);
+
+  for (const id of active) {
+    const data = COMPANION_DATA[id];
+    if (!data) continue;
+    const card = document.createElement('div');
+    card.className = 'companion-card companion-card--active';
+    card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
+    const btn = document.createElement('button');
+    btn.className = 'companion-btn companion-btn--remove';
+    btn.textContent = '外す';
+    btn.addEventListener('click', () => setActiveCompanion(id, false));
+    card.appendChild(btn);
+    activeSection.appendChild(card);
   }
 
-  for (const id of state.unlockedCompanions) {
+  if (active.length > 0) {
+    const bonus = document.createElement('div');
+    bonus.className = 'party-bonus';
+    bonus.textContent = '探索報酬 ×2';
+    activeSection.appendChild(bonus);
+  }
+
+  view.appendChild(activeSection);
+
+  // ── 控えエリア ──
+  const benchSection = document.createElement('div');
+  benchSection.className = 'party-section';
+  const benchLabel = document.createElement('div');
+  benchLabel.className = 'party-label';
+  benchLabel.textContent = '控え';
+  benchSection.appendChild(benchLabel);
+
+  if (bench.length === 0 && unlocked.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'party-empty';
+    empty.textContent = 'まだ誰もいない';
+    benchSection.appendChild(empty);
+  } else if (bench.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'party-empty';
+    empty.textContent = '全員が同行中';
+    benchSection.appendChild(empty);
+  }
+
+  for (const id of bench) {
     const data = COMPANION_DATA[id];
     if (!data) continue;
     const card = document.createElement('div');
     card.className = 'companion-card';
     card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
-    view.appendChild(card);
+    const btn = document.createElement('button');
+    btn.className = 'companion-btn companion-btn--add';
+    btn.textContent = '同行する';
+    btn.addEventListener('click', () => setActiveCompanion(id, true));
+    card.appendChild(btn);
+    benchSection.appendChild(card);
   }
+
+  view.appendChild(benchSection);
+
+  // 新同行者解放時にタブを点滅
+  const newlyUnlocked = unlocked.filter(id => !_prevUnlockedCompanions.includes(id));
+  if (newlyUnlocked.length > 0) {
+    const tabBtn = document.querySelector('.tab-btn[data-view="view-chars"]');
+    if (tabBtn) {
+      tabBtn.classList.add('tab-btn--notify');
+      tabBtn.addEventListener('click', () => tabBtn.classList.remove('tab-btn--notify'), { once: true });
+    }
+  }
+  _prevUnlockedCompanions = [...unlocked];
 }
 
 function initDevTools() {
