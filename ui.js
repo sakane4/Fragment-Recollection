@@ -188,7 +188,7 @@ function renderStoryList(state) {
 
     const btn = document.createElement('button');
     btn.className = 'story-btn' + (unlocked ? '' : ' locked');
-    btn.textContent = unlocked ? '読む' : '解放';
+    btn.textContent = unlocked ? '思い出す' : '解放';
     btn.addEventListener('click', () => {
       if (unlocked) {
         openStory(story.id);
