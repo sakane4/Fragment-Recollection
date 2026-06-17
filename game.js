@@ -8,7 +8,7 @@ const ACTIONS = {
     duration: 20000, // ms
     rewards: [{ resource: 'fragment', amount: 10 }],
     randomRewards: [
-      { resource: 'fragment', amount: 1, minMs: 4000, maxMs: 9000 },
+      { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
     ],
   },
 };
@@ -102,12 +102,13 @@ function scheduleRandomRewards(action, onReward) {
       const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
       const t = setTimeout(() => {
         if (!state.activeAction) return;
+        const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
         const newResources = { ...state.resources };
-        newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
+        newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
         state = { ...state, resources: newResources };
         saveToStorage(state);
         notify();
-        if (onReward) onReward(reward);
+        if (onReward) onReward({ resource: reward.resource, amount });
         schedule();
       }, delay);
       _randomRewardTimers.push(t);
