@@ -55,6 +55,13 @@ const COMPANION_REWARDS = {
   yuuya: [{ resource: 'blue_fragment', amount: 3 }],
 };
 
+// 同行者ごとのアクション中ランダム報酬
+const COMPANION_RANDOM_REWARDS = {
+  yuuya: [
+    { resource: 'blue_fragment', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 },
+  ],
+};
+
 const INITIAL_STATE = {
   resources: {
     fragment: 0,
@@ -186,7 +193,36 @@ function clearRandomRewardTimers() {
   _randomRewardTimers = [];
 }
 
-function startAction(actionId, { onRandomReward } = {}) {
+function scheduleCompanionRandomRewards(onReward) {
+  for (const companionId of state.activeCompanions) {
+    const rewards = COMPANION_RANDOM_REWARDS[companionId];
+    if (!rewards) continue;
+
+    for (const reward of rewards) {
+      const { minMs, maxMs } = reward;
+
+      function schedule() {
+        const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+        const t = setTimeout(() => {
+          if (!state.activeAction) return;
+          const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
+          const newResources = { ...state.resources };
+          newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
+          state = { ...state, resources: newResources };
+          saveToStorage(state);
+          notify();
+          if (onReward) onReward({ companionId, resource: reward.resource, amount });
+          schedule();
+        }, delay);
+        _randomRewardTimers.push(t);
+      }
+
+      schedule();
+    }
+  }
+}
+
+function startAction(actionId, { onRandomReward, onCompanionRandomReward } = {}) {
   if (state.activeAction) return { ok: false, reason: 'already_active' };
   const action = ACTIONS[actionId];
   if (!action) return { ok: false, reason: 'unknown_action' };
@@ -202,6 +238,7 @@ function startAction(actionId, { onRandomReward } = {}) {
 
   _timer = setTimeout(() => completeAction(actionId), duration);
   scheduleRandomRewards(action, onRandomReward);
+  scheduleCompanionRandomRewards(onCompanionRandomReward);
   return { ok: true };
 }
 
@@ -402,4 +439,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };

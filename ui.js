@@ -37,6 +37,14 @@ function makeRandomRewardHandler() {
   };
 }
 
+function makeCompanionRandomRewardHandler() {
+  return ({ companionId, resource, amount }) => {
+    const name = COMPANION_DATA[companionId]?.name ?? companionId;
+    const label = RESOURCE_LABELS[resource] ?? resource;
+    addLog(`<span class="log-companion-reward">${name}が <span class="log-resource-blue">${label}</span> を ${amount} 個見つけた</span>`, false, true);
+  };
+}
+
 // ── ログ ──
 let _logBuffer = [];
 let _logPaused = false;
@@ -283,7 +291,7 @@ function render(state) {
         setTimeout(() => maybeStartPostExplore2(state), 0);
       } else {
         // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
-        setTimeout(() => startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler() }), 0);
+        setTimeout(() => startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() }), 0);
       }
     }
   }
@@ -427,7 +435,7 @@ function renderActionList() {
         els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
         renderActionList();
         switchTab('view-items');
-        startAction(action.id, { onRandomReward: makeRandomRewardHandler() });
+        startAction(action.id, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
       });
       card.appendChild(startBtn);
 
@@ -686,7 +694,7 @@ export function init() {
       cancelAction();
       addLog(`【${label}】中断`, true);
     } else {
-      startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler() });
+      startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
     }
   });
 
