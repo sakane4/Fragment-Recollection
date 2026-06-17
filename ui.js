@@ -217,9 +217,9 @@ function render(state) {
       const rewardParts = action.rewards.map(r => {
         const label = RESOURCE_LABELS[r.resource] ?? r.resource;
         if (hasBonus) {
-          return `${label} +${r.amount}<span class="log-bonus"> +${r.amount}</span>`;
+          return `<span class="log-resource">${label}</span> +${r.amount}<span class="log-bonus"> +${r.amount}</span>`;
         }
-        return `${label} +${r.amount}`;
+        return `<span class="log-resource">${label}</span> +${r.amount}`;
       });
       const rewardsHtml = rewardParts.join(', ');
       const actionLabel = location.label ? `${location.label} / ${action.label}` : action.label;
@@ -241,7 +241,7 @@ function render(state) {
         // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
         setTimeout(() => startAction(selectedActionId, {
           onRandomReward: ({ resource, amount }) => {
-            addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+            addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
           },
         }), 0);
       }
