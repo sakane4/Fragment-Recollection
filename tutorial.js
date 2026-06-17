@@ -36,7 +36,7 @@ function typewriter(el, text, { speed = 45, onDone } = {}) {
 // ── オープニングチュートリアル ページ定義 ──
 const OPENING_PAGES = [
   {
-    text: '　そこにはもう、何もない。\n　何もかもが失われた世界には、\n　空も、海も、大地も、命も。\n　もう、なにも、ありません。\n　でも、"ここ"にはあなたがいます。',
+    text: '　そこにはもう、なにもない。\n　すべてが失われた世界には、\n　空も、海も、大地も、命も。\n　もう、なにも。\n　でも、"ここ"にはあなたがいる。',
     advance: 'tap',
   },
   {
@@ -208,10 +208,10 @@ function startPostExploreStory(mainPanel, { onNameDecided, onComplete } = {}) {
       const wrap = addEntry();
       const defaultName = Math.random() < 0.5 ? 'アサ' : 'ヨル';
       wrap.innerHTML = `
-        <div class="story-name-prompt">〈なまえを入力してください〉</div>
+        <div class="story-name-prompt">〈あなたのなまえは…〉</div>
         <div class="story-name-row">
           <input id="story-name-input" type="text" maxlength="10" value="${defaultName}">
-          <button id="story-name-btn">決定</button>
+          <button id="story-name-btn">名乗る</button>
         </div>`;
       mainPanel.scrollTop = mainPanel.scrollHeight;
 
