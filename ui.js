@@ -183,6 +183,7 @@ function render(state) {
   }
 
   if (!active && prevActive) {
+    if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     if (!_cancelled) {
       const action = ACTIONS[prevActive.actionId];
       const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
