@@ -24,6 +24,18 @@ const RESOURCE_LABELS = {
   herb: '薬草',
 };
 
+// ── ユーティリティ ──
+function actionDisplayLabel(action, sep = ' / ') {
+  const loc = LOCATIONS[action.locationId];
+  return loc?.label ? `${loc.label}${sep}${action.label}` : action.label;
+}
+
+function makeRandomRewardHandler() {
+  return ({ resource, amount }) => {
+    addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
+  };
+}
+
 // ── ログ ──
 function addLog(text, highlight = false, html = false) {
   const el = document.createElement('div');
@@ -91,11 +103,11 @@ function renderViewerBody(state) {
     const costLabel = story.pageCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
     const btn = document.createElement('button');
     btn.className = 'story-next-btn';
-    btn.textContent = `続きを読む (${costLabel})`;
+    btn.textContent = `思い出す (${costLabel})`;
     btn.addEventListener('click', () => {
       const result = unlockNextPage(_viewerStoryId);
       if (!result.ok && result.reason === 'insufficient_resources') {
-        addLog(`【物語】続きを読むには ${costLabel} が必要です`);
+        addLog(`【記憶】思い出すには ${costLabel} が必要です`);
       }
     });
     els.storyBody.appendChild(btn);
@@ -200,11 +212,8 @@ function render(state) {
 
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
-    const location = LOCATIONS[action.locationId];
-    const actionLabel = location.label ? `${location.label} / ${action.label}` : action.label;
-    addLog(`【${actionLabel}】開始`, true);
-    // ピッカーボタンは常に実行中の行動を表示
-    els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
+    addLog(`【${actionDisplayLabel(action)}】開始`, true);
+    els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
     els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
   }
@@ -213,27 +222,21 @@ function render(state) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     if (!_cancelled) {
       const action = ACTIONS[prevActive.actionId];
-      const location = LOCATIONS[action.locationId];
       const hasBonus = (state.activeCompanions ?? []).length > 0;
-      const rewardParts = action.rewards.map(r => {
+      const rewardsHtml = action.rewards.map(r => {
         const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-        if (hasBonus) {
-          return `<span class="log-resource">${label}</span> +${r.amount}<span class="log-bonus"> +${r.amount}</span>`;
-        }
-        return `<span class="log-resource">${label}</span> +${r.amount}`;
-      });
-      const rewardsHtml = rewardParts.join(', ');
-      const actionLabel = location.label ? `${location.label} / ${action.label}` : action.label;
-      addLog(`【${actionLabel}】完了 — ${rewardsHtml}`, true, true);
+        return hasBonus
+          ? `<span class="log-resource">${label}</span> +${r.amount}<span class="log-bonus"> +${r.amount}</span>`
+          : `<span class="log-resource">${label}</span> +${r.amount}`;
+      }).join(', ');
+      addLog(`【${actionDisplayLabel(action)}】完了 — ${rewardsHtml}`, true, true);
     }
     const wasCancelled = _cancelled;
     _cancelled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
-    // アイドル時は選択中の行動をピッカーに表示
     const selAction = ACTIONS[selectedActionId];
-    const selLoc = LOCATIONS[selAction?.locationId];
-    els.actionPickerBtn.textContent = selLoc?.label ? `${selLoc.label} — ${selAction.label}` : (selAction?.label ?? '探索');
+    els.actionPickerBtn.textContent = selAction ? actionDisplayLabel(selAction, ' — ') : '探索';
     if (!wasCancelled) {
       if (_postExplorePending) {
         // render() 完了後にポスト探索ストーリー001を開始
@@ -243,11 +246,7 @@ function render(state) {
         setTimeout(() => maybeStartPostExplore2(state), 0);
       } else {
         // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
-        setTimeout(() => startAction(selectedActionId, {
-          onRandomReward: ({ resource, amount }) => {
-            addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
-          },
-        }), 0);
+        setTimeout(() => startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler() }), 0);
       }
     }
   }
@@ -282,7 +281,7 @@ function render(state) {
   // フラグメント50個達成ヒント
   if (!state.fragmentHintShown && (state.resources.fragment ?? 0) >= 50) {
     setFragmentHintShown();
-    showTabToast('.tab-btn[data-view="view-stories"]', '記憶のかけらを解放できます');
+    showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
   }
 
   renderStoryList(state);
@@ -369,7 +368,7 @@ function renderActionList() {
         if (e.target.closest('.action-start-btn')) return;
         selectedActionId = action.id;
         if (!getState().activeAction) {
-          els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
+          els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
         }
         renderActionList();
       });
@@ -382,22 +381,16 @@ function renderActionList() {
         const running = getState().activeAction;
         if (running) {
           const curAction = ACTIONS[running.actionId];
-          const curLoc = LOCATIONS[curAction.locationId];
-          const curLabel = curLoc?.label ? `${curLoc.label} / ${curAction.label}` : curAction.label;
           if (stopFlavor) { stopFlavor(); stopFlavor = null; }
           _cancelled = true;
           cancelAction();
-          addLog(`【${curLabel}】中断`, true);
+          addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
         }
         selectedActionId = action.id;
-        els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
+        els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
         renderActionList();
         switchTab('view-items');
-        startAction(action.id, {
-          onRandomReward: ({ resource, amount }) => {
-            addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
-          },
-        });
+        startAction(action.id, { onRandomReward: makeRandomRewardHandler() });
       });
       card.appendChild(startBtn);
 
@@ -547,7 +540,7 @@ function renderCharTab(state) {
     card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--remove';
-    btn.textContent = '外す';
+    btn.textContent = '別行動';
     btn.addEventListener('click', () => setActiveCompanion(id, false));
     card.appendChild(btn);
     activeSection.appendChild(card);
@@ -567,7 +560,7 @@ function renderCharTab(state) {
   benchSection.className = 'party-section';
   const benchLabel = document.createElement('div');
   benchLabel.className = 'party-label';
-  benchLabel.textContent = '控え';
+  benchLabel.textContent = '別行動';
   benchSection.appendChild(benchLabel);
 
   if (bench.length === 0 && unlocked.length === 0) {
@@ -636,7 +629,6 @@ export function init() {
   subscribe(render);
   const initialState = getState();
   render(initialState);
-  renderCharTab(initialState);
   initTabs();
   initStoryViewer();
   initDevTools();
@@ -651,18 +643,13 @@ export function init() {
     const active = getState().activeAction;
     if (active) {
       const action = ACTIONS[active.actionId];
-      const location = LOCATIONS[action?.locationId];
-      const label = location?.label ? `${location.label} / ${action.label}` : (action?.label ?? '行動');
+      const label = action ? actionDisplayLabel(action) : '行動';
       if (stopFlavor) { stopFlavor(); stopFlavor = null; }
       _cancelled = true;
       cancelAction();
       addLog(`【${label}】中断`, true);
     } else {
-      startAction(selectedActionId, {
-        onRandomReward: ({ resource, amount }) => {
-          addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
-        },
-      });
+      startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler() });
     }
   });
 
