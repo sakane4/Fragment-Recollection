@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fragment Recollection</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+      background: #0d0f1a;
+      color: #d4cfc7;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      letter-spacing: 0.1em;
+      color: #a89fc8;
+      margin-bottom: 2rem;
+    }
+
+    .panel {
+      width: 100%;
+      max-width: 400px;
+      background: #161826;
+      border: 1px solid #2a2d42;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .panel h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #6e6a7c;
+      margin-bottom: 0.75rem;
+    }
+
+    .resource-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
+    .resource-label {
+      font-size: 0.85rem;
+      color: #9990b8;
+    }
+
+    .resource-value {
+      font-size: 1.6rem;
+      font-variant-numeric: tabular-nums;
+      color: #c8bff0;
+    }
+
+    .action-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .action-info {
+      font-size: 0.82rem;
+      color: #6e6a7c;
+    }
+
+    #progress-wrap {
+      width: 100%;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: #252840;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #7c6db8;
+      border-radius: 3px;
+      transition: width 0.1s linear;
+    }
+
+    #status-text {
+      font-size: 0.75rem;
+      color: #6e6a7c;
+      margin-top: 0.4rem;
+      min-height: 1em;
+    }
+
+    button#action-btn {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      background: #3b3060;
+      color: #c8bff0;
+      border: 1px solid #5a4d8a;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    button#action-btn:hover:not(:disabled) {
+      background: #4d3f7a;
+    }
+
+    button#action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <h1>Fragment Recollection</h1>
+
+  <div class="panel">
+    <h2>資源</h2>
+    <div class="resource-row">
+      <span class="resource-label">フラグメント</span>
+      <span class="resource-value" id="fragment-count">0</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>アクション</h2>
+    <div class="action-card">
+      <div class="action-info">探索 — 20秒後にフラグメントを10個獲得</div>
+      <button id="action-btn">探索を開始</button>
+      <div id="progress-wrap" hidden>
+        <div class="progress-track">
+          <div id="progress-bar"></div>
+        </div>
+        <div id="status-text"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { init } from './ui.js';
+    init();
+  </script>
+</body>
+</html>
