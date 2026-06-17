@@ -222,6 +222,7 @@ let prevUnlockedLocations = [];
 let prevUnlockedActions = [];
 let stopFlavor = null;
 let _cancelled = false;
+let _isAutoRestart = false;
 
 function renderResources(resources) {
   els.resourceList.innerHTML = '';
@@ -241,7 +242,11 @@ function render(state) {
 
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
-    addLog(`【${actionDisplayLabel(action)}】開始`, true);
+    const startMsg = _isAutoRestart
+      ? `さらに【${actionDisplayLabel(action)}】を続ける・・・`
+      : `【${actionDisplayLabel(action)}】開始`;
+    addLog(startMsg, true);
+    _isAutoRestart = false;
     els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
     els.actionBtn.textContent = '中断';
     const companions = (state.activeCompanions ?? [])
@@ -292,8 +297,7 @@ function render(state) {
       } else {
         // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
         setTimeout(() => {
-          const nextAction = ACTIONS[selectedActionId];
-          if (nextAction) addLog(`さらに【${actionDisplayLabel(nextAction)}】を続ける・・・`);
+          _isAutoRestart = true;
           startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
         }, 0);
       }
