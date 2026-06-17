@@ -394,6 +394,7 @@ function maybeStartPostExplore() {
     },
     onComplete: () => {
       unlockCompanion('yuuya');
+      addLog('【同行】ユウヤが仲間になった', true);
       renderCharTab(getState());
       if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
     },
