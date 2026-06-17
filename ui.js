@@ -205,7 +205,6 @@ function render(state) {
     addLog(`【${actionLabel}】開始`, true);
     // ピッカーボタンは常に実行中の行動を表示
     els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
-    els.actionPickerBtn.disabled = true;
     els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
   }
@@ -229,7 +228,6 @@ function render(state) {
     }
     const wasCancelled = _cancelled;
     _cancelled = false;
-    els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
     // アイドル時は選択中の行動をピッカーに表示
