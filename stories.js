@@ -3,7 +3,8 @@
 const STORIES = {
   prologue: {
     id: 'prologue',
-    title: 'プロローグ',
+    title: '再生の書',
+    pageCount: 3,
     // 物語タブに出現する条件
     showCondition: { resource: 'fragment', amount: 50 },
     // 物語が一覧に表示され、解放ボタンが押せるようになる条件

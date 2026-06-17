@@ -223,12 +223,12 @@ function renderStoryList(state) {
       info.appendChild(cost);
     } else {
       const pages = state.storyProgress[story.id] ?? 0;
-      const total = _storyPageCounts[story.id];
+      const total = story.pageCount ?? _storyPageCounts[story.id];
       const progress = document.createElement('div');
       progress.className = 'story-cost';
-      progress.textContent = pages > 0
-        ? (total ? `${pages} / ${total}` : `${pages} / ?`)
-        : '未読';
+      progress.textContent = total
+        ? `${pages} / ${total}`
+        : pages > 0 ? `${pages} / ?` : '未読';
       info.appendChild(progress);
     }
 
