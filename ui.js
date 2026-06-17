@@ -462,6 +462,7 @@ function renderActionList() {
 function initActionPicker() {
   renderActionList();
   els.actionPickerBtn.addEventListener('click', () => {
+    if (_storyLogPlaying) { els.mainPanel.click(); return; }
     renderActionList();
     switchTab('view-actions');
   });
@@ -498,8 +499,7 @@ function startProloguePhase() {
   _postExplorePending = false;
   _waitingForPrologue = true;
   forceUnlockStory('prologue');
-  addLog('記憶の欠片を感じた...', true);
-  showTabToast('.tab-btn[data-view="view-stories"]', '記憶を確認できます');
+  showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
 }
 
 function maybeStartPostExplore2(state) {
@@ -725,6 +725,7 @@ export function init() {
   initActionPicker();
 
   els.actionBtn.addEventListener('click', () => {
+    if (_storyLogPlaying) { els.mainPanel.click(); return; }
     const active = getState().activeAction;
     if (active) {
       const action = ACTIONS[active.actionId];
