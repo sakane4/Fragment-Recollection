@@ -116,10 +116,18 @@ function closeStory() {
 }
 
 // ── 物語リスト描画 ──
+function storyIsVisible(story, state) {
+  if (state.unlockedStories.includes(story.id)) return true; // 解放済みは常に表示
+  if (!story.showCondition) return true;
+  const { resource, amount } = story.showCondition;
+  return (state.resources[resource] ?? 0) >= amount;
+}
+
 function renderStoryList(state) {
   els.storyList.innerHTML = '';
 
   for (const story of Object.values(STORIES)) {
+    if (!storyIsVisible(story, state)) continue;
     const unlocked = state.unlockedStories.includes(story.id);
     const costLabel = story.unlockCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
 
@@ -256,8 +264,8 @@ function render(state) {
       const action = ACTIONS[id];
       const location = LOCATIONS[action.locationId];
       const msg = location?.label
-        ? `【発見】${location.label} で「${action.label}」ができるようになった`
-        : `【発見】「${action.label}」ができるようになった`;
+        ? `${location.label} で「${action.label}」ができるようになった`
+        : `「${action.label}」ができるようになった`;
       addLog(msg, true);
     }
   }
