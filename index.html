@@ -7,6 +7,15 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* ── スクロールバー ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--accent-dim);
+      border-radius: 2px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-border); }
+
     :root {
       --bg: #0d0f1a;
       --panel: #161826;
