@@ -382,6 +382,53 @@
       margin-top: 0.5rem;
     }
 
+    /* ── カスタム confirm ── */
+    #confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 300;
+      justify-content: center;
+      align-items: center;
+    }
+    #confirm-overlay.open { display: flex; }
+    #confirm-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 1.75rem;
+      width: min(320px, 85vw);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    #confirm-message {
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: var(--text);
+      margin-bottom: 1.25rem;
+    }
+    #confirm-buttons {
+      display: flex;
+      gap: 0.6rem;
+      justify-content: flex-end;
+    }
+    #confirm-buttons button {
+      padding: 0.4rem 1.1rem;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text);
+      transition: background 0.15s;
+    }
+    #confirm-yes {
+      border-color: var(--accent-border) !important;
+      color: var(--accent) !important;
+    }
+    #confirm-yes:hover { background: var(--accent-dim); }
+    #confirm-no:hover { background: #2a2d42; }
+
     /* ── チュートリアルオーバーレイ ── */
     #tutorial-overlay {
       display: none;
@@ -783,6 +830,17 @@
       <div class="dev-row">
         <span class="dev-label">セーブデータをすべて削除してリロード</span>
         <button id="dev-reset-btn" class="dev-btn dev-btn--danger">リセット</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- カスタム confirm ポップアップ -->
+  <div id="confirm-overlay">
+    <div id="confirm-box">
+      <div id="confirm-message"></div>
+      <div id="confirm-buttons">
+        <button id="confirm-no">いいえ</button>
+        <button id="confirm-yes">はい</button>
       </div>
     </div>
   </div>

@@ -366,16 +366,15 @@ function renderActionList() {
       card.appendChild(info);
       card.appendChild(meta);
 
-      card.addEventListener('click', () => {
+      card.addEventListener('click', async () => {
         const running = getState().activeAction;
         if (running && running.actionId !== action.id) {
-          // 別の行動が実行中 → 確認ダイアログ
           const curAction = ACTIONS[running.actionId];
           const curLoc = LOCATIONS[curAction.locationId];
           const curLabel = curLoc?.label ? `${curLoc.label} / ${curAction.label}` : curAction.label;
           const newLabel = location.label ? `${location.label} / ${action.label}` : action.label;
-          if (!confirm(`現在「${curLabel}」を実行中です。\n中断して「${newLabel}」に切り替えますか？`)) return;
-          // 中断処理
+          const ok = await showConfirm(`現在「${curLabel}」を実行中です。\n中断して「${newLabel}」に切り替えますか？`);
+          if (!ok) return;
           if (stopFlavor) { stopFlavor(); stopFlavor = null; }
           _cancelled = true;
           cancelAction();
@@ -461,6 +460,31 @@ function maybeStartPostExplore() {
       renderCharTab(getState());
       if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
     },
+  });
+}
+
+// ── カスタム confirm ──
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('confirm-overlay');
+    const msg     = document.getElementById('confirm-message');
+    const yesBtn  = document.getElementById('confirm-yes');
+    const noBtn   = document.getElementById('confirm-no');
+
+    msg.textContent = message;
+    overlay.classList.add('open');
+
+    function done(result) {
+      overlay.classList.remove('open');
+      yesBtn.removeEventListener('click', onYes);
+      noBtn.removeEventListener('click', onNo);
+      resolve(result);
+    }
+    function onYes() { done(true); }
+    function onNo()  { done(false); }
+
+    yesBtn.addEventListener('click', onYes, { once: true });
+    noBtn.addEventListener('click', onNo, { once: true });
   });
 }
 
