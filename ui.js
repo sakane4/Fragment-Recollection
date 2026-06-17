@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStoryDone, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStoryDone, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, startLogStory1, startLogStory2, startLogStory3 } from './tutorial.js';
@@ -20,9 +20,13 @@ const els = {
 };
 
 const RESOURCE_LABELS = {
-  fragment: 'フラグメント',
-  blue_fragment: '青のフラグメント',
-  herb: '薬草',
+  fragment:        'フラグメント',
+  blue_fragment:   '青のフラグメント',
+  red_fragment:    '赤のフラグメント',
+  clear_fragment:  '無色のフラグメント',
+  bubble_fragment: '泡のフラグメント',
+  sky_fragment:    '空のフラグメント',
+  herb:            '薬草',
 };
 
 // ── ユーティリティ ──
@@ -755,7 +759,11 @@ function showTabToast(targetTabSelector, text) {
 
 // ── 同行タブ描画 ──
 const COMPANION_DATA = {
-  yuuya: { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
+  yuuya:  { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
+  rabi:   { name: 'ラビ',   desc: '盲目の剣士。' },
+  shizuku:{ name: 'シズク', desc: '寡黙な青年。' },
+  kaoru:  { name: 'カオル', desc: 'いつも笑顔のお姉さん。' },
+  yukika: { name: '雪架',   desc: 'なにか秘密を知っているようだ。' },
 };
 
 let _prevUnlockedCompanions = [];
@@ -885,6 +893,25 @@ function initDevTools() {
   document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
   document.getElementById('dev-unlock-all-actions').addEventListener('click', unlockAllActions);
   document.getElementById('dev-lock-all-actions').addEventListener('click', lockAllActions);
+
+  document.getElementById('dev-unlock-all-companions').addEventListener('click', () => {
+    Object.keys(COMPANION_DATA).forEach(id => unlockCompanion(id));
+  });
+
+  [1, 2, 3].forEach(n => {
+    document.getElementById(`dev-log-story-${n}`).addEventListener('click', () => {
+      jumpToLogStory(n);
+      const fns = [null, startLogStory1, startLogStory2, startLogStory3];
+      fns[n](els.mainPanel, {
+        onNameDecided: n === 1 ? (name) => { setPlayerName(name); } : undefined,
+        onComplete: n === 1
+          ? () => { setLogStoryDone(); }
+          : n === 2
+          ? () => { setLogStory2Done(); }
+          : () => { setLogStory3Done(); unlockLocation('forest', ['forest_explore']); },
+      });
+    });
+  });
 
   const autoRestartBtn = document.getElementById('dev-auto-restart-btn');
   autoRestartBtn.addEventListener('click', () => {

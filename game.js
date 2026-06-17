@@ -69,20 +69,30 @@ const ACTIONS = {
 // 同行者ごとのアクション完了時固有報酬
 // amount は基本量（同行ボーナスの2倍乗算は適用しない）
 const COMPANION_REWARDS = {
-  yuuya: [{ resource: 'blue_fragment', amount: 3 }],
+  yuuya:  [{ resource: 'blue_fragment',      amount: 3 }],
+  rabi:   [{ resource: 'red_fragment',       amount: 3 }],
+  shizuku:[{ resource: 'clear_fragment',     amount: 3 }],
+  kaoru:  [{ resource: 'bubble_fragment',    amount: 3 }],
+  yukika: [{ resource: 'sky_fragment',       amount: 3 }],
 };
 
 // 同行者ごとのアクション中ランダム報酬
 const COMPANION_RANDOM_REWARDS = {
-  yuuya: [
-    { resource: 'blue_fragment', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 },
-  ],
+  yuuya:  [{ resource: 'blue_fragment',   minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
+  rabi:   [{ resource: 'red_fragment',    minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
+  shizuku:[{ resource: 'clear_fragment',  minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
+  kaoru:  [{ resource: 'bubble_fragment', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
+  yukika: [{ resource: 'sky_fragment',    minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
 };
 
 const INITIAL_STATE = {
   resources: {
     fragment: 0,
     blue_fragment: 0,
+    red_fragment: 0,
+    clear_fragment: 0,
+    bubble_fragment: 0,
+    sky_fragment: 0,
   },
   activeAction: null,
   unlockedStories: [],
@@ -501,10 +511,20 @@ function setActiveCompanion(id, active) {
   notify();
 }
 
+function jumpToLogStory(n) {
+  state = {
+    ...state,
+    logStoryDone:  n > 1 ? true : false,
+    logStory2Done: n > 2 ? true : false,
+    logStory3Done: false,
+  };
+  saveToStorage(state);
+}
+
 function resetTutorial() {
   state = { ...state, tutorialDone: false, logStoryDone: false, logStory2Done: false, logStory3Done: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
   saveToStorage(state);
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStoryDone, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStoryDone, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory };
