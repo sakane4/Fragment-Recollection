@@ -396,17 +396,16 @@
 
     .story-next-btn:hover { background: #4d3f7a; }
 
-    .story-fin {
-      position: sticky;
-      bottom: 0;
+    #story-fin-bar {
+      flex-shrink: 0;
       text-align: center;
       font-size: 0.78rem;
       color: var(--muted);
       letter-spacing: 0.2em;
-      padding: 1rem 0 0.5rem;
-      background: #12141f;
-      margin-top: auto;
+      padding: 0.75rem 0;
+      border-top: 1px solid var(--border);
     }
+    #story-fin-bar:empty { display: none; }
 
     /* ── チュートリアルオーバーレイ ── */
     #tutorial-overlay {
@@ -847,6 +846,7 @@
         <button id="story-close-btn">✕</button>
       </div>
       <div id="story-body"></div>
+      <div id="story-fin-bar"></div>
     </div>
   </div>
 

@@ -111,6 +111,7 @@ function renderViewerBody(state) {
   const totalPages = _viewerPages.length;
 
   els.storyBody.innerHTML = '';
+  document.getElementById('story-fin-bar').textContent = '';
 
   // 解放済みページを順に表示
   for (let i = 0; i < Math.min(unlockedPages, totalPages); i++) {
@@ -142,10 +143,7 @@ function renderViewerBody(state) {
     });
     els.storyBody.appendChild(btn);
   } else {
-    const fin = document.createElement('div');
-    fin.className = 'story-fin';
-    fin.textContent = '— END —';
-    els.storyBody.appendChild(fin);
+    document.getElementById('story-fin-bar').textContent = '— END —';
   }
 
   els.storyBody.scrollTop = els.storyBody.scrollHeight;
