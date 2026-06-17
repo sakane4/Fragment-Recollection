@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceUnlockStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, startPostExploreStory, startPostExplore2Story } from './tutorial.js';
@@ -95,6 +95,8 @@ async function openStory(storyId) {
 
   _viewerPages = pages;
   _viewerStoryId = storyId;
+  // プロローグのページ数をキャッシュ（全開放検知に使う）
+  if (storyId === 'prologue') _prologueTotalPages = pages.length;
 
   els.storyViewerTitle.textContent = story.title;
   els.storyOverlay.classList.add('open');
@@ -289,8 +291,8 @@ function render(state) {
     els.actionPickerBtn.textContent = selAction ? actionDisplayLabel(selAction, ' — ') : '探索';
     if (!wasCancelled) {
       if (_postExplorePending) {
-        // render() 完了後にポスト探索ストーリー001を開始
-        setTimeout(() => maybeStartPostExplore(), 0);
+        // render() 完了後にプロローグ解放フェーズへ
+        setTimeout(() => startProloguePhase(), 0);
       } else if (!state.postExplore2Done && (state.activeCompanions ?? []).length > 0) {
         // ユウヤ同行中の初回探索完了 → ストーリー002
         setTimeout(() => maybeStartPostExplore2(state), 0);
@@ -342,6 +344,14 @@ function render(state) {
 
   // ビューアが開いていればページ表示を更新
   if (_viewerStoryId) renderViewerBody(state);
+
+  // プロローグ全開放 → ストーリー001へ
+  if (_waitingForPrologue && _prologueTotalPages > 0) {
+    const progress = state.storyProgress['prologue'] ?? 0;
+    if (progress >= _prologueTotalPages) {
+      setTimeout(() => maybeStartPostExplore(), 0);
+    }
+  }
 }
 
 // ── プログレスバー ──
@@ -473,15 +483,27 @@ function initStoryViewer() {
 // ── チュートリアル起動 ──
 let _postExploreCleanup = null;
 let _postExplorePending = false;
+let _waitingForPrologue = false;
+let _prologueTotalPages = 0;
 
 function launchTutorial() {
   resetTutorial();
   startOpeningTutorial({
     onComplete: () => {
       setTutorialDone();
-      _postExplorePending = true;
+      _postExplorePending = true; // 初回探索完了を待つフラグ
     },
   });
+}
+
+// 初回探索完了 → プロローグを強制解放して待機
+function startProloguePhase() {
+  if (!_postExplorePending) return;
+  _postExplorePending = false;
+  _waitingForPrologue = true;
+  forceUnlockStory('prologue');
+  addLog('記憶の欠片を感じた...', true);
+  showTabToast('[data-tab="stories"]', '記憶を確認できます');
 }
 
 function maybeStartPostExplore2(state) {
@@ -497,10 +519,9 @@ function maybeStartPostExplore2(state) {
 }
 
 function maybeStartPostExplore() {
-  if (!_postExplorePending) return;
   const state = getState();
   if (state.postExploreDone) return;
-  _postExplorePending = false;
+  _waitingForPrologue = false;
   setPostExploreDone();
 
   if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }

@@ -312,6 +312,18 @@ function getProgress() {
 }
 
 // 物語を解放する(1ページ目が読めるようになる)
+// コスト消費なしで物語を解放する（チュートリアル用）
+function forceUnlockStory(storyId) {
+  if (state.unlockedStories.includes(storyId)) return;
+  state = {
+    ...state,
+    unlockedStories: [...state.unlockedStories, storyId],
+    storyProgress: { ...state.storyProgress, [storyId]: 1 },
+  };
+  saveToStorage(state);
+  notify();
+}
+
 function unlockStory(storyId) {
   const story = STORIES[storyId];
   if (!story) return { ok: false, reason: 'unknown_story' };
@@ -439,4 +451,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceUnlockStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
