@@ -234,7 +234,8 @@ function tick() {
 function switchTab(viewId) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
-  document.querySelector(`.tab-btn[data-view="${viewId}"]`).classList.add('active');
+  const tabBtn = document.querySelector(`.tab-btn[data-view="${viewId}"]`);
+  if (tabBtn) tabBtn.classList.add('active');
   document.getElementById(viewId).classList.add('active');
 }
 
