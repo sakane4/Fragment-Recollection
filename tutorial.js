@@ -135,27 +135,47 @@ function showActionGuide() {
   setTimeout(() => guide.classList.remove('visible'), 6000);
 }
 
-// ── ポスト探索ストーリーログ ──
-// メインパネルにタイプライター式でテキストを順番に流す
-const POST_EXPLORE_STEPS = [
-  { type: 'text', text: '001' },
-  { type: 'text', text: '何もない世界をしばらくさまよった。' },
-  { type: 'text', text: '「あれ？」' },
-  { type: 'text', text: '後ろから、声が聞こえた。' },
-  { type: 'text', text: '「きみは誰？」' },
-  { type: 'text', text: '　振り向くと一人の少年がいて、あなたを見ている。' },
-  { type: 'name_input' },
-  { type: 'text', text: (name) => `「${name}さんって言うんだ」` },
-  { type: 'text', text: '「俺は、ユウヤ」' },
-  { type: 'text', text: '「気づいたらここにいて」' },
-  { type: 'text', text: '「何も思い出せないんだ」' },
-  { type: 'text', text: '「きみは？」' },
-  { type: 'text', text: '首を横に振る。' },
-  { type: 'text', text: '「そっか……とりあえず、少し一緒に歩いてみる？」' },
-  { type: 'end_button', label: '頷く' },
-];
+// ── スクリプトパーサー ──
+// 空行を無視し、特殊タグを変換してステップ配列を返す
+// [name_input]         → { type: 'name_input' }
+// [end: ラベル]        → { type: 'end_button', label: 'ラベル' }
+// ${name} を含む行     → { type: 'text', text: (name) => `...` }
+// それ以外の行         → { type: 'text', text: '...' }
+function parseScript(src) {
+  return src
+    .split('\n')
+    .map(l => l.replace(/\r$/, ''))
+    .filter(l => l.trim() !== '')
+    .map(line => {
+      if (line === '[name_input]') return { type: 'name_input' };
+      const endMatch = line.match(/^\[end:\s*(.+)\]$/);
+      if (endMatch) return { type: 'end_button', label: endMatch[1] };
+      if (line.includes('${name}')) return { type: 'text', text: (name) => line.replace(/\$\{name\}/g, name) };
+      return { type: 'text', text: line };
+    });
+}
 
-function startPostExploreStory(mainPanel, { onNameDecided, onComplete } = {}) {
+// ── ログストーリー001 ──
+// メインパネルにタイプライター式でテキストを順番に流す
+const LOG_STORY_STEPS = parseScript(`
+001
+何もない世界をしばらくさまよった。
+「あれ？」
+後ろから、声が聞こえた。
+「きみは誰？」
+振り向くと一人の少年がいて、あなたを見ている。
+[name_input]
+「\${name}さんって言うんだ」
+「俺は、ユウヤ」
+「気づいたらここにいて」
+「何も思い出せないんだ」
+「きみは？」
+首を横に振る。
+「そっか……とりあえず、少し一緒に歩いてみる？」
+[end: 頷く]
+`);
+
+function startLogStory1(mainPanel, { onNameDecided, onComplete } = {}) {
   let stepIndex = 0;
   let playerName = '';
   let currentTw = null;
@@ -185,11 +205,11 @@ function startPostExploreStory(mainPanel, { onNameDecided, onComplete } = {}) {
   }
 
   function nextStep() {
-    if (stepIndex >= POST_EXPLORE_STEPS.length) return;
+    if (stepIndex >= LOG_STORY_STEPS.length) return;
     removeIndicator();
     waitingForTap = false;
 
-    const step = POST_EXPLORE_STEPS[stepIndex];
+    const step = LOG_STORY_STEPS[stepIndex];
 
     if (step.type === 'text') {
       const text = typeof step.text === 'function' ? step.text(playerName) : step.text;
@@ -260,20 +280,20 @@ function startPostExploreStory(mainPanel, { onNameDecided, onComplete } = {}) {
   return () => mainPanel.removeEventListener('click', handleClick);
 }
 
-// ── ポスト探索ストーリー002 ──
-const POST_EXPLORE_2_STEPS = [
-   { type: 'text', text: '002' },
-  { type: 'text', text: '「これ、いったいなんだろう」' },
-  { type: 'text', text: 'ユウヤの手には、不思議な物体がある。' },
-  { type: 'text', text: 'さきほどから、あなたも見つけていたものだ。' },
-  { type: 'text', text: '「なにかの、かけらみたい」' },
-  { type: 'text', text: '「見つめていると、なんだか、懐かしい気持ちになる」' },
-  { type: 'text', text: '「あそこにも、あるよ」' },
-  { type: 'text', text: '「行ってみよう」' },
-  { type: 'end_button', label: 'ついていく' },
-];
+// ── ログストーリー002 ──
+const LOG_STORY_2_STEPS = parseScript(`
+002
+「これ、いったいなんだろう」
+ユウヤの手には、不思議な物体がある。
+さきほどから、あなたも見つけていたものだ。
+「なにかの、かけらみたい」
+「見つめていると、なんだか、懐かしい気持ちになる」
+「あそこにも、あるよ」
+「行ってみよう」
+[end: ついていく]
+`);
 
-function startPostExplore2Story(mainPanel, { onComplete } = {}) {
+function startLogStory2(mainPanel, { onComplete } = {}) {
   let stepIndex = 0;
   let currentTw = null;
   let waitingForTap = false;
@@ -301,11 +321,11 @@ function startPostExplore2Story(mainPanel, { onComplete } = {}) {
   }
 
   function nextStep() {
-    if (stepIndex >= POST_EXPLORE_2_STEPS.length) return;
+    if (stepIndex >= LOG_STORY_2_STEPS.length) return;
     removeIndicator();
     waitingForTap = false;
 
-    const step = POST_EXPLORE_2_STEPS[stepIndex];
+    const step = LOG_STORY_2_STEPS[stepIndex];
 
     if (step.type === 'text') {
       const el = addEntry();
@@ -345,4 +365,91 @@ function startPostExplore2Story(mainPanel, { onComplete } = {}) {
   return () => mainPanel.removeEventListener('click', handleClick);
 }
 
-export { typewriter, startOpeningTutorial, startPostExploreStory, startPostExplore2Story };
+// ── ログストーリー003 ──
+const LOG_STORY_3_STEPS = parseScript(`
+003
+集めた欠片が、光をはなち、互いに引き寄せられていく。
+そして強まる光を見ていたあなたの頭に浮かんだ、その記憶……。
+あなたは直感的にわかる。それは、今隣にいる少年のものだと。
+青い光は、少年の身体に吸い込まれるように、やがて消えていった。
+「今のは……おれの記憶だ」
+「そうだ、……おれには、双子の弟がいた……」
+ユウヤはつぶやく。
+「でも、会えなくなった」
+あなたはうなずく。
+ユウヤは考えていたが、しばらくするとまた口を開く。
+「そうだ、あの時――」
+その時あなたは、木々と土の匂いを感じた。
+葉のこすれる音。
+視界を埋め尽くす、新緑の色。
+いつの間にか、ユウヤも言葉を失っている。
+あなたたちは、森の中にいた。
+[end: 探索する]
+`);
+
+function startLogStory3(mainPanel, { onComplete } = {}) {
+  let stepIndex = 0;
+  let currentTw = null;
+  let waitingForTap = false;
+  let indicator = null;
+
+  function addEntry() {
+    const el = document.createElement('div');
+    el.className = 'log-entry story-log center';
+    mainPanel.appendChild(el);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+    return el;
+  }
+
+  function removeIndicator() {
+    if (indicator) { indicator.remove(); indicator = null; }
+  }
+
+  function showTapIndicator() {
+    removeIndicator();
+    indicator = document.createElement('div');
+    indicator.className = 'story-tap-indicator';
+    indicator.textContent = '▼';
+    mainPanel.appendChild(indicator);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+  }
+
+  function nextStep() {
+    if (stepIndex >= LOG_STORY_3_STEPS.length) return;
+    removeIndicator();
+    waitingForTap = false;
+    const step = LOG_STORY_3_STEPS[stepIndex];
+    if (step.type === 'text') {
+      const el = addEntry();
+      currentTw = typewriter(el, step.text, {
+        speed: 55,
+        onDone: () => { waitingForTap = true; showTapIndicator(); },
+      });
+      stepIndex++;
+    } else if (step.type === 'end_button') {
+      currentTw = null;
+      const wrap = addEntry();
+      const btn = document.createElement('button');
+      btn.className = 'story-end-btn';
+      btn.textContent = step.label;
+      btn.addEventListener('click', () => {
+        btn.disabled = true;
+        removeIndicator();
+        onComplete?.();
+      });
+      wrap.appendChild(btn);
+      mainPanel.scrollTop = mainPanel.scrollHeight;
+    }
+  }
+
+  function handleClick() {
+    if (currentTw && !currentTw.done) { currentTw.skip(); return; }
+    if (waitingForTap) nextStep();
+  }
+
+  mainPanel.addEventListener('click', handleClick);
+  nextStep();
+  return () => mainPanel.removeEventListener('click', handleClick);
+}
+
+export { typewriter, startOpeningTutorial, startLogStory1, startLogStory2, startLogStory3 };
