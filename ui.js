@@ -5,7 +5,7 @@ import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 
 const els = {
-  fragmentCount: document.getElementById('fragment-count'),
+  resourceList: document.getElementById('resource-list'),
   actionPickerBtn: document.getElementById('action-picker-btn'),
   actionBtn: document.getElementById('action-btn'),
   progressBar: document.getElementById('progress-bar'),
@@ -20,6 +20,7 @@ const els = {
 
 const RESOURCE_LABELS = {
   fragment: 'フラグメント',
+  herb: '薬草',
 };
 
 // ── ログ ──
@@ -169,8 +170,19 @@ let prevUnlocked = [];
 let stopFlavor = null;
 let _cancelled = false;
 
+function renderResources(resources) {
+  els.resourceList.innerHTML = '';
+  for (const [key, amount] of Object.entries(resources)) {
+    if (amount === 0) continue;
+    const row = document.createElement('div');
+    row.className = 'resource-row';
+    row.innerHTML = `<span class="resource-name">${RESOURCE_LABELS[key] ?? key}</span><span class="resource-val">${amount}</span>`;
+    els.resourceList.appendChild(row);
+  }
+}
+
 function render(state) {
-  els.fragmentCount.textContent = state.resources.fragment;
+  renderResources(state.resources);
 
   const active = state.activeAction;
 
