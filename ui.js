@@ -80,6 +80,7 @@ function resumeLog() {
 let _viewerPages = [];
 let _viewerStoryId = null;
 let _viewerPrevUnlockedPages = 0;
+const _storyPageCounts = {}; // storyId → 総ページ数キャッシュ
 
 async function openStory(storyId) {
   const story = STORIES[storyId];
@@ -99,6 +100,7 @@ async function openStory(storyId) {
   _viewerPages = pages;
   _viewerStoryId = storyId;
   _viewerPrevUnlockedPages = getState().storyProgress[storyId] ?? 0; // 開いた時点の進捗を基準にする
+  _storyPageCounts[storyId] = pages.length; // 総ページ数をキャッシュ
   // プロローグのページ数をキャッシュ（全開放検知に使う）
   if (storyId === 'prologue') _prologueTotalPages = pages.length;
 
@@ -221,9 +223,12 @@ function renderStoryList(state) {
       info.appendChild(cost);
     } else {
       const pages = state.storyProgress[story.id] ?? 0;
+      const total = _storyPageCounts[story.id];
       const progress = document.createElement('div');
       progress.className = 'story-cost';
-      progress.textContent = pages > 0 ? `${pages} ページ解放済み` : '未読';
+      progress.textContent = pages > 0
+        ? (total ? `${pages} / ${total}` : `${pages} / ?`)
+        : '未読';
       info.appendChild(progress);
     }
 
