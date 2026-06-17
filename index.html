@@ -862,12 +862,7 @@
 
   document.getElementById('dev-reset-btn').addEventListener('click', () => {
     if (!confirm('セーブデータをすべて削除してリセットしますか？')) return;
-    localStorage.setItem('fr_save_v1', JSON.stringify({
-      resources: { fragment: 1000 },
-      activeAction: null,
-      unlockedStories: [],
-      storyProgress: {},
-    }));
+    localStorage.removeItem('fr_save_v1');
     location.reload();
   });
 </script>
