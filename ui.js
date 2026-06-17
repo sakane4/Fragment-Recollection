@@ -96,7 +96,7 @@ async function openStory(storyId) {
 
   _viewerPages = pages;
   _viewerStoryId = storyId;
-  _viewerPrevUnlockedPages = 0; // 開いた直後は全ページを新規扱いにしない
+  _viewerPrevUnlockedPages = getState().storyProgress[storyId] ?? 0; // 開いた時点の進捗を基準にする
   // プロローグのページ数をキャッシュ（全開放検知に使う）
   if (storyId === 'prologue') _prologueTotalPages = pages.length;
 
@@ -116,7 +116,7 @@ function renderViewerBody(state) {
   document.getElementById('story-fin-bar').textContent = '';
 
   // 解放済みページを順に表示
-  const isNewPage = (i) => i >= _viewerPrevUnlockedPages && _viewerPrevUnlockedPages > 0;
+  const isNewPage = (i) => i >= _viewerPrevUnlockedPages;
   for (let i = 0; i < Math.min(unlockedPages, totalPages); i++) {
     const block = document.createElement('p');
     block.className = 'story-page' + (isNewPage(i) ? ' story-page-new' : '');
