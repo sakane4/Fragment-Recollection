@@ -716,8 +716,7 @@ function initDevTools() {
     setDevMode(next);
     modeBtn.textContent = next ? 'ON' : 'OFF';
     modeBtn.classList.toggle('dev-btn--on', next);
-    modeDesc.textContent = next ? 'ON — 探索1秒・資源追加有効' : 'OFF — 通常動作';
-    devTools.style.display = next ? 'block' : 'none';
+    modeDesc.textContent = next ? 'ON — 探索1秒' : 'OFF — 通常速度';
   });
 
   document.querySelectorAll('[data-add-resource]').forEach(btn => {
