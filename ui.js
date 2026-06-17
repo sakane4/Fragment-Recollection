@@ -413,7 +413,7 @@ function maybeStartPostExplore2(state) {
       // ストーリー後に自動再開
       setTimeout(() => startAction(selectedActionId, {
         onRandomReward: ({ resource, amount }) => {
-          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+          addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
         },
       }), 0);
     },
@@ -628,7 +628,7 @@ export function init() {
     } else {
       startAction(selectedActionId, {
         onRandomReward: ({ resource, amount }) => {
-          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+          addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
         },
       });
     }
