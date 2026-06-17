@@ -268,7 +268,7 @@ function render(state) {
         const companionName = COMPANION_DATA[id]?.name ?? id;
         return rewards.map(r => {
           const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-          return `<span class="log-companion-reward">${companionName}: <span class="log-resource-blue">${label}</span> +${r.amount}</span>`;
+          return `<span class="log-companion-reward"><span class="log-resource-blue">${label}</span> +${r.amount}</span>`;
         });
       }).join(', ');
       const fullRewardsHtml = companionRewardsHtml
