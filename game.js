@@ -5,11 +5,20 @@ const ACTIONS = {
   explore: {
     id: 'explore',
     label: '探索',
+    description: '未知の場所を探索する。フラグメントが手に入るかもしれない。',
     duration: 20000, // ms
     rewards: [{ resource: 'fragment', amount: 10 }],
     randomRewards: [
       { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
     ],
+  },
+  gather: {
+    id: 'gather',
+    label: '採集',
+    description: '周辺を歩き回り、素材を集める。',
+    duration: 15000, // ms
+    rewards: [{ resource: 'fragment', amount: 5 }],
+    randomRewards: [],
   },
 };
 

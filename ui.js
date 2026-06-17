@@ -6,10 +6,11 @@ import { startFlavorScheduler } from './logs.js';
 
 const els = {
   fragmentCount: document.getElementById('fragment-count'),
-  actionSelect: document.getElementById('action-select'),
+  actionPickerBtn: document.getElementById('action-picker-btn'),
   actionBtn: document.getElementById('action-btn'),
   progressBar: document.getElementById('progress-bar'),
   mainPanel: document.getElementById('main-panel'),
+  actionList: document.getElementById('action-list'),
   storyList: document.getElementById('story-list'),
   storyOverlay: document.getElementById('story-overlay'),
   storyViewerTitle: document.getElementById('story-viewer-title'),
@@ -176,7 +177,7 @@ function render(state) {
     const action = ACTIONS[active.actionId];
     addLog(`【${action.label}】開始`);
     els.actionBtn.disabled = true;
-    els.actionSelect.disabled = true;
+    els.actionPickerBtn.disabled = true;
     els.actionBtn.textContent = '進行中…';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
   }
@@ -187,7 +188,7 @@ function render(state) {
     const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
     addLog(`【${action.label}】完了 — ${rewards}`, true);
     els.actionBtn.disabled = false;
-    els.actionSelect.disabled = false;
+    els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
   }
@@ -224,6 +225,62 @@ function initTabs() {
       btn.classList.add('active');
       document.getElementById(btn.dataset.view).classList.add('active');
     });
+  });
+}
+
+// ── 行動選択 ──
+let selectedActionId = 'explore';
+
+function switchTab(viewId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
+  document.querySelector(`.tab-btn[data-view="${viewId}"]`).classList.add('active');
+  document.getElementById(viewId).classList.add('active');
+}
+
+function renderActionList() {
+  els.actionList.innerHTML = '';
+  for (const action of Object.values(ACTIONS)) {
+    const card = document.createElement('div');
+    card.className = 'action-card' + (action.id === selectedActionId ? ' selected' : '');
+
+    const info = document.createElement('div');
+    info.className = 'action-card-info';
+
+    const name = document.createElement('div');
+    name.className = 'action-card-name';
+    name.textContent = action.label;
+
+    const desc = document.createElement('div');
+    desc.className = 'action-card-desc';
+    desc.textContent = action.description ?? '';
+
+    info.appendChild(name);
+    info.appendChild(desc);
+
+    const meta = document.createElement('div');
+    meta.className = 'action-card-meta';
+    meta.textContent = `${action.duration / 1000}秒`;
+
+    card.appendChild(info);
+    card.appendChild(meta);
+
+    card.addEventListener('click', () => {
+      selectedActionId = action.id;
+      els.actionPickerBtn.textContent = action.label;
+      renderActionList();
+      switchTab('view-items');
+    });
+
+    els.actionList.appendChild(card);
+  }
+}
+
+function initActionPicker() {
+  renderActionList();
+  els.actionPickerBtn.addEventListener('click', () => {
+    renderActionList();
+    switchTab('view-actions');
   });
 }
 
@@ -266,8 +323,10 @@ export function init() {
   initStoryViewer();
   initDevTools();
 
+  initActionPicker();
+
   els.actionBtn.addEventListener('click', () => {
-    startAction(els.actionSelect.value, {
+    startAction(selectedActionId, {
       onRandomReward: ({ resource, amount }) => {
         addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
       },

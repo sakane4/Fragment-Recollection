@@ -104,7 +104,7 @@
       background: var(--panel);
     }
 
-    #action-select {
+    #action-picker-btn {
       flex: 1;
       background: var(--bg);
       color: var(--text);
@@ -112,13 +112,35 @@
       border-radius: 5px;
       padding: 0.45rem 0.6rem;
       font-size: 0.85rem;
-      appearance: none;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #action-picker-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #action-picker-btn::after { content: '▾'; color: var(--muted); font-size: 0.75rem; }
+
+    /* ── 行動ビュー ── */
+    .action-card {
+      padding: 0.65rem 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
       cursor: pointer;
     }
 
-    #action-select:disabled {
-      opacity: 0.5;
-    }
+    .action-card:last-child { border-bottom: none; }
+    .action-card:hover { background: #1a1c2e; margin: 0 -1rem; padding: 0.65rem 1rem; }
+    .action-card.selected { background: #1e1a30; margin: 0 -1rem; padding: 0.65rem 1rem; }
+
+    .action-card-info { flex: 1; }
+    .action-card-name { font-size: 0.88rem; color: var(--text); }
+    .action-card-desc { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+    .action-card-meta { font-size: 0.7rem; color: var(--muted); white-space: nowrap; text-align: right; }
+    .action-card.selected .action-card-name { color: var(--accent); }
 
     #action-btn {
       flex-shrink: 0;
@@ -424,9 +446,7 @@
   <!-- アクション行 -->
   <div>
     <div id="action-bar">
-      <select id="action-select">
-        <option value="explore">探索</option>
-      </select>
+      <button id="action-picker-btn">探索</button>
       <button id="action-btn">開始</button>
     </div>
     <div id="progress-wrap">
@@ -453,6 +473,10 @@
     <div id="view-chars" class="sub-view">
       <div class="sub-title">キャラクター</div>
       <div class="placeholder">準備中</div>
+    </div>
+    <div id="view-actions" class="sub-view">
+      <div class="sub-title">行動を選択</div>
+      <div id="action-list"></div>
     </div>
     <div id="view-dev" class="sub-view">
       <div class="sub-title">開発メニュー</div>
@@ -496,6 +520,7 @@
 
   <!-- フッター -->
   <div id="footer">
+    <button class="tab-btn" data-view="view-actions">行動</button>
     <button class="tab-btn" data-view="view-stories">物語</button>
     <button class="tab-btn active" data-view="view-items">持ち物</button>
     <button class="tab-btn" data-view="view-chars">キャラクター</button>
