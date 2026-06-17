@@ -5,7 +5,7 @@ const ACTIONS = {
   explore: {
     id: 'explore',
     label: '探索',
-    duration: 5000, // ms
+    duration: 20000, // ms
     rewards: [{ resource: 'fragment', amount: 10 }],
   },
 };

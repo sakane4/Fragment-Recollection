@@ -2,6 +2,7 @@
 
 import { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
 import { parseStoryPages } from './stories.js';
+import { startFlavorScheduler } from './logs.js';
 
 const els = {
   fragmentCount: document.getElementById('fragment-count'),
@@ -164,6 +165,7 @@ function renderStoryList(state) {
 // ── 状態レンダリング ──
 let prevActive = null;
 let prevUnlocked = [];
+let stopFlavor = null; // フレーバースケジューラーの停止関数
 
 function render(state) {
   els.fragmentCount.textContent = state.resources.fragment;
@@ -176,9 +178,11 @@ function render(state) {
     els.actionBtn.disabled = true;
     els.actionSelect.disabled = true;
     els.actionBtn.textContent = '進行中…';
+    stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
   }
 
   if (!active && prevActive) {
+    if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     const action = ACTIONS[prevActive.actionId];
     const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
     addLog(`【${action.label}】完了 — ${rewards}`, true);
