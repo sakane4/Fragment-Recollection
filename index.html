@@ -454,17 +454,7 @@
       pointer-events: none;
     }
     #action-guide {
-      position: absolute;
-      bottom: 0.5rem;
       left: 50%;
-      transform: translateX(-50%) translateY(4px);
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.3s, transform 0.3s;
-    }
-    #action-guide.visible {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
     }
 
     /* ── ストーリーログ(メインパネル内) ── */
@@ -676,7 +666,7 @@
       overflow: visible;
       pointer-events: none;
     }
-    #tab-toast .toast-bubble {
+    .toast-bubble {
       position: absolute;
       bottom: 0.5rem;
       background: var(--accent-dim);
@@ -691,7 +681,7 @@
       transform: translateY(4px);
       transition: opacity 0.3s, transform 0.3s;
     }
-    #tab-toast .toast-bubble::after {
+    .toast-bubble::after {
       content: '';
       position: absolute;
       bottom: -5px;
@@ -701,7 +691,7 @@
       border-top-color: var(--accent-border);
       border-bottom: none;
     }
-    #tab-toast .toast-bubble.visible {
+    .toast-bubble.visible {
       opacity: 1;
       transform: translateY(0);
     }
