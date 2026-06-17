@@ -1,4 +1,5 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
+import { STORIES } from './stories.js';
 
 const ACTIONS = {
   explore: {
@@ -13,7 +14,9 @@ const INITIAL_STATE = {
   resources: {
     fragment: 0,
   },
-  activeAction: null, // { actionId, startedAt, endsAt }
+  activeAction: null,       // { actionId, startedAt, endsAt }
+  unlockedStories: [],      // 一覧に表示・解放済みの物語IDの配列
+  storyProgress: {},        // { [storyId]: unlockedPages } 解放済みページ数
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -90,19 +93,73 @@ function getProgress() {
   return Math.min(elapsed / total, 1);
 }
 
+// 物語を解放する(1ページ目が読めるようになる)
+function unlockStory(storyId) {
+  const story = STORIES[storyId];
+  if (!story) return { ok: false, reason: 'unknown_story' };
+  if (state.unlockedStories.includes(storyId)) return { ok: false, reason: 'already_unlocked' };
+
+  const newResources = { ...state.resources };
+  for (const cost of story.unlockCost) {
+    if ((newResources[cost.resource] ?? 0) < cost.amount) {
+      return { ok: false, reason: 'insufficient_resources' };
+    }
+    newResources[cost.resource] -= cost.amount;
+  }
+
+  state = {
+    ...state,
+    resources: newResources,
+    unlockedStories: [...state.unlockedStories, storyId],
+    storyProgress: { ...state.storyProgress, [storyId]: 1 },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
+
+// 次のページを解放する
+function unlockNextPage(storyId) {
+  const story = STORIES[storyId];
+  if (!story) return { ok: false, reason: 'unknown_story' };
+  if (!state.unlockedStories.includes(storyId)) return { ok: false, reason: 'story_locked' };
+
+  const newResources = { ...state.resources };
+  for (const cost of story.pageCost) {
+    if ((newResources[cost.resource] ?? 0) < cost.amount) {
+      return { ok: false, reason: 'insufficient_resources' };
+    }
+    newResources[cost.resource] -= cost.amount;
+  }
+
+  const current = state.storyProgress[storyId] ?? 1;
+  state = {
+    ...state,
+    resources: newResources,
+    storyProgress: { ...state.storyProgress, [storyId]: current + 1 },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
+
 // 起動時にセーブデータを復元し、進行中のアクションがあれば再スケジュール
 function init() {
   const saved = loadFromStorage();
   if (!saved) return;
 
-  state = { ...INITIAL_STATE, ...saved, resources: { ...INITIAL_STATE.resources, ...saved.resources } };
+  state = {
+    ...INITIAL_STATE,
+    ...saved,
+    resources: { ...INITIAL_STATE.resources, ...saved.resources },
+    storyProgress: { ...INITIAL_STATE.storyProgress, ...saved.storyProgress },
+  };
 
   if (state.activeAction) {
     const remaining = state.activeAction.endsAt - Date.now();
     if (remaining > 0) {
       _timer = setTimeout(() => completeAction(state.activeAction.actionId), remaining);
     } else {
-      // ページを閉じている間に完了していたケース
       completeAction(state.activeAction.actionId);
     }
   }
@@ -110,4 +167,4 @@ function init() {
 
 init();
 
-export { ACTIONS, getState, subscribe, startAction, getProgress };
+export { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage };
