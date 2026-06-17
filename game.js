@@ -4,7 +4,7 @@ import { STORIES } from './stories.js';
 const LOCATIONS = {
   wherever:   { id: 'wherever',   label: '' },          // 場所不明の初期状態
   forest:     { id: 'forest',     label: 'はじまりの森' },
-  tower_city: { id: 'tower_city', label: '塔都' },
+  touto: { id: 'touto', label: '塔都' },
 };
 
 const ACTIONS = {
@@ -19,7 +19,7 @@ const ACTIONS = {
       { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
     ],
     discoveries: [
-      // 例: { type: 'location', id: 'tower_city', chance: 0.3 }
+      // 例: { type: 'location', id: 'touto', chance: 0.3 }
       // 例: { type: 'action',   id: 'forest_gather', chance: 0.5 }
     ],
   },
@@ -52,10 +52,10 @@ const ACTIONS = {
     ],
     discoveries: [],
   },
-  tower_explore: {
-    id: 'tower_explore',
+  touto_explore: {
+    id: 'touto_explore',
     label: '探索',
-    locationId: 'tower_city',
+    locationId: 'touto',
     description: '塔都の街路を歩く。何かが見つかるかもしれない。',
     duration: 20000,
     rewards: [{ resource: 'fragment', amount: 10 }],
@@ -100,9 +100,9 @@ const INITIAL_STATE = {
   unlockedLocations: ['wherever'],
   unlockedActions: ['explore'],
   tutorialDone: false,        // オープニングチュートリアル完了フラグ
-  logStoryDone: false,     // 探索後ストーリー完了フラグ
-  logStory2Done: false,    // 探索後ストーリー002完了フラグ
-  logStory3Done: false,    // 探索後ストーリー003完了フラグ
+  logSt1Done: false,     // 探索後ストーリー完了フラグ
+  logSt2Done: false,    // 探索後ストーリー002完了フラグ
+  logSt3Done: false,    // 探索後ストーリー003完了フラグ
   playerName: '',             // プレイヤーネーム
   unlockedCompanions: [],     // 解放済み同行者IDの配列
   activeCompanions: [],       // 同行中の同行者IDの配列
@@ -452,8 +452,8 @@ function init() {
     activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
     discoveredResources: saved.discoveredResources ?? INITIAL_STATE.discoveredResources,
     appearedStories: saved.appearedStories ?? INITIAL_STATE.appearedStories,
-    logStory2Done: saved.logStory2Done ?? INITIAL_STATE.logStory2Done,
-    logStory3Done: saved.logStory3Done ?? INITIAL_STATE.logStory3Done,
+    logSt2Done: saved.logSt2Done ?? INITIAL_STATE.logSt2Done,
+    logSt3Done: saved.logSt3Done ?? INITIAL_STATE.logSt3Done,
   };
 
   if (state.activeAction) {
@@ -473,18 +473,18 @@ function setTutorialDone() {
   saveToStorage(state);
 }
 
-function setLogStoryDone() {
-  state = { ...state, logStoryDone: true };
+function setLogStory1Done() {
+  state = { ...state, logSt1Done: true };
   saveToStorage(state);
 }
 
 function setLogStory2Done() {
-  state = { ...state, logStory2Done: true };
+  state = { ...state, logSt2Done: true };
   saveToStorage(state);
 }
 
 function setLogStory3Done() {
-  state = { ...state, logStory3Done: true };
+  state = { ...state, logSt3Done: true };
   saveToStorage(state);
 }
 
@@ -514,17 +514,17 @@ function setActiveCompanion(id, active) {
 function jumpToLogStory(n) {
   state = {
     ...state,
-    logStoryDone:  n > 1 ? true : false,
-    logStory2Done: n > 2 ? true : false,
-    logStory3Done: false,
+    logSt1Done:  n > 1 ? true : false,
+    logSt2Done: n > 2 ? true : false,
+    logSt3Done: false,
   };
   saveToStorage(state);
 }
 
 function resetTutorial() {
-  state = { ...state, tutorialDone: false, logStoryDone: false, logStory2Done: false, logStory3Done: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
+  state = { ...state, tutorialDone: false, logSt1Done: false, logSt2Done: false, logSt3Done: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
   saveToStorage(state);
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStoryDone, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStory1Done, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory };

@@ -1,9 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStoryDone, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStory1Done, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, startLogStory1, startLogStory2, startLogStory3 } from './tutorial.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 } from './tutorial.js';
 
 const els = {
   resourceList: document.getElementById('resource-list'),
@@ -256,17 +256,17 @@ function closeStory() {
     const progress = getState().storyProgress['prologue'] ?? 0;
     const total = STORIES['prologue'].pageCount;
     if (total > 0 && progress >= total) {
-      setTimeout(() => maybeStartLogStory1(), 0);
+      setTimeout(() => startLogSt_1(), 0);
     }
   }
 
   // yuya_1 を全段落読んだ状態で閉じた → ストーリー003へ
   if (closedStoryId === 'yuya_1') {
     const st = getState();
-    if (!st.logStory3Done) {
+    if (!st.logSt3Done) {
       const progress = st.storyProgress['yuya_1'] ?? 0;
       if (progress >= 3) {
-        setTimeout(() => maybeStartLogStory3(), 0);
+        setTimeout(() => startLogSt_3(), 0);
       }
     }
   }
@@ -417,12 +417,12 @@ function render(state) {
     const selAction = ACTIONS[selectedActionId];
     els.actionPickerBtn.textContent = selAction ? actionDisplayLabel(selAction, ' — ') : '探索';
     if (!wasCancelled) {
-      if (_logStoryPending) {
+      if (_logStPending) {
         // render() 完了後にプロローグ解放フェーズへ
         setTimeout(() => startProloguePhase(), 0);
-      } else if (!state.logStory2Done && (state.activeCompanions ?? []).length > 0) {
+      } else if (!state.logSt2Done && (state.activeCompanions ?? []).length > 0) {
         // ユウヤ同行中の初回探索完了 → ストーリー002
-        setTimeout(() => maybeStartLogStory2(state), 0);
+        setTimeout(() => startLogSt_2(state), 0);
       } else if (_autoRestartEnabled) {
         // 自動再開(開発メニューでONのときのみ)
         setTimeout(() => {
@@ -644,8 +644,8 @@ function initStoryViewer() {
 }
 
 // ── チュートリアル起動 ──
-let _logStoryCleanup = null;
-let _logStoryPending = false;
+let _logStCleanup = null;
+let _logStPending = false;
 let _storyLogPlaying = false; // ストーリーログ再生中フラグ
 let _waitingForPrologue = false;
 
@@ -654,25 +654,25 @@ function launchTutorial() {
   startOpeningTutorial({
     onComplete: () => {
       setTutorialDone();
-      _logStoryPending = true; // 初回探索完了を待つフラグ
+      _logStPending = true; // 初回探索完了を待つフラグ
     },
   });
 }
 
 // 初回探索完了 → プロローグを強制解放して待機
 function startProloguePhase() {
-  if (!_logStoryPending) return;
-  _logStoryPending = false;
+  if (!_logStPending) return;
+  _logStPending = false;
   _waitingForPrologue = true;
   forceAppearStory('prologue');
   showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
 }
 
-function maybeStartLogStory2(state) {
+function startLogSt_2(state) {
   setLogStory2Done();
   _storyLogPlaying = true;
   let cleanup = null;
-  cleanup = startLogStory2(els.mainPanel, {
+  cleanup = runLogSt_2(els.mainPanel, {
     onComplete: () => {
       _storyLogPlaying = false;
       addLog('フラグメントをもっと集めてみよう...', false);
@@ -682,15 +682,15 @@ function maybeStartLogStory2(state) {
   });
 }
 
-function maybeStartLogStory1() {
+function startLogSt_1() {
   const state = getState();
-  if (state.logStoryDone) return;
+  if (state.logSt1Done) return;
   _waitingForPrologue = false;
-  setLogStoryDone();
+  setLogStory1Done();
   _storyLogPlaying = true;
 
-  if (_logStoryCleanup) { _logStoryCleanup(); _logStoryCleanup = null; }
-  _logStoryCleanup = startLogStory1(els.mainPanel, {
+  if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
+  _logStCleanup = runLogSt_1(els.mainPanel, {
     onNameDecided: (name) => {
       setPlayerName(name);
       renderCharTab(getState());
@@ -700,18 +700,18 @@ function maybeStartLogStory1() {
       unlockCompanion('yuuya');
       addLog('【同行】ユウヤが仲間になった', true);
       renderCharTab(getState());
-      if (_logStoryCleanup) { _logStoryCleanup(); _logStoryCleanup = null; }
+      if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
     },
   });
 }
 
-function maybeStartLogStory3() {
+function startLogSt_3() {
   const state = getState();
-  if (state.logStory3Done) return;
+  if (state.logSt3Done) return;
   setLogStory3Done();
   _storyLogPlaying = true;
   let cleanup = null;
-  cleanup = startLogStory3(els.mainPanel, {
+  cleanup = runLogSt_3(els.mainPanel, {
     onComplete: () => {
       _storyLogPlaying = false;
       unlockLocation('forest', ['forest_explore']);
@@ -901,11 +901,11 @@ function initDevTools() {
   [1, 2, 3].forEach(n => {
     document.getElementById(`dev-log-story-${n}`).addEventListener('click', () => {
       jumpToLogStory(n);
-      const fns = [null, startLogStory1, startLogStory2, startLogStory3];
+      const fns = [null, runLogSt_1, runLogSt_2, runLogSt_3];
       fns[n](els.mainPanel, {
         onNameDecided: n === 1 ? (name) => { setPlayerName(name); } : undefined,
         onComplete: n === 1
-          ? () => { setLogStoryDone(); }
+          ? () => { setLogStory1Done(); }
           : n === 2
           ? () => { setLogStory2Done(); }
           : () => { setLogStory3Done(); unlockLocation('forest', ['forest_explore']); },

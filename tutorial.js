@@ -150,6 +150,8 @@ function parseScript(src) {
       if (line === '[name_input]') return { type: 'name_input' };
       const endMatch = line.match(/^\[end:\s*(.+)\]$/);
       if (endMatch) return { type: 'end_button', label: endMatch[1] };
+      const btnMatch = line.match(/^\[button:\s*(.+)\]$/);
+      if (btnMatch) return { type: 'advance_button', label: btnMatch[1] };
       if (line.includes('${name}')) return { type: 'text', text: (name) => line.replace(/\$\{name\}/g, name) };
       return { type: 'text', text: line };
     });
@@ -175,126 +177,10 @@ const LOG_STORY_STEPS = parseScript(`
 [end: 頷く]
 `);
 
-function startLogStory1(mainPanel, { onNameDecided, onComplete } = {}) {
+// ── ログストーリー共通エンジン ──
+function runLogSt(steps, mainPanel, { onNameDecided, onComplete } = {}) {
   let stepIndex = 0;
   let playerName = '';
-  let currentTw = null;
-  let waitingForTap = false;
-  let indicator = null;
-
-  function addEntry(html = '', center = true) {
-    const el = document.createElement('div');
-    el.className = 'log-entry story-log' + (center ? ' center' : '');
-    if (html) el.innerHTML = html;
-    mainPanel.appendChild(el);
-    mainPanel.scrollTop = mainPanel.scrollHeight;
-    return el;
-  }
-
-  function removeIndicator() {
-    if (indicator) { indicator.remove(); indicator = null; }
-  }
-
-  function showTapIndicator() {
-    removeIndicator();
-    indicator = document.createElement('div');
-    indicator.className = 'story-tap-indicator';
-    indicator.textContent = '▼';
-    mainPanel.appendChild(indicator);
-    mainPanel.scrollTop = mainPanel.scrollHeight;
-  }
-
-  function nextStep() {
-    if (stepIndex >= LOG_STORY_STEPS.length) return;
-    removeIndicator();
-    waitingForTap = false;
-
-    const step = LOG_STORY_STEPS[stepIndex];
-
-    if (step.type === 'text') {
-      const text = typeof step.text === 'function' ? step.text(playerName) : step.text;
-      const el = addEntry();
-      currentTw = typewriter(el, text, {
-        speed: 55,
-        onDone: () => {
-          waitingForTap = true;
-          showTapIndicator();
-        },
-      });
-      stepIndex++;
-
-    } else if (step.type === 'name_input') {
-      currentTw = null;
-      const wrap = addEntry();
-      const defaultName = Math.random() < 0.5 ? 'アサ' : 'ヨル';
-      wrap.innerHTML = `
-        <div class="story-name-prompt">〈あなたのなまえは…〉</div>
-        <div class="story-name-row">
-          <input id="story-name-input" type="text" maxlength="10" value="${defaultName}">
-          <button id="story-name-btn">名乗る</button>
-        </div>`;
-      mainPanel.scrollTop = mainPanel.scrollHeight;
-
-      document.getElementById('story-name-btn').addEventListener('click', () => {
-        const val = document.getElementById('story-name-input').value.trim();
-        if (!val) return;
-        playerName = val;
-        onNameDecided?.(playerName);
-        wrap.querySelector('input').disabled = true;
-        wrap.querySelector('#story-name-btn').disabled = true;
-        stepIndex++;
-        nextStep();
-      });
-
-    } else if (step.type === 'end_button') {
-      currentTw = null;
-      const wrap = addEntry();
-      const btn = document.createElement('button');
-      btn.className = 'story-end-btn';
-      btn.textContent = step.label;
-      btn.addEventListener('click', () => {
-        btn.disabled = true;
-        removeIndicator();
-        onComplete?.();
-      });
-      wrap.appendChild(btn);
-      mainPanel.scrollTop = mainPanel.scrollHeight;
-    }
-  }
-
-  function handleClick() {
-    if (currentTw && !currentTw.done) {
-      currentTw.skip();
-      return;
-    }
-    if (waitingForTap) {
-      nextStep();
-    }
-  }
-
-  mainPanel.addEventListener('click', handleClick);
-
-  nextStep();
-
-  // クリーンアップ関数を返す
-  return () => mainPanel.removeEventListener('click', handleClick);
-}
-
-// ── ログストーリー002 ──
-const LOG_STORY_2_STEPS = parseScript(`
-002
-「これ、いったいなんだろう」
-ユウヤの手には、不思議な物体がある。
-さきほどから、あなたも見つけていたものだ。
-「なにかの、かけらみたい」
-「見つめていると、なんだか、懐かしい気持ちになる」
-「あそこにも、あるよ」
-「行ってみよう」
-[end: ついていく]
-`);
-
-function startLogStory2(mainPanel, { onComplete } = {}) {
-  let stepIndex = 0;
   let currentTw = null;
   let waitingForTap = false;
   let indicator = null;
@@ -321,22 +207,55 @@ function startLogStory2(mainPanel, { onComplete } = {}) {
   }
 
   function nextStep() {
-    if (stepIndex >= LOG_STORY_2_STEPS.length) return;
+    if (stepIndex >= steps.length) return;
     removeIndicator();
     waitingForTap = false;
-
-    const step = LOG_STORY_2_STEPS[stepIndex];
+    const step = steps[stepIndex];
 
     if (step.type === 'text') {
+      const text = typeof step.text === 'function' ? step.text(playerName) : step.text;
       const el = addEntry();
-      currentTw = typewriter(el, step.text, {
+      currentTw = typewriter(el, text, {
         speed: 55,
-        onDone: () => {
-          waitingForTap = true;
-          showTapIndicator();
-        },
+        onDone: () => { waitingForTap = true; showTapIndicator(); },
       });
       stepIndex++;
+
+    } else if (step.type === 'name_input') {
+      currentTw = null;
+      const wrap = addEntry();
+      const defaultName = Math.random() < 0.5 ? 'アサ' : 'ヨル';
+      wrap.innerHTML = `
+        <div class="story-name-prompt">〈あなたのなまえは…〉</div>
+        <div class="story-name-row">
+          <input id="story-name-input" type="text" maxlength="10" value="${defaultName}">
+          <button id="story-name-btn">名乗る</button>
+        </div>`;
+      mainPanel.scrollTop = mainPanel.scrollHeight;
+      document.getElementById('story-name-btn').addEventListener('click', () => {
+        const val = document.getElementById('story-name-input').value.trim();
+        if (!val) return;
+        playerName = val;
+        onNameDecided?.(playerName);
+        wrap.querySelector('input').disabled = true;
+        wrap.querySelector('#story-name-btn').disabled = true;
+        stepIndex++;
+        nextStep();
+      });
+
+    } else if (step.type === 'advance_button') {
+      currentTw = null;
+      const wrap = addEntry();
+      const btn = document.createElement('button');
+      btn.className = 'story-end-btn';
+      btn.textContent = step.label;
+      btn.addEventListener('click', () => {
+        btn.disabled = true;
+        stepIndex++;
+        nextStep();
+      });
+      wrap.appendChild(btn);
+      mainPanel.scrollTop = mainPanel.scrollHeight;
 
     } else if (step.type === 'end_button') {
       currentTw = null;
@@ -361,9 +280,21 @@ function startLogStory2(mainPanel, { onComplete } = {}) {
 
   mainPanel.addEventListener('click', handleClick);
   nextStep();
-
   return () => mainPanel.removeEventListener('click', handleClick);
 }
+
+// ── ログストーリー002 ──
+const LOG_STORY_2_STEPS = parseScript(`
+002
+「これ、いったいなんだろう」
+ユウヤの手には、不思議な物体がある。
+さきほどから、あなたも見つけていたものだ。
+「なにかの、かけらみたい」
+「見つめていると、なんだか、懐かしい気持ちになる」
+「あそこにも、あるよ」
+「行ってみよう」
+[end: ついていく]
+`);
 
 // ── ログストーリー003 ──
 const LOG_STORY_3_STEPS = parseScript(`
@@ -387,69 +318,8 @@ const LOG_STORY_3_STEPS = parseScript(`
 [end: 探索する]
 `);
 
-function startLogStory3(mainPanel, { onComplete } = {}) {
-  let stepIndex = 0;
-  let currentTw = null;
-  let waitingForTap = false;
-  let indicator = null;
+function runLogSt_1(mainPanel, opts) { return runLogSt(LOG_STORY_STEPS,   mainPanel, opts); }
+function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPanel, opts); }
+function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
 
-  function addEntry() {
-    const el = document.createElement('div');
-    el.className = 'log-entry story-log center';
-    mainPanel.appendChild(el);
-    mainPanel.scrollTop = mainPanel.scrollHeight;
-    return el;
-  }
-
-  function removeIndicator() {
-    if (indicator) { indicator.remove(); indicator = null; }
-  }
-
-  function showTapIndicator() {
-    removeIndicator();
-    indicator = document.createElement('div');
-    indicator.className = 'story-tap-indicator';
-    indicator.textContent = '▼';
-    mainPanel.appendChild(indicator);
-    mainPanel.scrollTop = mainPanel.scrollHeight;
-  }
-
-  function nextStep() {
-    if (stepIndex >= LOG_STORY_3_STEPS.length) return;
-    removeIndicator();
-    waitingForTap = false;
-    const step = LOG_STORY_3_STEPS[stepIndex];
-    if (step.type === 'text') {
-      const el = addEntry();
-      currentTw = typewriter(el, step.text, {
-        speed: 55,
-        onDone: () => { waitingForTap = true; showTapIndicator(); },
-      });
-      stepIndex++;
-    } else if (step.type === 'end_button') {
-      currentTw = null;
-      const wrap = addEntry();
-      const btn = document.createElement('button');
-      btn.className = 'story-end-btn';
-      btn.textContent = step.label;
-      btn.addEventListener('click', () => {
-        btn.disabled = true;
-        removeIndicator();
-        onComplete?.();
-      });
-      wrap.appendChild(btn);
-      mainPanel.scrollTop = mainPanel.scrollHeight;
-    }
-  }
-
-  function handleClick() {
-    if (currentTw && !currentTw.done) { currentTw.skip(); return; }
-    if (waitingForTap) nextStep();
-  }
-
-  mainPanel.addEventListener('click', handleClick);
-  nextStep();
-  return () => mainPanel.removeEventListener('click', handleClick);
-}
-
-export { typewriter, startOpeningTutorial, startLogStory1, startLogStory2, startLogStory3 };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 };
