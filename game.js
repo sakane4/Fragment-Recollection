@@ -2,7 +2,7 @@
 import { STORIES } from './stories.js';
 
 const LOCATIONS = {
-  forest:     { id: 'forest',     label: 'はじまりの森' },
+  forest:     { id: 'forest',     label: '' },   // 発見前は場所名なし
   tower_city: { id: 'tower_city', label: '塔都' },
 };
 
@@ -55,8 +55,8 @@ const INITIAL_STATE = {
   activeAction: null,
   unlockedStories: [],
   storyProgress: {},
-  unlockedLocations: Object.keys(LOCATIONS),
-  unlockedActions: Object.keys(ACTIONS),
+  unlockedLocations: ['forest'],
+  unlockedActions: ['forest_explore'],
   tutorialDone: false,        // オープニングチュートリアル完了フラグ
   postExploreDone: false,     // 探索後ストーリー完了フラグ
   postExplore2Done: false,    // 探索後ストーリー002完了フラグ

@@ -193,7 +193,8 @@ function render(state) {
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
     const location = LOCATIONS[action.locationId];
-    addLog(`【${location.label} / ${action.label}】開始`);
+    const actionLabel = location.label ? `${location.label} / ${action.label}` : action.label;
+    addLog(`【${actionLabel}】開始`);
     els.actionPickerBtn.disabled = true;
     els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
@@ -213,7 +214,8 @@ function render(state) {
         return `${label} +${r.amount}`;
       });
       const rewardsHtml = rewardParts.join(', ');
-      addLog(`【${location.label} / ${action.label}】完了 — ${rewardsHtml}`, true, true);
+      const actionLabel = location.label ? `${location.label} / ${action.label}` : action.label;
+      addLog(`【${actionLabel}】完了 — ${rewardsHtml}`, true, true);
     }
     const wasCancelled = _cancelled;
     _cancelled = false;
@@ -315,10 +317,12 @@ function renderActionList() {
     const group = document.createElement('div');
     group.className = 'action-group';
 
-    const groupLabel = document.createElement('div');
-    groupLabel.className = 'action-group-label';
-    groupLabel.textContent = location.label;
-    group.appendChild(groupLabel);
+    if (location.label) {
+      const groupLabel = document.createElement('div');
+      groupLabel.className = 'action-group-label';
+      groupLabel.textContent = location.label;
+      group.appendChild(groupLabel);
+    }
 
     for (const action of actions) {
       const card = document.createElement('div');
@@ -347,7 +351,7 @@ function renderActionList() {
 
       card.addEventListener('click', () => {
         selectedActionId = action.id;
-        els.actionPickerBtn.textContent = `${location.label} — ${action.label}`;
+        els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
         renderActionList();
       });
 
@@ -605,7 +609,7 @@ export function init() {
     if (active) {
       const action = ACTIONS[active.actionId];
       const location = LOCATIONS[action?.locationId];
-      const label = location ? `${location.label} / ${action.label}` : (action?.label ?? '行動');
+      const label = location?.label ? `${location.label} / ${action.label}` : (action?.label ?? '行動');
       if (stopFlavor) { stopFlavor(); stopFlavor = null; }
       _cancelled = true;
       cancelAction();
