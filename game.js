@@ -49,9 +49,16 @@ const ACTIONS = {
   },
 };
 
+// 同行者ごとのアクション完了時固有報酬
+// amount は基本量（同行ボーナスの2倍乗算は適用しない）
+const COMPANION_REWARDS = {
+  yuuya: [{ resource: 'blue_fragment', amount: 3 }],
+};
+
 const INITIAL_STATE = {
   resources: {
     fragment: 0,
+    blue_fragment: 0,
   },
   activeAction: null,
   unlockedStories: [],
@@ -218,6 +225,17 @@ function completeAction(actionId) {
     newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount * multiplier;
   }
 
+  // 同行者固有報酬
+  const companionRewardsList = [];
+  for (const companionId of state.activeCompanions) {
+    const rewards = COMPANION_REWARDS[companionId];
+    if (!rewards) continue;
+    for (const reward of rewards) {
+      newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
+      companionRewardsList.push({ companionId, ...reward });
+    }
+  }
+
   // 発見判定
   const newLocations = [...state.unlockedLocations];
   const newActions = [...state.unlockedActions];
@@ -244,7 +262,7 @@ function completeAction(actionId) {
   };
   saveToStorage(state);
   notify();
-  return { discovered };
+  return { discovered, companionRewards: companionRewardsList };
 }
 
 function getProgress() {
@@ -384,4 +402,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };

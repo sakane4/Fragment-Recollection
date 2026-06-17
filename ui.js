@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, startPostExploreStory, startPostExplore2Story } from './tutorial.js';
@@ -21,6 +21,7 @@ const els = {
 
 const RESOURCE_LABELS = {
   fragment: 'フラグメント',
+  blue_fragment: '青のフラグメント',
   herb: '薬草',
 };
 
@@ -252,7 +253,20 @@ function render(state) {
           ? `<span class="log-resource">${label}</span> +${r.amount}<span class="log-bonus"> +${r.amount}</span>`
           : `<span class="log-resource">${label}</span> +${r.amount}`;
       }).join(', ');
-      addLog(`【${actionDisplayLabel(action)}】完了 — ${rewardsHtml}`, true, true);
+      // 同行者固有報酬ログ
+      const companionRewardsHtml = (state.activeCompanions ?? []).flatMap(id => {
+        const rewards = COMPANION_REWARDS[id];
+        if (!rewards) return [];
+        const companionName = COMPANION_DATA[id]?.name ?? id;
+        return rewards.map(r => {
+          const label = RESOURCE_LABELS[r.resource] ?? r.resource;
+          return `<span class="log-companion-reward">${companionName}: <span class="log-resource-blue">${label}</span> +${r.amount}</span>`;
+        });
+      }).join(', ');
+      const fullRewardsHtml = companionRewardsHtml
+        ? `${rewardsHtml} / ${companionRewardsHtml}`
+        : rewardsHtml;
+      addLog(`【${actionDisplayLabel(action)}】完了 — ${fullRewardsHtml}`, true, true);
     }
     const wasCancelled = _cancelled;
     _cancelled = false;
