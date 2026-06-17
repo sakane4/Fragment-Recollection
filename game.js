@@ -151,6 +151,16 @@ function startAction(actionId, { onRandomReward } = {}) {
   return { ok: true };
 }
 
+function cancelAction() {
+  if (!state.activeAction) return { ok: false, reason: 'no_active_action' };
+  clearTimeout(_timer);
+  clearRandomRewardTimers();
+  state = { ...state, activeAction: null };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
+
 function completeAction(actionId) {
   const action = ACTIONS[actionId];
   if (!action) return;
@@ -249,4 +259,4 @@ function init() {
 
 init();
 
-export { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories };
+export { ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories };

@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
+import { ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 
@@ -167,6 +167,7 @@ function renderStoryList(state) {
 let prevActive = null;
 let prevUnlocked = [];
 let stopFlavor = null;
+let _cancelled = false;
 
 function render(state) {
   els.fragmentCount.textContent = state.resources.fragment;
@@ -176,17 +177,18 @@ function render(state) {
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
     addLog(`【${action.label}】開始`);
-    els.actionBtn.disabled = true;
     els.actionPickerBtn.disabled = true;
-    els.actionBtn.textContent = '進行中…';
+    els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
   }
 
   if (!active && prevActive) {
-    if (stopFlavor) { stopFlavor(); stopFlavor = null; }
-    const action = ACTIONS[prevActive.actionId];
-    const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
-    addLog(`【${action.label}】完了 — ${rewards}`, true);
+    if (!_cancelled) {
+      const action = ACTIONS[prevActive.actionId];
+      const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
+      addLog(`【${action.label}】完了 — ${rewards}`, true);
+    }
+    _cancelled = false;
     els.actionBtn.disabled = false;
     els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
@@ -269,7 +271,6 @@ function renderActionList() {
       selectedActionId = action.id;
       els.actionPickerBtn.textContent = action.label;
       renderActionList();
-      switchTab('view-items');
     });
 
     els.actionList.appendChild(card);
@@ -326,11 +327,20 @@ export function init() {
   initActionPicker();
 
   els.actionBtn.addEventListener('click', () => {
-    startAction(selectedActionId, {
-      onRandomReward: ({ resource, amount }) => {
-        addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
-      },
-    });
+    const active = getState().activeAction;
+    if (active) {
+      const label = ACTIONS[active.actionId]?.label ?? '行動';
+      if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+      _cancelled = true;
+      cancelAction();
+      addLog(`【${label}】中断`);
+    } else {
+      startAction(selectedActionId, {
+        onRandomReward: ({ resource, amount }) => {
+          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+        },
+      });
+    }
   });
 
   setInterval(tick, 100);
