@@ -213,14 +213,15 @@ function render(state) {
     els.progressBar.style.width = '0%';
     if (!wasCancelled) {
       if (_postExplorePending) {
-        maybeStartPostExplore();
-        // ポスト探索ストーリー中は自動再開しない
+        // render() 完了後にポスト探索ストーリーを開始
+        setTimeout(() => maybeStartPostExplore(), 0);
       } else {
-        startAction(selectedActionId, {
+        // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
+        setTimeout(() => startAction(selectedActionId, {
           onRandomReward: ({ resource, amount }) => {
             addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
           },
-        });
+        }), 0);
       }
     }
   }

@@ -354,6 +354,7 @@ function setActiveCompanion(id, active) {
 function resetTutorial() {
   state = { ...state, tutorialDone: false, postExploreDone: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
   saveToStorage(state);
+  notify();
 }
 
 export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
