@@ -7,147 +7,343 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg: #0d0f1a;
+      --panel: #161826;
+      --border: #2a2d42;
+      --text: #d4cfc7;
+      --muted: #6e6a7c;
+      --accent: #a89fc8;
+      --accent-dim: #3b3060;
+      --accent-border: #5a4d8a;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
     body {
       font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
-      background: #0d0f1a;
-      color: #d4cfc7;
-      min-height: 100svh;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
+
+    /* ── アプリ全体のシェル ── */
+    #app {
+      width: 100%;
+      max-width: 480px;
+      height: 100svh;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: 2rem 1rem;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
     }
 
-    h1 {
-      font-size: 1.4rem;
-      letter-spacing: 0.1em;
-      color: #a89fc8;
-      margin-bottom: 2rem;
-    }
-
-    .panel {
-      width: 100%;
-      max-width: 400px;
-      background: #161826;
-      border: 1px solid #2a2d42;
-      border-radius: 8px;
-      padding: 1.25rem 1.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .panel h2 {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: #6e6a7c;
-      margin-bottom: 0.75rem;
-    }
-
-    .resource-row {
+    /* ── メインパネル(ログ) ── */
+    #main-panel {
+      overflow-y: auto;
+      padding: 1rem;
       display: flex;
-      align-items: baseline;
+      flex-direction: column;
       gap: 0.5rem;
+      flex-shrink: 0;
     }
 
-    .resource-label {
-      font-size: 0.85rem;
-      color: #9990b8;
-    }
-
-    .resource-value {
-      font-size: 1.6rem;
-      font-variant-numeric: tabular-nums;
-      color: #c8bff0;
-    }
-
-    .action-card {
+    /* ── リサイザー ── */
+    #resizer {
+      height: 8px;
+      cursor: ns-resize;
       display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
+      align-items: center;
+      justify-content: center;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      user-select: none;
     }
 
-    .action-info {
+    #resizer::after {
+      content: '';
+      display: block;
+      width: 32px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--border);
+    }
+
+    #resizer:hover::after,
+    #resizer.dragging::after {
+      background: var(--accent);
+    }
+
+    .log-entry {
       font-size: 0.82rem;
-      color: #6e6a7c;
+      line-height: 1.55;
+      color: var(--muted);
+      border-left: 2px solid var(--border);
+      padding-left: 0.6rem;
     }
 
+    .log-entry.highlight {
+      color: var(--text);
+      border-left-color: var(--accent);
+    }
+
+    /* ── アクション行 ── */
+    #action-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 0.75rem;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    #action-select {
+      flex: 1;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.45rem 0.6rem;
+      font-size: 0.85rem;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    #action-select:disabled {
+      opacity: 0.5;
+    }
+
+    #action-btn {
+      flex-shrink: 0;
+      padding: 0.45rem 1rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 5px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    #action-btn:hover:not(:disabled) { background: #4d3f7a; }
+    #action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* プログレスバーはアクション行の下に */
     #progress-wrap {
-      width: 100%;
-    }
-
-    .progress-track {
-      width: 100%;
-      height: 6px;
-      background: #252840;
-      border-radius: 3px;
-      overflow: hidden;
+      height: 3px;
+      background: var(--panel);
     }
 
     #progress-bar {
       height: 100%;
       width: 0%;
-      background: #7c6db8;
-      border-radius: 3px;
+      background: var(--accent);
       transition: width 0.1s linear;
     }
 
-    #status-text {
-      font-size: 0.75rem;
-      color: #6e6a7c;
-      margin-top: 0.4rem;
-      min-height: 1em;
+    /* ── サブパネル ── */
+    #sub-panel {
+      overflow-y: auto;
+      padding: 1rem;
+      flex: 1;
+      min-height: 80px;
     }
 
-    button#action-btn {
-      width: 100%;
-      padding: 0.7rem 1rem;
-      background: #3b3060;
-      color: #c8bff0;
-      border: 1px solid #5a4d8a;
-      border-radius: 6px;
-      font-size: 0.95rem;
+    .sub-view { display: none; }
+    .sub-view.active { display: block; }
+
+    .sub-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .resource-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+
+    .resource-row:last-child { border-bottom: none; }
+
+    .resource-name { color: var(--muted); }
+    .resource-val {
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      font-size: 1rem;
+    }
+
+    .placeholder {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    /* ── ヘッダー ── */
+    #header {
+      display: flex;
+      align-items: center;
+      padding: 0 1rem;
+      height: 44px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      flex-shrink: 0;
+    }
+
+    #header-title {
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    /* ── フッタータブ ── */
+    #footer {
+      display: flex;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 0.65rem 0.5rem;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.78rem;
       cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
+      transition: color 0.15s, border-top 0.15s;
+      border-top: 2px solid transparent;
     }
 
-    button#action-btn:hover:not(:disabled) {
-      background: #4d3f7a;
-    }
-
-    button#action-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--accent);
+      border-top-color: var(--accent);
     }
   </style>
 </head>
 <body>
-  <h1>Fragment Recollection</h1>
+<div id="app">
+  <!-- ヘッダー -->
+  <div id="header">
+    <span id="header-title">Fragment Recollection</span>
+  </div>
 
-  <div class="panel">
-    <h2>資源</h2>
-    <div class="resource-row">
-      <span class="resource-label">フラグメント</span>
-      <span class="resource-value" id="fragment-count">0</span>
+  <!-- メインパネル(ログ) -->
+  <div id="main-panel">
+    <div class="log-entry highlight">Fragment Recollection を開始しました。</div>
+  </div>
+
+  <!-- アクション行 -->
+  <div>
+    <div id="action-bar">
+      <select id="action-select">
+        <option value="explore">探索</option>
+      </select>
+      <button id="action-btn">開始</button>
+    </div>
+    <div id="progress-wrap">
+      <div id="progress-bar"></div>
     </div>
   </div>
 
-  <div class="panel">
-    <h2>アクション</h2>
-    <div class="action-card">
-      <div class="action-info">探索 — 20秒後にフラグメントを10個獲得</div>
-      <button id="action-btn">探索を開始</button>
-      <div id="progress-wrap" hidden>
-        <div class="progress-track">
-          <div id="progress-bar"></div>
-        </div>
-        <div id="status-text"></div>
+  <!-- リサイザー -->
+  <div id="resizer"></div>
+
+  <!-- サブパネル -->
+  <div id="sub-panel">
+    <div id="view-items" class="sub-view active">
+      <div class="sub-title">持ち物</div>
+      <div class="resource-row">
+        <span class="resource-name">フラグメント</span>
+        <span class="resource-val" id="fragment-count">0</span>
       </div>
     </div>
+    <div id="view-stories" class="sub-view">
+      <div class="sub-title">物語</div>
+      <div class="placeholder">まだ物語は解禁されていません。</div>
+    </div>
+    <div id="view-chars" class="sub-view">
+      <div class="sub-title">キャラクター</div>
+      <div class="placeholder">準備中</div>
+    </div>
   </div>
 
-  <script type="module">
-    import { init } from './ui.js';
-    init();
-  </script>
+  <!-- フッター -->
+  <div id="footer">
+    <button class="tab-btn" data-view="view-stories">物語</button>
+    <button class="tab-btn active" data-view="view-items">持ち物</button>
+    <button class="tab-btn" data-view="view-chars">キャラクター</button>
+  </div>
+</div>
+
+<script type="module">
+  import { ACTIONS, getState, subscribe, startAction, getProgress } from './game.js';
+  import { init } from './ui.js';
+  init();
+</script>
+<script>
+  const resizer = document.getElementById('resizer');
+  const mainPanel = document.getElementById('main-panel');
+  const MIN_H = 60;
+
+  let startY = 0;
+  let startH = 0;
+
+  function onMove(y) {
+    const appH = document.getElementById('app').clientHeight;
+    const newH = Math.max(MIN_H, Math.min(startH + (y - startY), appH - MIN_H - 120));
+    mainPanel.style.height = newH + 'px';
+  }
+
+  resizer.addEventListener('mousedown', e => {
+    startY = e.clientY;
+    startH = mainPanel.getBoundingClientRect().height;
+    resizer.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = e => onMove(e.clientY);
+    const onMouseUp = () => {
+      resizer.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  });
+
+  resizer.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+    startH = mainPanel.getBoundingClientRect().height;
+    resizer.classList.add('dragging');
+
+    const onTouchMove = e => { e.preventDefault(); onMove(e.touches[0].clientY); };
+    const onTouchEnd = () => {
+      resizer.classList.remove('dragging');
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+  });
+
+  // 初期高さを画面の約45%に設定
+  mainPanel.style.height = (document.getElementById('app').clientHeight * 0.45) + 'px';
+</script>
 </body>
 </html>

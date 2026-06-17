@@ -4,7 +4,7 @@ const ACTIONS = {
   explore: {
     id: 'explore',
     label: '探索',
-    duration: 20000, // ms
+    duration: 5000, // ms
     rewards: [{ resource: 'fragment', amount: 10 }],
   },
 };
@@ -15,6 +15,22 @@ const INITIAL_STATE = {
   },
   activeAction: null, // { actionId, startedAt, endsAt }
 };
+
+const SAVE_KEY = 'fr_save_v1';
+
+function saveToStorage(s) {
+  localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 let state = structuredClone(INITIAL_STATE);
 let listeners = [];
@@ -44,6 +60,7 @@ function startAction(actionId) {
     ...state,
     activeAction: { actionId, startedAt: now, endsAt: now + action.duration },
   };
+  saveToStorage(state);
   notify();
 
   _timer = setTimeout(() => completeAction(actionId), action.duration);
@@ -60,6 +77,7 @@ function completeAction(actionId) {
   }
 
   state = { ...state, resources: newResources, activeAction: null };
+  saveToStorage(state);
   notify();
 }
 
@@ -71,5 +89,25 @@ function getProgress() {
   const total = endsAt - startedAt;
   return Math.min(elapsed / total, 1);
 }
+
+// 起動時にセーブデータを復元し、進行中のアクションがあれば再スケジュール
+function init() {
+  const saved = loadFromStorage();
+  if (!saved) return;
+
+  state = { ...INITIAL_STATE, ...saved, resources: { ...INITIAL_STATE.resources, ...saved.resources } };
+
+  if (state.activeAction) {
+    const remaining = state.activeAction.endsAt - Date.now();
+    if (remaining > 0) {
+      _timer = setTimeout(() => completeAction(state.activeAction.actionId), remaining);
+    } else {
+      // ページを閉じている間に完了していたケース
+      completeAction(state.activeAction.actionId);
+    }
+  }
+}
+
+init();
 
 export { ACTIONS, getState, subscribe, startAction, getProgress };
