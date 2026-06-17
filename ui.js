@@ -62,8 +62,10 @@ function _appendLog(text, highlight, html) {
   el.className = 'log-entry' + (highlight ? ' highlight' : '');
   if (html) el.innerHTML = text;
   else el.textContent = text;
-  els.mainPanel.appendChild(el);
-  els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
+  const panel = els.mainPanel;
+  const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 40;
+  panel.appendChild(el);
+  if (atBottom) panel.scrollTop = panel.scrollHeight;
 }
 
 function pauseLog()  { _logPaused = true; }
