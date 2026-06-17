@@ -299,6 +299,7 @@ function render(state) {
       } else {
         // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
         setTimeout(() => {
+          if (_storyLogPlaying) return;
           _isAutoRestart = true;
           startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
         }, 0);
@@ -447,7 +448,7 @@ function renderActionList() {
         els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
         renderActionList();
         switchTab('view-items');
-        startAction(action.id, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
+        if (!_storyLogPlaying) startAction(action.id, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
       });
       card.appendChild(startBtn);
 
@@ -477,6 +478,7 @@ function initStoryViewer() {
 // ── チュートリアル起動 ──
 let _postExploreCleanup = null;
 let _postExplorePending = false;
+let _storyLogPlaying = false; // ストーリーログ再生中フラグ
 let _waitingForPrologue = false;
 let _prologueTotalPages = 0;
 
@@ -502,9 +504,11 @@ function startProloguePhase() {
 
 function maybeStartPostExplore2(state) {
   setPostExplore2Done();
+  _storyLogPlaying = true;
   let cleanup = null;
   cleanup = startPostExplore2Story(els.mainPanel, {
     onComplete: () => {
+      _storyLogPlaying = false;
       addLog('フラグメントをもっと集めてみよう...', false);
       if (cleanup) { cleanup(); cleanup = null; }
       // ストーリー後は停止状態を維持
@@ -517,6 +521,7 @@ function maybeStartPostExplore() {
   if (state.postExploreDone) return;
   _waitingForPrologue = false;
   setPostExploreDone();
+  _storyLogPlaying = true;
 
   if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
   _postExploreCleanup = startPostExploreStory(els.mainPanel, {
@@ -525,6 +530,7 @@ function maybeStartPostExplore() {
       renderCharTab(getState());
     },
     onComplete: () => {
+      _storyLogPlaying = false;
       unlockCompanion('yuuya');
       addLog('【同行】ユウヤが仲間になった', true);
       renderCharTab(getState());
@@ -728,7 +734,7 @@ export function init() {
       cancelAction();
       addLog(`【${label}】中断`, true);
     } else {
-      startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
+      if (!_storyLogPlaying) startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
     }
   });
 
