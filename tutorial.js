@@ -262,6 +262,7 @@ function startPostExploreStory(mainPanel, { onNameDecided, onComplete } = {}) {
 
 // ── ポスト探索ストーリー002 ──
 const POST_EXPLORE_2_STEPS = [
+   { type: 'text', text: '002' },
   { type: 'text', text: '「これ、いったいなんだろう」' },
   { type: 'text', text: 'ユウヤの手には、不思議な物体がある。' },
   { type: 'text', text: 'さきほどから、あなたも見つけていたものだ。' },

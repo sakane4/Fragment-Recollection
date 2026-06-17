@@ -365,7 +365,7 @@ function unlockStory(storyId) {
     resources: newResources,
     appearedStories: newAppeared,
     unlockedStories: [...state.unlockedStories, storyId],
-    storyProgress: { ...state.storyProgress, [storyId]: 0 },
+    storyProgress: { ...state.storyProgress, [storyId]: 1 },
   };
   saveToStorage(state);
   notify();

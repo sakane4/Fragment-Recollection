@@ -82,7 +82,7 @@ let _viewerStoryId = null;
 let _viewerPrevUnlockedPages = 0;
 const _storyPageCounts = {}; // storyId → 総ページ数キャッシュ
 
-async function openStory(storyId) {
+async function openStory(storyId, { prevProgress } = {}) {
   const story = STORIES[storyId];
   if (!story) return;
 
@@ -99,7 +99,7 @@ async function openStory(storyId) {
 
   _viewerPages = pages;
   _viewerStoryId = storyId;
-  _viewerPrevUnlockedPages = getState().storyProgress[storyId] ?? 0; // 開いた時点の進捗を基準にする
+  _viewerPrevUnlockedPages = prevProgress ?? (getState().storyProgress[storyId] ?? 0);
   _storyPageCounts[storyId] = pages.length; // 総ページ数をキャッシュ
   // プロローグのページ数をキャッシュ（全開放検知に使う）
   if (storyId === 'prologue') _prologueTotalPages = pages.length;
@@ -181,10 +181,11 @@ function closeStory() {
   _viewerStoryId = null;
   resumeLog();
 
-  // プロローグを全開放した状態で閉じた → ストーリー001へ
-  if (_waitingForPrologue && closedStoryId === 'prologue' && _prologueTotalPages > 0) {
+  // プロローグを全ページ読んだ状態で閉じた → ストーリー001へ
+  if (_waitingForPrologue && closedStoryId === 'prologue') {
     const progress = getState().storyProgress['prologue'] ?? 0;
-    if (progress >= _prologueTotalPages) {
+    const total = STORIES['prologue'].pageCount;
+    if (total > 0 && progress >= total) {
       setTimeout(() => maybeStartPostExplore(), 0);
     }
   }
@@ -239,13 +240,15 @@ function renderStoryList(state) {
 
     const btn = document.createElement('button');
     btn.className = 'story-btn' + (unlocked ? '' : ' locked');
-    btn.textContent = unlocked ? '思い出す' : '解放';
+    btn.textContent = '思い出す';
     btn.addEventListener('click', () => {
       if (unlocked) {
         openStory(story.id);
       } else {
         const result = unlockStory(story.id);
-        if (!result.ok && result.reason === 'insufficient_resources') {
+        if (result.ok) {
+          openStory(story.id, { prevProgress: 0 });
+        } else if (result.reason === 'insufficient_resources') {
           addLog(`フラグメントが足りません (${costLabel} 必要)`);
         }
       }
@@ -260,6 +263,7 @@ function renderStoryList(state) {
 // ── 状態レンダリング ──
 let prevActive = null;
 let prevUnlocked = [];
+let prevAppearedStories = [];
 let prevUnlockedLocations = [];
 let prevUnlockedActions = [];
 let stopFlavor = null;
@@ -347,6 +351,14 @@ function render(state) {
       }
     }
   }
+
+  for (const id of (state.appearedStories ?? [])) {
+    if (!prevAppearedStories.includes(id)) {
+      const story = STORIES[id];
+      addLog(`【記憶】「${story.lockedTitle ?? 'あいまいな記憶'}」が呼んでいる`, true);
+    }
+  }
+  prevAppearedStories = [...(state.appearedStories ?? [])];
 
   for (const id of state.unlockedStories) {
     if (!prevUnlocked.includes(id)) {
