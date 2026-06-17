@@ -152,10 +152,19 @@ function renderViewerBody(state) {
 }
 
 function closeStory() {
+  const closedStoryId = _viewerStoryId;
   els.storyOverlay.classList.remove('open');
   _viewerPages = [];
   _viewerStoryId = null;
   resumeLog();
+
+  // プロローグを全開放した状態で閉じた → ストーリー001へ
+  if (_waitingForPrologue && closedStoryId === 'prologue' && _prologueTotalPages > 0) {
+    const progress = getState().storyProgress['prologue'] ?? 0;
+    if (progress >= _prologueTotalPages) {
+      setTimeout(() => maybeStartPostExplore(), 0);
+    }
+  }
 }
 
 // ── 物語リスト描画 ──
@@ -340,13 +349,6 @@ renderStoryList(state);
   // ビューアが開いていればページ表示を更新
   if (_viewerStoryId) renderViewerBody(state);
 
-  // プロローグ全開放 → ストーリー001へ
-  if (_waitingForPrologue && _prologueTotalPages > 0) {
-    const progress = state.storyProgress['prologue'] ?? 0;
-    if (progress >= _prologueTotalPages) {
-      setTimeout(() => maybeStartPostExplore(), 0);
-    }
-  }
 }
 
 // ── プログレスバー ──
