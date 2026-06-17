@@ -125,6 +125,7 @@ function showActionGuide() {
 // ── ポスト探索ストーリーログ ──
 // メインパネルにタイプライター式でテキストを順番に流す
 const POST_EXPLORE_STEPS = [
+  { type: 'text', text: '001' },
   { type: 'text', text: '何もない世界をしばらくさまよった。' },
   { type: 'text', text: '「あれ？」' },
   { type: 'text', text: '後ろから、声が聞こえた。' },
@@ -192,10 +193,11 @@ function startPostExploreStory(mainPanel, { onNameDecided, onComplete } = {}) {
     } else if (step.type === 'name_input') {
       currentTw = null;
       const wrap = addEntry();
+      const defaultName = Math.random() < 0.5 ? 'アサ' : 'ヨル';
       wrap.innerHTML = `
         <div class="story-name-prompt">〈なまえを入力してください〉</div>
         <div class="story-name-row">
-          <input id="story-name-input" type="text" maxlength="10" placeholder="なまえ">
+          <input id="story-name-input" type="text" maxlength="10" value="${defaultName}">
           <button id="story-name-btn">決定</button>
         </div>`;
       mainPanel.scrollTop = mainPanel.scrollHeight;
