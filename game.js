@@ -511,7 +511,7 @@ function setActiveCompanion(id, active) {
   notify();
 }
 
-function jumpToLogStory(n) {
+function jumpToLogSt(n) {
   state = {
     ...state,
     logSt1Done:  n > 1 ? true : false,
@@ -527,4 +527,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt };

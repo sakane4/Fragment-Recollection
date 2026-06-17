@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 } from './tutorial.js';
@@ -900,7 +900,7 @@ function initDevTools() {
 
   [1, 2, 3].forEach(n => {
     document.getElementById(`dev-log-story-${n}`).addEventListener('click', () => {
-      jumpToLogStory(n);
+      jumpToLogSt(n);
       const fns = [null, runLogSt_1, runLogSt_2, runLogSt_3];
       fns[n](els.mainPanel, {
         onNameDecided: n === 1 ? (name) => { setPlayerName(name); } : undefined,
