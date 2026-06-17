@@ -333,13 +333,7 @@ function render(state) {
   prevUnlockedLocations = [...state.unlockedLocations];
   prevUnlockedActions = [...state.unlockedActions];
 
-  // フラグメント50個達成ヒント
-  if (!state.fragmentHintShown && (state.resources.fragment ?? 0) >= 50) {
-    setFragmentHintShown();
-    showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
-  }
-
-  renderStoryList(state);
+renderStoryList(state);
   renderCharTab(state);
 
   // ビューアが開いていればページ表示を更新
