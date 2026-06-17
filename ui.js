@@ -202,7 +202,7 @@ function render(state) {
     const action = ACTIONS[active.actionId];
     const location = LOCATIONS[action.locationId];
     const actionLabel = location.label ? `${location.label} / ${action.label}` : action.label;
-    addLog(`【${actionLabel}】開始`);
+    addLog(`【${actionLabel}】開始`, true);
     els.actionPickerBtn.disabled = true;
     els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
@@ -624,7 +624,7 @@ export function init() {
       if (stopFlavor) { stopFlavor(); stopFlavor = null; }
       _cancelled = true;
       cancelAction();
-      addLog(`【${label}】中断`);
+      addLog(`【${label}】中断`, true);
     } else {
       startAction(selectedActionId, {
         onRandomReward: ({ resource, amount }) => {
