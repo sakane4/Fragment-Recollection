@@ -2,7 +2,8 @@
 import { STORIES } from './stories.js';
 
 const LOCATIONS = {
-  forest:     { id: 'forest',     label: '' },   // 発見前は場所名なし
+  wherever:   { id: 'wherever',   label: '' },          // 場所不明の初期状態
+  forest:     { id: 'forest',     label: 'はじまりの森' },
   tower_city: { id: 'tower_city', label: '塔都' },
 };
 
@@ -10,8 +11,8 @@ const ACTIONS = {
   forest_explore: {
     id: 'forest_explore',
     label: '探索',
-    locationId: 'forest',
-    description: '森の奥へ踏み込む。フラグメントが手に入るかもしれない。',
+    locationId: 'wherever',
+    description: 'なにもない世界を探索する。',
     duration: 20000,
     rewards: [{ resource: 'fragment', amount: 10 }],
     randomRewards: [
@@ -55,7 +56,7 @@ const INITIAL_STATE = {
   activeAction: null,
   unlockedStories: [],
   storyProgress: {},
-  unlockedLocations: ['forest'],
+  unlockedLocations: ['wherever'],
   unlockedActions: ['forest_explore'],
   tutorialDone: false,        // オープニングチュートリアル完了フラグ
   postExploreDone: false,     // 探索後ストーリー完了フラグ
