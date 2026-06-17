@@ -79,8 +79,10 @@ function startOpeningTutorial({ onComplete } = {}) {
         if (page.advance === 'tap') {
           indicator.hidden = false;
         } else {
-          btn.textContent = page.buttonLabel;
-          btn.hidden = false;
+          setTimeout(() => {
+            btn.textContent = page.buttonLabel;
+            btn.hidden = false;
+          }, 1000);
         }
       },
     });
