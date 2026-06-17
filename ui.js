@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, startPostExploreStory, startPostExplore2Story } from './tutorial.js';
@@ -598,6 +598,8 @@ function initDevTools() {
 
   document.getElementById('dev-unlock-all-stories').addEventListener('click', unlockAllStories);
   document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
+  document.getElementById('dev-unlock-all-actions').addEventListener('click', unlockAllActions);
+  document.getElementById('dev-lock-all-actions').addEventListener('click', lockAllActions);
 }
 
 export function init() {

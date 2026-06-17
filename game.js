@@ -117,6 +117,18 @@ function lockAllStories() {
   notify();
 }
 
+function unlockAllActions() {
+  state = { ...state, unlockedLocations: Object.keys(LOCATIONS), unlockedActions: Object.keys(ACTIONS) };
+  saveToStorage(state);
+  notify();
+}
+
+function lockAllActions() {
+  state = { ...state, unlockedLocations: ['wherever'], unlockedActions: ['forest_explore'] };
+  saveToStorage(state);
+  notify();
+}
+
 let state = structuredClone(INITIAL_STATE);
 let listeners = [];
 
@@ -372,4 +384,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
