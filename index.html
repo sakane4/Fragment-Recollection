@@ -325,6 +325,7 @@
     #story-overlay.open { display: flex; }
 
     #story-viewer {
+      position: relative;
       width: 100%;
       max-width: 480px;
       height: 75svh;
@@ -405,6 +406,24 @@
     }
 
     .story-next-btn:hover { background: #4d3f7a; }
+
+    #viewer-toast {
+      position: absolute;
+      bottom: 4rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 20, 35, 0.92);
+      color: var(--muted);
+      font-size: 0.78rem;
+      padding: 0.45rem 1rem;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    #viewer-toast.visible { opacity: 1; }
 
     #story-fin-bar {
       flex-shrink: 0;

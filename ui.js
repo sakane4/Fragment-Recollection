@@ -141,7 +141,7 @@ function renderViewerBody(state) {
     btn.addEventListener('click', () => {
       const result = unlockNextPage(_viewerStoryId);
       if (!result.ok && result.reason === 'insufficient_resources') {
-        addLog(`【記憶】思い出すには ${costLabel} が必要です`);
+        showViewerToast(`思い出すには ${costLabel} が必要です`);
       }
     });
     els.storyBody.appendChild(btn);
@@ -151,6 +151,23 @@ function renderViewerBody(state) {
 
   _viewerPrevUnlockedPages = unlockedPages;
   els.storyBody.scrollTop = els.storyBody.scrollHeight;
+}
+
+let _viewerToastTimer = null;
+function showViewerToast(text) {
+  let toast = document.getElementById('viewer-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'viewer-toast';
+    els.storyOverlay.querySelector('#story-viewer').appendChild(toast);
+  }
+  toast.textContent = text;
+  toast.classList.remove('visible');
+  // 再アニメーションのためにリフロー
+  void toast.offsetWidth;
+  toast.classList.add('visible');
+  clearTimeout(_viewerToastTimer);
+  _viewerToastTimer = setTimeout(() => toast.classList.remove('visible'), 2500);
 }
 
 function closeStory() {
