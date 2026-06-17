@@ -203,6 +203,8 @@ function render(state) {
     const location = LOCATIONS[action.locationId];
     const actionLabel = location.label ? `${location.label} / ${action.label}` : action.label;
     addLog(`【${actionLabel}】開始`, true);
+    // ピッカーボタンは常に実行中の行動を表示
+    els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
     els.actionPickerBtn.disabled = true;
     els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
@@ -230,6 +232,10 @@ function render(state) {
     els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
+    // アイドル時は選択中の行動をピッカーに表示
+    const selAction = ACTIONS[selectedActionId];
+    const selLoc = LOCATIONS[selAction?.locationId];
+    els.actionPickerBtn.textContent = selLoc?.label ? `${selLoc.label} — ${selAction.label}` : (selAction?.label ?? '探索');
     if (!wasCancelled) {
       if (_postExplorePending) {
         // render() 完了後にポスト探索ストーリー001を開始
@@ -361,8 +367,24 @@ function renderActionList() {
       card.appendChild(meta);
 
       card.addEventListener('click', () => {
+        const running = getState().activeAction;
+        if (running && running.actionId !== action.id) {
+          // 別の行動が実行中 → 確認ダイアログ
+          const curAction = ACTIONS[running.actionId];
+          const curLoc = LOCATIONS[curAction.locationId];
+          const curLabel = curLoc?.label ? `${curLoc.label} / ${curAction.label}` : curAction.label;
+          const newLabel = location.label ? `${location.label} / ${action.label}` : action.label;
+          if (!confirm(`現在「${curLabel}」を実行中です。\n中断して「${newLabel}」に切り替えますか？`)) return;
+          // 中断処理
+          if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+          _cancelled = true;
+          cancelAction();
+          addLog(`【${curLabel}】中断`, true);
+        }
         selectedActionId = action.id;
-        els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
+        if (!getState().activeAction) {
+          els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
+        }
         renderActionList();
       });
 
