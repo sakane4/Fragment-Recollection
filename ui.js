@@ -33,7 +33,7 @@ function actionDisplayLabel(action, sep = ' / ') {
 
 function makeRandomRewardHandler() {
   return ({ resource, amount }) => {
-    addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
+    addLog(`<span class="log-companion-reward"><span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた</span>`, false, true);
   };
 }
 
