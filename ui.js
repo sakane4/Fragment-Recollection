@@ -557,7 +557,6 @@ function initDevTools() {
 
   document.getElementById('dev-unlock-all-stories').addEventListener('click', unlockAllStories);
   document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
-  document.getElementById('dev-tutorial-btn').addEventListener('click', launchTutorial);
 }
 
 export function init() {
