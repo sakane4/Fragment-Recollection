@@ -445,12 +445,7 @@ function maybeStartPostExplore2(state) {
     onComplete: () => {
       addLog('フラグメントをもっと集めてみよう...', false);
       if (cleanup) { cleanup(); cleanup = null; }
-      // ストーリー後に自動再開
-      setTimeout(() => startAction(selectedActionId, {
-        onRandomReward: ({ resource, amount }) => {
-          addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
-        },
-      }), 0);
+      // ストーリー後は停止状態を維持
     },
   });
 }
