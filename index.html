@@ -907,6 +907,7 @@
     const appH = document.getElementById('app').clientHeight;
     const newH = Math.max(MIN_H, Math.min(startH + (y - startY), appH - MIN_H - 120));
     mainPanel.style.height = newH + 'px';
+    mainPanel.scrollTop = mainPanel.scrollHeight;
   }
 
   resizer.addEventListener('mousedown', e => {
