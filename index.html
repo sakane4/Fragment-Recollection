@@ -389,6 +389,8 @@
     }
 
     .dev-label { font-size: 0.82rem; color: var(--muted); }
+    .dev-label-sub { font-size: 0.72rem; }
+    .dev-btn--on { background: #1a3a1a; color: #7aaa7a; border-color: #2a6a2a; }
 
     .dev-btn {
       flex-shrink: 0;
@@ -454,6 +456,26 @@
     </div>
     <div id="view-dev" class="sub-view">
       <div class="sub-title">開発メニュー</div>
+      <div class="dev-row">
+        <span class="dev-label">開発モード<br><span class="dev-label-sub" id="dev-mode-desc">OFF — 通常動作</span></span>
+        <button id="dev-mode-btn" class="dev-btn">OFF</button>
+      </div>
+      <div id="dev-tools" style="display:none">
+        <div class="dev-row">
+          <span class="dev-label">フラグメント追加</span>
+          <div style="display:flex;gap:0.4rem">
+            <button class="dev-btn" data-add-resource="fragment" data-add-amount="10">+10</button>
+            <button class="dev-btn" data-add-resource="fragment" data-add-amount="100">+100</button>
+          </div>
+        </div>
+        <div class="dev-row">
+          <span class="dev-label">物語</span>
+          <div style="display:flex;gap:0.4rem">
+            <button class="dev-btn" id="dev-unlock-all-stories">全解放</button>
+            <button class="dev-btn dev-btn--danger" id="dev-lock-all-stories">全ロック</button>
+          </div>
+        </div>
+      </div>
       <div class="dev-row">
         <span class="dev-label">セーブデータをすべて削除してリロード</span>
         <button id="dev-reset-btn" class="dev-btn dev-btn--danger">リセット</button>
@@ -537,7 +559,12 @@
 
   document.getElementById('dev-reset-btn').addEventListener('click', () => {
     if (!confirm('セーブデータをすべて削除してリセットしますか？')) return;
-    localStorage.removeItem('fr_save_v1');
+    localStorage.setItem('fr_save_v1', JSON.stringify({
+      resources: { fragment: 1000 },
+      activeAction: null,
+      unlockedStories: [],
+      storyProgress: {},
+    }));
     location.reload();
   });
 </script>

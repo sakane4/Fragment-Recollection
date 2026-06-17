@@ -35,6 +35,41 @@ function loadFromStorage() {
   }
 }
 
+let devMode = false;
+
+function setDevMode(enabled) {
+  devMode = enabled;
+}
+
+function isDevMode() {
+  return devMode;
+}
+
+function addResources(resource, amount) {
+  const newResources = { ...state.resources, [resource]: (state.resources[resource] ?? 0) + amount };
+  state = { ...state, resources: newResources };
+  saveToStorage(state);
+  notify();
+}
+
+function unlockAllStories() {
+  const allIds = Object.keys(STORIES);
+  const progress = { ...state.storyProgress };
+  for (const id of allIds) {
+    if (!progress[id]) progress[id] = Object.keys(STORIES[id]).length || 1;
+    progress[id] = 999; // 全ページ解放
+  }
+  state = { ...state, unlockedStories: allIds, storyProgress: progress };
+  saveToStorage(state);
+  notify();
+}
+
+function lockAllStories() {
+  state = { ...state, unlockedStories: [], storyProgress: {} };
+  saveToStorage(state);
+  notify();
+}
+
 let state = structuredClone(INITIAL_STATE);
 let listeners = [];
 
@@ -59,14 +94,15 @@ function startAction(actionId) {
   if (!action) return { ok: false, reason: 'unknown_action' };
 
   const now = Date.now();
+  const duration = devMode ? 1000 : action.duration;
   state = {
     ...state,
-    activeAction: { actionId, startedAt: now, endsAt: now + action.duration },
+    activeAction: { actionId, startedAt: now, endsAt: now + duration },
   };
   saveToStorage(state);
   notify();
 
-  _timer = setTimeout(() => completeAction(actionId), action.duration);
+  _timer = setTimeout(() => completeAction(actionId), duration);
   return { ok: true };
 }
 
@@ -167,4 +203,4 @@ function init() {
 
 init();
 
-export { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage };
+export { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories };

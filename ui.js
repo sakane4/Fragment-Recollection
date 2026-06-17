@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage } from './game.js';
+import { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
 import { parseStoryPages } from './stories.js';
 
 const els = {
@@ -231,11 +231,36 @@ function initStoryViewer() {
   });
 }
 
+function initDevTools() {
+  const modeBtn = document.getElementById('dev-mode-btn');
+  const modeDesc = document.getElementById('dev-mode-desc');
+  const devTools = document.getElementById('dev-tools');
+
+  modeBtn.addEventListener('click', () => {
+    const next = !isDevMode();
+    setDevMode(next);
+    modeBtn.textContent = next ? 'ON' : 'OFF';
+    modeBtn.classList.toggle('dev-btn--on', next);
+    modeDesc.textContent = next ? 'ON — 探索1秒・資源追加有効' : 'OFF — 通常動作';
+    devTools.style.display = next ? 'block' : 'none';
+  });
+
+  document.querySelectorAll('[data-add-resource]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      addResources(btn.dataset.addResource, Number(btn.dataset.addAmount));
+    });
+  });
+
+  document.getElementById('dev-unlock-all-stories').addEventListener('click', unlockAllStories);
+  document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
+}
+
 export function init() {
   subscribe(render);
   render(getState());
   initTabs();
   initStoryViewer();
+  initDevTools();
 
   els.actionBtn.addEventListener('click', () => {
     startAction(els.actionSelect.value);
