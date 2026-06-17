@@ -366,26 +366,42 @@ function renderActionList() {
       card.appendChild(info);
       card.appendChild(meta);
 
-      card.addEventListener('click', async () => {
-        const running = getState().activeAction;
-        if (running && running.actionId !== action.id) {
-          const curAction = ACTIONS[running.actionId];
-          const curLoc = LOCATIONS[curAction.locationId];
-          const curLabel = curLoc?.label ? `${curLoc.label} / ${curAction.label}` : curAction.label;
-          const newLabel = location.label ? `${location.label} / ${action.label}` : action.label;
-          const ok = await showConfirm(`現在「${curLabel}」を実行中です。\n中断して「${newLabel}」に切り替えますか？`);
-          if (!ok) return;
-          if (stopFlavor) { stopFlavor(); stopFlavor = null; }
-          _cancelled = true;
-          cancelAction();
-          addLog(`【${curLabel}】中断`, true);
-        }
+      // カードタップ → 選択のみ
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.action-start-btn')) return;
         selectedActionId = action.id;
         if (!getState().activeAction) {
           els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
         }
         renderActionList();
       });
+
+      // 開始ボタン → 現在の行動を中断して即開始
+      const startBtn = document.createElement('button');
+      startBtn.className = 'action-start-btn';
+      startBtn.textContent = '開始';
+      startBtn.addEventListener('click', () => {
+        const running = getState().activeAction;
+        if (running) {
+          const curAction = ACTIONS[running.actionId];
+          const curLoc = LOCATIONS[curAction.locationId];
+          const curLabel = curLoc?.label ? `${curLoc.label} / ${curAction.label}` : curAction.label;
+          if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+          _cancelled = true;
+          cancelAction();
+          addLog(`【${curLabel}】中断`, true);
+        }
+        selectedActionId = action.id;
+        els.actionPickerBtn.textContent = location.label ? `${location.label} — ${action.label}` : action.label;
+        renderActionList();
+        switchTab('view-items');
+        startAction(action.id, {
+          onRandomReward: ({ resource, amount }) => {
+            addLog(`<span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた`, false, true);
+          },
+        });
+      });
+      card.appendChild(startBtn);
 
       group.appendChild(card);
     }
@@ -460,31 +476,6 @@ function maybeStartPostExplore() {
       renderCharTab(getState());
       if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
     },
-  });
-}
-
-// ── カスタム confirm ──
-function showConfirm(message) {
-  return new Promise((resolve) => {
-    const overlay = document.getElementById('confirm-overlay');
-    const msg     = document.getElementById('confirm-message');
-    const yesBtn  = document.getElementById('confirm-yes');
-    const noBtn   = document.getElementById('confirm-no');
-
-    msg.textContent = message;
-    overlay.classList.add('open');
-
-    function done(result) {
-      overlay.classList.remove('open');
-      yesBtn.removeEventListener('click', onYes);
-      noBtn.removeEventListener('click', onNo);
-      resolve(result);
-    }
-    function onYes() { done(true); }
-    function onNo()  { done(false); }
-
-    yesBtn.addEventListener('click', onYes, { once: true });
-    noBtn.addEventListener('click', onNo, { once: true });
   });
 }
 
