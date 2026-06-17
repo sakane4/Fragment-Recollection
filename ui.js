@@ -291,7 +291,11 @@ function render(state) {
         setTimeout(() => maybeStartPostExplore2(state), 0);
       } else {
         // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
-        setTimeout(() => startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() }), 0);
+        setTimeout(() => {
+          const nextAction = ACTIONS[selectedActionId];
+          if (nextAction) addLog(`さらに【${actionDisplayLabel(nextAction)}】を続ける・・・`);
+          startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
+        }, 0);
       }
     }
   }
