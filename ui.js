@@ -503,7 +503,7 @@ function startProloguePhase() {
   _waitingForPrologue = true;
   forceUnlockStory('prologue');
   addLog('記憶の欠片を感じた...', true);
-  showTabToast('[data-tab="stories"]', '記憶を確認できます');
+  showTabToast('.tab-btn[data-view="view-stories"]', '記憶を確認できます');
 }
 
 function maybeStartPostExplore2(state) {
