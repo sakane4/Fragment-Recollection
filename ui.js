@@ -25,10 +25,11 @@ const RESOURCE_LABELS = {
 };
 
 // ── ログ ──
-function addLog(text, highlight = false) {
+function addLog(text, highlight = false, html = false) {
   const el = document.createElement('div');
   el.className = 'log-entry' + (highlight ? ' highlight' : '');
-  el.textContent = text;
+  if (html) el.innerHTML = text;
+  else el.textContent = text;
   els.mainPanel.appendChild(el);
   els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
 }
@@ -203,8 +204,16 @@ function render(state) {
     if (!_cancelled) {
       const action = ACTIONS[prevActive.actionId];
       const location = LOCATIONS[action.locationId];
-      const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
-      addLog(`【${location.label} / ${action.label}】完了 — ${rewards}`, true);
+      const hasBonus = (state.activeCompanions ?? []).length > 0;
+      const rewardParts = action.rewards.map(r => {
+        const label = RESOURCE_LABELS[r.resource] ?? r.resource;
+        if (hasBonus) {
+          return `${label} +${r.amount}<span class="log-bonus"> +${r.amount}</span>`;
+        }
+        return `${label} +${r.amount}`;
+      });
+      const rewardsHtml = rewardParts.join(', ');
+      addLog(`【${location.label} / ${action.label}】完了 — ${rewardsHtml}`, true, true);
     }
     const wasCancelled = _cancelled;
     _cancelled = false;
