@@ -626,8 +626,9 @@ function renderCharTab(state) {
       const rewards = COMPANION_REWARDS[id];
       if (!rewards) continue;
       for (const r of rewards) {
-        const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-        bonusLines.push(`${label} `);
+        const discovered = (state.discoveredResources ?? []).includes(r.resource);
+        const label = discovered ? `${RESOURCE_LABELS[r.resource] ?? r.resource} を入手` : '???';
+        bonusLines.push(label);
       }
     }
     const bonus = document.createElement('div');

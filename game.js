@@ -79,6 +79,7 @@ const INITIAL_STATE = {
   playerName: '',             // プレイヤーネーム
   unlockedCompanions: [],     // 解放済み同行者IDの配列
   activeCompanions: [],       // 同行中の同行者IDの配列
+  discoveredResources: ['fragment'], // 一度でも入手したリソースID（最初からフラグメントは既知）
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -107,9 +108,21 @@ function isDevMode() {
   return devMode;
 }
 
+// リソースを追加し、初入手なら discoveredResources にも登録する
+function _addToResources(resources, resourceId, amount) {
+  resources[resourceId] = (resources[resourceId] ?? 0) + amount;
+}
+
+function _markDiscovered(resourceId) {
+  if (state.discoveredResources.includes(resourceId)) return false;
+  state = { ...state, discoveredResources: [...state.discoveredResources, resourceId] };
+  return true;
+}
+
 function addResources(resource, amount) {
   const newResources = { ...state.resources, [resource]: (state.resources[resource] ?? 0) + amount };
   state = { ...state, resources: newResources };
+  _markDiscovered(resource);
   saveToStorage(state);
   notify();
 }
@@ -175,6 +188,7 @@ function scheduleRandomRewards(action, onReward) {
         const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
         const newResources = { ...state.resources };
         newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
+        _markDiscovered(reward.resource);
         state = { ...state, resources: newResources };
         saveToStorage(state);
         notify();
@@ -208,6 +222,7 @@ function scheduleCompanionRandomRewards(onReward) {
           const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
           const newResources = { ...state.resources };
           newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
+          _markDiscovered(reward.resource);
           state = { ...state, resources: newResources };
           saveToStorage(state);
           notify();
@@ -289,6 +304,14 @@ function completeAction(actionId) {
     }
   }
 
+  // 新規入手リソースを discoveredResources に登録
+  const newDiscovered = [...state.discoveredResources];
+  for (const key of Object.keys(newResources)) {
+    if (!newDiscovered.includes(key) && (newResources[key] ?? 0) > (state.resources[key] ?? 0)) {
+      newDiscovered.push(key);
+    }
+  }
+
   clearRandomRewardTimers();
   state = {
     ...state,
@@ -296,6 +319,7 @@ function completeAction(actionId) {
     activeAction: null,
     unlockedLocations: newLocations,
     unlockedActions: newActions,
+    discoveredResources: newDiscovered,
   };
   saveToStorage(state);
   notify();
@@ -386,6 +410,7 @@ function init() {
     unlockedLocations: saved.unlockedLocations ?? INITIAL_STATE.unlockedLocations,
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
     activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
+    discoveredResources: saved.discoveredResources ?? INITIAL_STATE.discoveredResources,
     postExplore2Done: saved.postExplore2Done ?? INITIAL_STATE.postExplore2Done,
     fragmentHintShown: saved.fragmentHintShown ?? INITIAL_STATE.fragmentHintShown,
   };
