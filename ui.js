@@ -165,7 +165,7 @@ function renderStoryList(state) {
 // ── 状態レンダリング ──
 let prevActive = null;
 let prevUnlocked = [];
-let stopFlavor = null; // フレーバースケジューラーの停止関数
+let stopFlavor = null;
 
 function render(state) {
   els.fragmentCount.textContent = state.resources.fragment;
@@ -267,7 +267,11 @@ export function init() {
   initDevTools();
 
   els.actionBtn.addEventListener('click', () => {
-    startAction(els.actionSelect.value);
+    startAction(els.actionSelect.value, {
+      onRandomReward: ({ resource, amount }) => {
+        addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+      },
+    });
   });
 
   setInterval(tick, 100);
