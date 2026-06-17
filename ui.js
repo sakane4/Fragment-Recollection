@@ -613,7 +613,7 @@ function renderCharTab(state) {
     bonus.className = 'party-bonus';
     bonus.innerHTML = bonusLines.map((line, i) =>
       i === 0 ? line : `<span class="party-bonus-extra">${line}</span>`
-    ).join(' / ');
+    ).join('<span class="party-bonus-sep"> / </span>');
     activeSection.appendChild(bonus);
   }
 
