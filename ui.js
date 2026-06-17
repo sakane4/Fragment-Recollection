@@ -254,7 +254,7 @@ function render(state) {
 
   for (const id of state.unlockedStories) {
     if (!prevUnlocked.includes(id)) {
-      addLog(`【物語】「${STORIES[id].title}」を解放しました`, true);
+      addLog(`【記憶】「${STORIES[id].title}」を解放しました`, true);
     }
   }
 
@@ -282,7 +282,7 @@ function render(state) {
   // フラグメント50個達成ヒント
   if (!state.fragmentHintShown && (state.resources.fragment ?? 0) >= 50) {
     setFragmentHintShown();
-    showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
+    showTabToast('.tab-btn[data-view="view-stories"]', '記憶のかけらを解放できます');
   }
 
   renderStoryList(state);
