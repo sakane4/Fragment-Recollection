@@ -18,6 +18,17 @@ const ACTION_LOGS = {
   ],
 };
 
+// 同行者がいるときに流れるフレーバーテキスト
+// {name} が同行者名に置換される
+const COMPANION_LOGS = [
+  '{name}と並んで歩いた...',
+  '{name}と少し話をした...',
+  '{name}は寂しそうだ...',
+  '{name}が空を見上げている...',
+  '{name}は黙ってついてくる...',
+  '{name}が何かを呟いた...',
+];
+
 // minMs〜maxMsの間でランダムなミリ秒を返す
 function randomInterval(minMs, maxMs) {
   return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
@@ -25,8 +36,9 @@ function randomInterval(minMs, maxMs) {
 
 // アクション中にランダムなタイミングでコールバックを呼び続けるスケジューラー
 // 直前に出たテキストは次の抽選から除外する(連続重複排除)
+// companions: 同行者名の配列。指定時、約1/3の確率で同行者ログを混ぜる
 // stop() を呼ぶまで繰り返す
-function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000 } = {}) {
+function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000, companions = [] } = {}) {
   const texts = ACTION_LOGS[actionId];
   if (!texts || texts.length === 0) return () => {};
 
@@ -38,8 +50,21 @@ function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000 } = 
     if (stopped) return;
     timer = setTimeout(() => {
       if (stopped) return;
-      const pool = texts.length > 1 ? texts.filter(t => t !== lastText) : texts;
-      const text = pool[Math.floor(Math.random() * pool.length)];
+
+      let text;
+      // 同行者がいて1/3の確率で同行者ログを出す
+      if (companions.length > 0 && Math.random() < 0.35) {
+        const name = companions[Math.floor(Math.random() * companions.length)];
+        const pool = COMPANION_LOGS.length > 1
+          ? COMPANION_LOGS.filter(t => t !== lastText)
+          : COMPANION_LOGS;
+        const template = pool[Math.floor(Math.random() * pool.length)];
+        text = template.replace('{name}', name);
+      } else {
+        const pool = texts.length > 1 ? texts.filter(t => t !== lastText) : texts;
+        text = pool[Math.floor(Math.random() * pool.length)];
+      }
+
       lastText = text;
       onLog(text);
       schedule();

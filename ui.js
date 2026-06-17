@@ -235,7 +235,10 @@ function render(state) {
     addLog(`【${actionDisplayLabel(action)}】開始`, true);
     els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
     els.actionBtn.textContent = '中断';
-    stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
+    const companionNames = (state.activeCompanions ?? [])
+      .map(id => COMPANION_DATA[id]?.name)
+      .filter(Boolean);
+    stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text), { companions: companionNames });
   }
 
   if (!active && prevActive) {
