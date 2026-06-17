@@ -111,6 +111,19 @@ function startOpeningTutorial({ onComplete } = {}) {
   overlay.addEventListener('click', handleOverlayClick);
   btn.addEventListener('click', advance);
 
+  // 隠しスキップ：右上コーナーをタップで即完了
+  const skipZone = document.createElement('div');
+  skipZone.style.cssText = 'position:absolute;top:0;right:0;width:60px;height:60px;z-index:10;';
+  overlay.appendChild(skipZone);
+  skipZone.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (tw && !tw.done) tw.skip();
+    overlay.classList.remove('open');
+    skipZone.remove();
+    showActionGuide();
+    onComplete?.();
+  });
+
   showPage(0);
 }
 
