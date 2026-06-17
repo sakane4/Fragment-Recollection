@@ -247,7 +247,7 @@ function render(state) {
   }
 
   for (const id of state.unlockedLocations) {
-    if (!prevUnlockedLocations.includes(id)) {
+    if (!prevUnlockedLocations.includes(id) && LOCATIONS[id]?.label) {
       addLog(`【発見】新しい場所「${LOCATIONS[id].label}」を見つけた`, true);
     }
   }
