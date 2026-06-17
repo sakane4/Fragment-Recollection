@@ -1,15 +1,16 @@
 // ui.js — DOM操作・表示更新
 
-import { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 
 const els = {
-  fragmentCount: document.getElementById('fragment-count'),
-  actionSelect: document.getElementById('action-select'),
+  resourceList: document.getElementById('resource-list'),
+  actionPickerBtn: document.getElementById('action-picker-btn'),
   actionBtn: document.getElementById('action-btn'),
   progressBar: document.getElementById('progress-bar'),
   mainPanel: document.getElementById('main-panel'),
+  actionList: document.getElementById('action-list'),
   storyList: document.getElementById('story-list'),
   storyOverlay: document.getElementById('story-overlay'),
   storyViewerTitle: document.getElementById('story-viewer-title'),
@@ -19,6 +20,7 @@ const els = {
 
 const RESOURCE_LABELS = {
   fragment: 'フラグメント',
+  herb: '薬草',
 };
 
 // ── ログ ──
@@ -165,31 +167,56 @@ function renderStoryList(state) {
 // ── 状態レンダリング ──
 let prevActive = null;
 let prevUnlocked = [];
+let prevUnlockedLocations = [];
+let prevUnlockedActions = [];
 let stopFlavor = null;
+let _cancelled = false;
+
+function renderResources(resources) {
+  els.resourceList.innerHTML = '';
+  for (const [key, amount] of Object.entries(resources)) {
+    if (amount === 0) continue;
+    const row = document.createElement('div');
+    row.className = 'resource-row';
+    row.innerHTML = `<span class="resource-name">${RESOURCE_LABELS[key] ?? key}</span><span class="resource-val">${amount}</span>`;
+    els.resourceList.appendChild(row);
+  }
+}
 
 function render(state) {
-  els.fragmentCount.textContent = state.resources.fragment;
+  renderResources(state.resources);
 
   const active = state.activeAction;
 
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
-    addLog(`【${action.label}】開始`);
-    els.actionBtn.disabled = true;
-    els.actionSelect.disabled = true;
-    els.actionBtn.textContent = '進行中…';
+    const location = LOCATIONS[action.locationId];
+    addLog(`【${location.label} / ${action.label}】開始`);
+    els.actionPickerBtn.disabled = true;
+    els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
   }
 
   if (!active && prevActive) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
-    const action = ACTIONS[prevActive.actionId];
-    const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
-    addLog(`【${action.label}】完了 — ${rewards}`, true);
-    els.actionBtn.disabled = false;
-    els.actionSelect.disabled = false;
+    if (!_cancelled) {
+      const action = ACTIONS[prevActive.actionId];
+      const location = LOCATIONS[action.locationId];
+      const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
+      addLog(`【${location.label} / ${action.label}】完了 — ${rewards}`, true);
+    }
+    const wasCancelled = _cancelled;
+    _cancelled = false;
+    els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
+    if (!wasCancelled) {
+      startAction(selectedActionId, {
+        onRandomReward: ({ resource, amount }) => {
+          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+        },
+      });
+    }
   }
 
   for (const id of state.unlockedStories) {
@@ -198,8 +225,23 @@ function render(state) {
     }
   }
 
+  for (const id of state.unlockedLocations) {
+    if (!prevUnlockedLocations.includes(id)) {
+      addLog(`【発見】新しい場所「${LOCATIONS[id].label}」を見つけた`, true);
+    }
+  }
+  for (const id of state.unlockedActions) {
+    if (!prevUnlockedActions.includes(id)) {
+      const action = ACTIONS[id];
+      const location = LOCATIONS[action.locationId];
+      addLog(`【発見】${location.label} で「${action.label}」ができるようになった`, true);
+    }
+  }
+
   prevActive = active;
   prevUnlocked = [...state.unlockedStories];
+  prevUnlockedLocations = [...state.unlockedLocations];
+  prevUnlockedActions = [...state.unlockedActions];
 
   renderStoryList(state);
 
@@ -216,14 +258,85 @@ function tick() {
 }
 
 // ── フッタータブ ──
+function switchTab(viewId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
+  const tabBtn = document.querySelector(`.tab-btn[data-view="${viewId}"]`);
+  if (tabBtn) tabBtn.classList.add('active');
+  document.getElementById(viewId).classList.add('active');
+}
+
 function initTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(btn.dataset.view).classList.add('active');
-    });
+    btn.addEventListener('click', () => switchTab(btn.dataset.view));
+  });
+}
+
+// ── 行動選択 ──
+let selectedActionId = 'forest_explore';
+
+function renderActionList() {
+  els.actionList.innerHTML = '';
+
+  const state = getState();
+  for (const location of Object.values(LOCATIONS)) {
+    if (!state.unlockedLocations.includes(location.id)) continue;
+    const actions = Object.values(ACTIONS).filter(a =>
+      a.locationId === location.id && state.unlockedActions.includes(a.id)
+    );
+    if (actions.length === 0) continue;
+
+    const group = document.createElement('div');
+    group.className = 'action-group';
+
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'action-group-label';
+    groupLabel.textContent = location.label;
+    group.appendChild(groupLabel);
+
+    for (const action of actions) {
+      const card = document.createElement('div');
+      card.className = 'action-card' + (action.id === selectedActionId ? ' selected' : '');
+
+      const info = document.createElement('div');
+      info.className = 'action-card-info';
+
+      const name = document.createElement('div');
+      name.className = 'action-card-name';
+      name.textContent = action.label;
+
+      const desc = document.createElement('div');
+      desc.className = 'action-card-desc';
+      desc.textContent = action.description ?? '';
+
+      info.appendChild(name);
+      info.appendChild(desc);
+
+      const meta = document.createElement('div');
+      meta.className = 'action-card-meta';
+      meta.textContent = `${action.duration / 1000}秒`;
+
+      card.appendChild(info);
+      card.appendChild(meta);
+
+      card.addEventListener('click', () => {
+        selectedActionId = action.id;
+        els.actionPickerBtn.textContent = `${location.label} — ${action.label}`;
+        renderActionList();
+      });
+
+      group.appendChild(card);
+    }
+
+    els.actionList.appendChild(group);
+  }
+}
+
+function initActionPicker() {
+  renderActionList();
+  els.actionPickerBtn.addEventListener('click', () => {
+    renderActionList();
+    switchTab('view-actions');
   });
 }
 
@@ -266,12 +379,25 @@ export function init() {
   initStoryViewer();
   initDevTools();
 
+  initActionPicker();
+
   els.actionBtn.addEventListener('click', () => {
-    startAction(els.actionSelect.value, {
-      onRandomReward: ({ resource, amount }) => {
-        addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
-      },
-    });
+    const active = getState().activeAction;
+    if (active) {
+      const action = ACTIONS[active.actionId];
+      const location = LOCATIONS[action?.locationId];
+      const label = location ? `${location.label} / ${action.label}` : (action?.label ?? '行動');
+      if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+      _cancelled = true;
+      cancelAction();
+      addLog(`【${label}】中断`);
+    } else {
+      startAction(selectedActionId, {
+        onRandomReward: ({ resource, amount }) => {
+          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+        },
+      });
+    }
   });
 
   setInterval(tick, 100);

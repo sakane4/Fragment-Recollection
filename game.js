@@ -1,15 +1,50 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
 import { STORIES } from './stories.js';
 
+const LOCATIONS = {
+  forest:     { id: 'forest',     label: 'はじまりの森' },
+  tower_city: { id: 'tower_city', label: '塔都' },
+};
+
 const ACTIONS = {
-  explore: {
-    id: 'explore',
+  forest_explore: {
+    id: 'forest_explore',
     label: '探索',
-    duration: 20000, // ms
+    locationId: 'forest',
+    description: '森の奥へ踏み込む。フラグメントが手に入るかもしれない。',
+    duration: 20000,
     rewards: [{ resource: 'fragment', amount: 10 }],
     randomRewards: [
       { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
     ],
+    discoveries: [
+      // 例: { type: 'location', id: 'tower_city', chance: 0.3 }
+      // 例: { type: 'action',   id: 'forest_gather', chance: 0.5 }
+    ],
+  },
+  forest_gather: {
+    id: 'forest_gather',
+    label: '採集',
+    locationId: 'forest',
+    description: '森を歩き回り、素材を集める。',
+    duration: 15000,
+    rewards: [{ resource: 'herb', amount: 10 }],
+    randomRewards: [
+      { resource: 'herb', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
+    ],
+    discoveries: [],
+  },
+  tower_explore: {
+    id: 'tower_explore',
+    label: '探索',
+    locationId: 'tower_city',
+    description: '塔都の街路を歩く。何かが見つかるかもしれない。',
+    duration: 20000,
+    rewards: [{ resource: 'fragment', amount: 10 }],
+    randomRewards: [
+      { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
+    ],
+    discoveries: [],
   },
 };
 
@@ -17,9 +52,11 @@ const INITIAL_STATE = {
   resources: {
     fragment: 0,
   },
-  activeAction: null,       // { actionId, startedAt, endsAt }
-  unlockedStories: [],      // 一覧に表示・解放済みの物語IDの配列
-  storyProgress: {},        // { [storyId]: unlockedPages } 解放済みページ数
+  activeAction: null,
+  unlockedStories: [],
+  storyProgress: {},
+  unlockedLocations: Object.keys(LOCATIONS), // 開発中は全解放
+  unlockedActions: Object.keys(ACTIONS),     // 開発中は全解放
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -59,7 +96,6 @@ function unlockAllStories() {
   const allIds = Object.keys(STORIES);
   const progress = { ...state.storyProgress };
   for (const id of allIds) {
-    if (!progress[id]) progress[id] = Object.keys(STORIES[id]).length || 1;
     progress[id] = 999; // 全ページ解放
   }
   state = { ...state, unlockedStories: allIds, storyProgress: progress };
@@ -142,6 +178,16 @@ function startAction(actionId, { onRandomReward } = {}) {
   return { ok: true };
 }
 
+function cancelAction() {
+  if (!state.activeAction) return { ok: false, reason: 'no_active_action' };
+  clearTimeout(_timer);
+  clearRandomRewardTimers();
+  state = { ...state, activeAction: null };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
+
 function completeAction(actionId) {
   const action = ACTIONS[actionId];
   if (!action) return;
@@ -151,10 +197,33 @@ function completeAction(actionId) {
     newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
   }
 
+  // 発見判定
+  const newLocations = [...state.unlockedLocations];
+  const newActions = [...state.unlockedActions];
+  const discovered = [];
+
+  for (const disc of (action.discoveries ?? [])) {
+    if (Math.random() > disc.chance) continue;
+    if (disc.type === 'location' && !newLocations.includes(disc.id)) {
+      newLocations.push(disc.id);
+      discovered.push({ type: 'location', id: disc.id });
+    } else if (disc.type === 'action' && !newActions.includes(disc.id)) {
+      newActions.push(disc.id);
+      discovered.push({ type: 'action', id: disc.id });
+    }
+  }
+
   clearRandomRewardTimers();
-  state = { ...state, resources: newResources, activeAction: null };
+  state = {
+    ...state,
+    resources: newResources,
+    activeAction: null,
+    unlockedLocations: newLocations,
+    unlockedActions: newActions,
+  };
   saveToStorage(state);
   notify();
+  return { discovered };
 }
 
 function getProgress() {
@@ -226,6 +295,8 @@ function init() {
     ...saved,
     resources: { ...INITIAL_STATE.resources, ...saved.resources },
     storyProgress: { ...INITIAL_STATE.storyProgress, ...saved.storyProgress },
+    unlockedLocations: saved.unlockedLocations ?? INITIAL_STATE.unlockedLocations,
+    unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
   };
 
   if (state.activeAction) {
@@ -240,4 +311,4 @@ function init() {
 
 init();
 
-export { ACTIONS, STORIES, getState, subscribe, startAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories };
+export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories };
