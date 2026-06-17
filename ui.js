@@ -255,7 +255,10 @@ function render(state) {
     if (!prevUnlockedActions.includes(id)) {
       const action = ACTIONS[id];
       const location = LOCATIONS[action.locationId];
-      addLog(`【発見】${location.label} で「${action.label}」ができるようになった`, true);
+      const msg = location?.label
+        ? `【発見】${location.label} で「${action.label}」ができるようになった`
+        : `【発見】「${action.label}」ができるようになった`;
+      addLog(msg, true);
     }
   }
 
