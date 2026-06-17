@@ -182,7 +182,7 @@
     #action-btn:hover:not(:disabled) { background: #4d3f7a; }
     #action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    /* プログレスバーはアクション行の下に */
+    /* プログレスバーはメインパネルの下端 */
     #progress-wrap {
       height: 3px;
       background: var(--panel);
@@ -738,9 +738,11 @@
       <button id="action-picker-btn">探索</button>
       <button id="action-btn">開始</button>
     </div>
-    <div id="progress-wrap">
-      <div id="progress-bar"></div>
-    </div>
+  </div>
+
+  <!-- プログレスバー -->
+  <div id="progress-wrap">
+    <div id="progress-bar"></div>
   </div>
 
   <!-- リサイザー -->
