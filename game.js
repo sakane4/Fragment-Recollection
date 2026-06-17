@@ -29,9 +29,14 @@ const ACTIONS = {
     locationId: 'forest',
     description: '森を歩き回り、素材を集める。',
     duration: 15000,
-    rewards: [{ resource: 'herb', amount: 10 }],
+    rewards: [
+  { resource: 'herb', amount: 10 },
+  { resource: 'fragment', amount: 5 },
+    ],
+    
     randomRewards: [
       { resource: 'herb', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
+      { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
     ],
     discoveries: [],
   },

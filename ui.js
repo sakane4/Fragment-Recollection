@@ -76,17 +76,30 @@ function resumeLog() {
 }
 
 // ── 物語ビューア ──
-// 現在開いている物語のページ一覧をキャッシュ
+// _viewerPages: string[][] (pages[i][j] = iページ目のj番目の段落)
 let _viewerPages = [];
 let _viewerStoryId = null;
+let _viewerCurrentPage = 0;
 let _viewerPrevUnlockedPages = 0;
-const _storyPageCounts = {}; // storyId → 総ページ数キャッシュ
+const _storyPageCounts = {}; // storyId → 総段落数キャッシュ
+
+function _saveLastPage(storyId, page) {
+  try {
+    const d = JSON.parse(localStorage.getItem('fr_story_lastpage') || '{}');
+    d[storyId] = page;
+    localStorage.setItem('fr_story_lastpage', JSON.stringify(d));
+  } catch {}
+}
+function _loadLastPage(storyId) {
+  try {
+    return JSON.parse(localStorage.getItem('fr_story_lastpage') || '{}')[storyId] ?? 0;
+  } catch { return 0; }
+}
 
 async function openStory(storyId, { prevProgress } = {}) {
   const story = STORIES[storyId];
   if (!story) return;
 
-  // テキストをfetchしてパース
   let pages;
   try {
     const res = await fetch(`stories/${storyId}.txt`);
@@ -99,10 +112,9 @@ async function openStory(storyId, { prevProgress } = {}) {
 
   _viewerPages = pages;
   _viewerStoryId = storyId;
+  _viewerCurrentPage = Math.min(_loadLastPage(storyId), pages.length - 1);
   _viewerPrevUnlockedPages = prevProgress ?? (getState().storyProgress[storyId] ?? 0);
-  _storyPageCounts[storyId] = pages.length; // 総ページ数をキャッシュ
-  // プロローグのページ数をキャッシュ（全開放検知に使う）
-  if (storyId === 'prologue') _prologueTotalPages = pages.length;
+  _storyPageCounts[storyId] = pages.reduce((s, p) => s + p.length, 0);
 
   els.storyViewerTitle.textContent = story.title;
   els.storyOverlay.classList.add('open');
@@ -110,51 +122,105 @@ async function openStory(storyId, { prevProgress } = {}) {
   renderViewerBody(getState());
 }
 
-function renderViewerBody(state) {
+function renderViewerBody(state, { scrollToTop = false } = {}) {
   if (!_viewerStoryId) return;
   const story = STORIES[_viewerStoryId];
-  const unlockedPages = state.storyProgress[_viewerStoryId] ?? 0;
-  const totalPages = _viewerPages.length;
+  const unlockedParas = state.storyProgress[_viewerStoryId] ?? 0;
+  const pages = _viewerPages;
+  const totalPages = pages.length;
+  const totalParas = pages.reduce((s, p) => s + p.length, 0);
+  const finBar = document.getElementById('story-fin-bar');
 
   els.storyBody.innerHTML = '';
-  document.getElementById('story-fin-bar').textContent = '';
+  finBar.innerHTML = '';
 
-  // 解放済みページを順に表示
-  const isNewPage = (i) => i >= _viewerPrevUnlockedPages;
-  for (let i = 0; i < Math.min(unlockedPages, totalPages); i++) {
-    const block = document.createElement('p');
-    block.className = 'story-page' + (isNewPage(i) ? ' story-page-new' : '');
-    block.textContent = _viewerPages[i];
-    els.storyBody.appendChild(block);
+  // 現ページの段落グローバル開始インデックス
+  let globalOffset = 0;
+  for (let p = 0; p < _viewerCurrentPage; p++) globalOffset += (pages[p] ?? []).length;
 
-    // ページ間の空白行
-    if (i < unlockedPages - 1 && i < totalPages - 1) {
-      const sep = document.createElement('div');
-      sep.className = 'story-sep';
-      els.storyBody.appendChild(sep);
+  const currentParas = pages[_viewerCurrentPage] ?? [];
+  const costLabel = story.pageCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+  const isNew = (idx) => idx >= _viewerPrevUnlockedPages;
+
+  let shownCount = 0;
+  for (let i = 0; i < currentParas.length; i++) {
+    const globalIdx = globalOffset + i;
+
+    if (globalIdx < unlockedParas) {
+      const block = document.createElement('p');
+      block.className = 'story-page' + (isNew(globalIdx) ? ' story-page-new' : '');
+      block.textContent = currentParas[i];
+      els.storyBody.appendChild(block);
+      shownCount++;
+    } else if (globalIdx === unlockedParas) {
+      // 次に解放できる段落 → 思い出すボタン
+      const btn = document.createElement('button');
+      btn.className = 'story-next-btn';
+      btn.textContent = `思い出す (${costLabel})`;
+      btn.addEventListener('click', () => {
+        const result = unlockNextPage(_viewerStoryId);
+        if (!result.ok && result.reason === 'insufficient_resources') {
+          showViewerToast(`思い出すには ${costLabel} が必要です`);
+        }
+      });
+      // 段落が1つも表示されていなければ先頭に挿入（別ページ頭）
+      if (shownCount === 0) els.storyBody.insertBefore(btn, els.storyBody.firstChild);
+      else els.storyBody.appendChild(btn);
+      break;
     }
-
   }
 
-  // 次ページ解放ボタン
-  if (unlockedPages < totalPages) {
-    const costLabel = story.pageCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
-    const btn = document.createElement('button');
-    btn.className = 'story-next-btn';
-    btn.textContent = `思い出す (${costLabel})`;
-    btn.addEventListener('click', () => {
-      const result = unlockNextPage(_viewerStoryId);
-      if (!result.ok && result.reason === 'insufficient_resources') {
-        showViewerToast(`思い出すには ${costLabel} が必要です`);
-      }
+  // 解放済み段落数から「表示可能なページ数」を算出
+  let revealedPages = 1;
+  let cumOffset = 0;
+  for (let p = 0; p < totalPages - 1; p++) {
+    cumOffset += pages[p].length;
+    if (unlockedParas >= cumOffset) revealedPages++;
+    else break;
+  }
+
+  const isLastRevealed = _viewerCurrentPage === revealedPages - 1;
+  const allDone = unlockedParas >= totalParas;
+
+  if (totalPages === 1 && allDone) {
+    finBar.textContent = '— END —';
+  } else if (totalPages > 1) {
+    const nav = document.createElement('div');
+    nav.className = 'story-nav';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'story-nav-btn';
+    prevBtn.textContent = '◁';
+    prevBtn.disabled = _viewerCurrentPage === 0;
+    prevBtn.addEventListener('click', () => {
+      _viewerCurrentPage--;
+      _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+      renderViewerBody(getState(), { scrollToTop: true });
     });
-    els.storyBody.appendChild(btn);
-  } else {
-    document.getElementById('story-fin-bar').textContent = '— END —';
+
+    const info = document.createElement('span');
+    info.className = 'story-nav-info';
+    info.textContent = `${_viewerCurrentPage + 1} / ${revealedPages}`;
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'story-nav-btn';
+    nextBtn.textContent = '▷';
+    nextBtn.disabled = isLastRevealed;
+    nextBtn.addEventListener('click', () => {
+      _viewerCurrentPage++;
+      _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+      renderViewerBody(getState(), { scrollToTop: true });
+    });
+
+    nav.appendChild(prevBtn);
+    nav.appendChild(info);
+    nav.appendChild(nextBtn);
+    finBar.appendChild(nav);
   }
 
-  _viewerPrevUnlockedPages = unlockedPages;
-  els.storyBody.scrollTop = els.storyBody.scrollHeight;
+  _viewerPrevUnlockedPages = unlockedParas;
+  if (scrollToTop) els.storyBody.scrollTop = 0;
+  else els.storyBody.scrollTop = els.storyBody.scrollHeight;
 }
 
 let _viewerToastTimer = null;
@@ -238,24 +304,25 @@ function renderStoryList(state) {
     }
     info.appendChild(sub);
 
-    const btn = document.createElement('button');
-    btn.className = 'story-btn' + (unlocked ? '' : ' locked');
-    btn.textContent = '思い出す';
-    btn.addEventListener('click', () => {
-      if (unlocked) {
-        openStory(story.id);
-      } else {
+    item.appendChild(info);
+
+    if (unlocked) {
+      item.classList.add('unlocked');
+      item.addEventListener('click', () => openStory(story.id));
+    } else {
+      const btn = document.createElement('button');
+      btn.className = 'story-btn locked';
+      btn.textContent = '思い出す';
+      btn.addEventListener('click', () => {
         const result = unlockStory(story.id);
         if (result.ok) {
           openStory(story.id, { prevProgress: 0 });
         } else if (result.reason === 'insufficient_resources') {
           addLog(`フラグメントが足りません (${costLabel} 必要)`);
         }
-      }
-    });
-
-    item.appendChild(info);
-    item.appendChild(btn);
+      });
+      item.appendChild(btn);
+    }
     els.storyList.appendChild(item);
   }
 }
@@ -352,10 +419,21 @@ function render(state) {
     }
   }
 
+  // showCondition による自動出現チェック
+  for (const story of Object.values(STORIES)) {
+    if (state.appearedStories.includes(story.id)) continue;
+    if (state.unlockedStories.includes(story.id)) continue;
+    if (!story.showCondition) continue;
+    const { resource, amount } = story.showCondition;
+    if ((state.resources[resource] ?? 0) >= amount) {
+      forceAppearStory(story.id);
+    }
+  }
+
   for (const id of (state.appearedStories ?? [])) {
     if (!prevAppearedStories.includes(id)) {
       const story = STORIES[id];
-      addLog(`【記憶】「${story.lockedTitle ?? 'あいまいな記憶'}」が呼んでいる`, true);
+      addLog(`【記憶】「${story.lockedTitle ?? 'あいまいな記憶'}」を思い出せそうだ`, true);
     }
   }
   prevAppearedStories = [...(state.appearedStories ?? [])];
@@ -519,6 +597,34 @@ function initStoryViewer() {
   els.storyCloseBtn.addEventListener('click', closeStory);
   els.storyOverlay.addEventListener('click', e => {
     if (e.target === els.storyOverlay) closeStory();
+  });
+
+  document.getElementById('story-fin-bar').addEventListener('click', e => {
+    if (!_viewerStoryId) return;
+    const bar = e.currentTarget;
+    const isRight = e.clientX - bar.getBoundingClientRect().left > bar.offsetWidth / 2;
+    if (isRight) {
+      const pages = _viewerPages;
+      // revealedPages を再計算
+      const state = getState();
+      const unlockedParas = state.storyProgress[_viewerStoryId] ?? 0;
+      let revealedPages = 1, cum = 0;
+      for (let p = 0; p < pages.length - 1; p++) {
+        cum += pages[p].length;
+        if (unlockedParas >= cum) revealedPages++; else break;
+      }
+      if (_viewerCurrentPage < revealedPages - 1) {
+        _viewerCurrentPage++;
+        _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+        renderViewerBody(state, { scrollToTop: true });
+      }
+    } else {
+      if (_viewerCurrentPage > 0) {
+        _viewerCurrentPage--;
+        _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+        renderViewerBody(getState(), { scrollToTop: true });
+      }
+    }
   });
 }
 

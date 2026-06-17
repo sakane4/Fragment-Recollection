@@ -283,6 +283,7 @@
     }
 
     .story-item:last-child { border-bottom: none; }
+    .story-item.unlocked:hover { background: rgba(255,255,255,0.03); }
 
     .story-item-title {
       font-size: 0.88rem;
@@ -335,7 +336,7 @@
       position: relative;
       width: 100%;
       max-width: 480px;
-      height: 75svh;
+      height: 65svh;
       background: #12141f;
       border-top: 1px solid var(--border);
       border-left: 1px solid var(--border);
@@ -392,15 +393,14 @@
     .story-page {
       white-space: pre-wrap;
       font-family: 'KoburiMincho', 'Shippori Mincho', serif;
+      margin-bottom: 0.5lh;
     }
 
     .story-page-new {
       animation: story-fadein 1.2s ease both;
     }
 
-    .story-sep {
-      height: 1h; /* ページ間に本文1行分の空白 */
-    }
+    
 
     .story-next-btn {
       align-self: center;
@@ -442,8 +442,33 @@
       color: var(--muted);
       letter-spacing: 0.2em;
       padding: 0.75rem 0;
+      user-select: none;
     }
     #story-fin-bar:empty { display: none; }
+
+    .story-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.2rem;
+      width: 100%;
+    }
+    .story-nav-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.2rem 0.5rem;
+      opacity: 0.7;
+    }
+    .story-nav-btn:disabled { opacity: 0.2; cursor: default; }
+    .story-nav-btn:not(:disabled):hover { opacity: 1; }
+    .story-nav-info {
+      color: var(--muted);
+      font-size: 0.82rem;
+      letter-spacing: 0.05em;
+    }
 
     /* ── チュートリアルオーバーレイ ── */
     #tutorial-overlay {
