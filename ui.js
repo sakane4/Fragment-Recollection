@@ -260,6 +260,7 @@ let prevUnlockedActions = [];
 let stopFlavor = null;
 let _cancelled = false;
 let _isAutoRestart = false;
+let _autoRestartEnabled = false; // 開発メニューからのみON可
 
 function renderResources(resources) {
   els.resourceList.innerHTML = '';
@@ -331,8 +332,8 @@ function render(state) {
       } else if (!state.postExplore2Done && (state.activeCompanions ?? []).length > 0) {
         // ユウヤ同行中の初回探索完了 → ストーリー002
         setTimeout(() => maybeStartPostExplore2(state), 0);
-      } else {
-        // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
+      } else if (_autoRestartEnabled) {
+        // 自動再開(開発メニューでONのときのみ)
         setTimeout(() => {
           if (_storyLogPlaying) return;
           _isAutoRestart = true;
@@ -655,7 +656,7 @@ function renderCharTab(state) {
       if (!rewards) continue;
       for (const r of rewards) {
         const discovered = (state.discoveredResources ?? []).includes(r.resource);
-        const label = discovered ? `${RESOURCE_LABELS[r.resource] ?? r.resource} を入手` : '???';
+        const label = discovered ? `${RESOURCE_LABELS[r.resource] ?? r.resource} ` : '???';
         bonusLines.push(label);
       }
     }
@@ -736,6 +737,13 @@ function initDevTools() {
   document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
   document.getElementById('dev-unlock-all-actions').addEventListener('click', unlockAllActions);
   document.getElementById('dev-lock-all-actions').addEventListener('click', lockAllActions);
+
+  const autoRestartBtn = document.getElementById('dev-auto-restart-btn');
+  autoRestartBtn.addEventListener('click', () => {
+    _autoRestartEnabled = !_autoRestartEnabled;
+    autoRestartBtn.textContent = _autoRestartEnabled ? 'ON' : 'OFF';
+    autoRestartBtn.classList.toggle('dev-btn--on', _autoRestartEnabled);
+  });
 }
 
 export function init() {
