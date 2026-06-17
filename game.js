@@ -55,8 +55,12 @@ const INITIAL_STATE = {
   activeAction: null,
   unlockedStories: [],
   storyProgress: {},
-  unlockedLocations: Object.keys(LOCATIONS), // 開発中は全解放
-  unlockedActions: Object.keys(ACTIONS),     // 開発中は全解放
+  unlockedLocations: Object.keys(LOCATIONS),
+  unlockedActions: Object.keys(ACTIONS),
+  tutorialDone: false,        // オープニングチュートリアル完了フラグ
+  postExploreDone: false,     // 探索後ストーリー完了フラグ
+  playerName: '',             // プレイヤーネーム
+  unlockedCompanions: [],     // 解放済み同行者IDの配列
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -311,4 +315,32 @@ function init() {
 
 init();
 
-export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories };
+function setTutorialDone() {
+  state = { ...state, tutorialDone: true };
+  saveToStorage(state);
+}
+
+function setPostExploreDone() {
+  state = { ...state, postExploreDone: true };
+  saveToStorage(state);
+}
+
+function setPlayerName(name) {
+  state = { ...state, playerName: name };
+  saveToStorage(state);
+  notify();
+}
+
+function unlockCompanion(id) {
+  if (state.unlockedCompanions.includes(id)) return;
+  state = { ...state, unlockedCompanions: [...state.unlockedCompanions, id] };
+  saveToStorage(state);
+  notify();
+}
+
+function resetTutorial() {
+  state = { ...state, tutorialDone: false, postExploreDone: false, playerName: '', unlockedCompanions: [] };
+  saveToStorage(state);
+}
+
+export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, resetTutorial };

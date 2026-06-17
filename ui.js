@@ -1,8 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
+import { startOpeningTutorial, startPostExploreStory } from './tutorial.js';
 
 const els = {
   resourceList: document.getElementById('resource-list'),
@@ -211,11 +212,16 @@ function render(state) {
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
     if (!wasCancelled) {
-      startAction(selectedActionId, {
-        onRandomReward: ({ resource, amount }) => {
-          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
-        },
-      });
+      if (_postExplorePending) {
+        maybeStartPostExplore();
+        // ポスト探索ストーリー中は自動再開しない
+      } else {
+        startAction(selectedActionId, {
+          onRandomReward: ({ resource, amount }) => {
+            addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+          },
+        });
+      }
     }
   }
 
@@ -348,6 +354,68 @@ function initStoryViewer() {
   });
 }
 
+// ── チュートリアル起動 ──
+let _postExploreCleanup = null;
+let _postExplorePending = false;
+
+function launchTutorial() {
+  resetTutorial();
+  startOpeningTutorial({
+    onComplete: () => {
+      setTutorialDone();
+      _postExplorePending = true;
+    },
+  });
+}
+
+function maybeStartPostExplore() {
+  if (!_postExplorePending) return;
+  const state = getState();
+  if (state.postExploreDone) return;
+  _postExplorePending = false;
+  setPostExploreDone();
+
+  if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
+  _postExploreCleanup = startPostExploreStory(els.mainPanel, {
+    onNameDecided: (name) => {
+      setPlayerName(name);
+      renderCharTab(getState());
+    },
+    onComplete: () => {
+      unlockCompanion('yuuya');
+      renderCharTab(getState());
+      if (_postExploreCleanup) { _postExploreCleanup(); _postExploreCleanup = null; }
+    },
+  });
+}
+
+// ── キャラクタータブ描画 ──
+const COMPANION_DATA = {
+  yuuya: { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
+};
+
+function renderCharTab(state) {
+  const view = document.getElementById('view-chars');
+  view.innerHTML = '<div class="sub-title">キャラクター</div>';
+
+  if (state.unlockedCompanions.length === 0) {
+    const p = document.createElement('div');
+    p.className = 'placeholder';
+    p.textContent = '準備中';
+    view.appendChild(p);
+    return;
+  }
+
+  for (const id of state.unlockedCompanions) {
+    const data = COMPANION_DATA[id];
+    if (!data) continue;
+    const card = document.createElement('div');
+    card.className = 'companion-card';
+    card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
+    view.appendChild(card);
+  }
+}
+
 function initDevTools() {
   const modeBtn = document.getElementById('dev-mode-btn');
   const modeDesc = document.getElementById('dev-mode-desc');
@@ -370,14 +438,21 @@ function initDevTools() {
 
   document.getElementById('dev-unlock-all-stories').addEventListener('click', unlockAllStories);
   document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
+  document.getElementById('dev-tutorial-btn').addEventListener('click', launchTutorial);
 }
 
 export function init() {
   subscribe(render);
-  render(getState());
+  const initialState = getState();
+  render(initialState);
+  renderCharTab(initialState);
   initTabs();
   initStoryViewer();
   initDevTools();
+
+  if (!initialState.tutorialDone) {
+    launchTutorial();
+  }
 
   initActionPicker();
 

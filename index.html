@@ -382,6 +382,154 @@
       margin-top: 0.5rem;
     }
 
+    /* ── チュートリアルオーバーレイ ── */
+    #tutorial-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #tutorial-overlay.open { display: flex; }
+
+    #tutorial-box {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      padding: 2.5rem 2rem 3rem;
+      color: var(--text);
+    }
+
+    #tutorial-text {
+      font-size: 0.95rem;
+      line-height: 2;
+      white-space: pre-wrap;
+      min-height: 6rem;
+    }
+
+    #tutorial-indicator {
+      position: absolute;
+      bottom: 1rem;
+      right: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--accent);
+      animation: blink 1s step-start infinite;
+    }
+
+    #tutorial-btn {
+      display: block;
+      margin: 1.5rem auto 0;
+      padding: 0.5rem 2rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #tutorial-btn:hover { background: #4d3f7a; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ── アクションバー ガイド ── */
+    #action-guide {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(13,15,26,0.95);
+      border: 1px solid var(--accent-border);
+      border-radius: 8px;
+      padding: 0.7rem 1.2rem;
+      font-size: 0.82rem;
+      color: var(--accent);
+      pointer-events: auto;
+      z-index: 150;
+      white-space: nowrap;
+      animation: fadeIn 0.3s ease;
+    }
+
+    #action-guide.visible { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translate(-50%, -55%); }
+      to   { opacity: 1; transform: translate(-50%, -50%); }
+    }
+
+    /* ── ストーリーログ(メインパネル内) ── */
+    .story-log {
+      text-align: center;
+      color: var(--text);
+      font-size: 0.88rem;
+      line-height: 1.9;
+      border-left: none !important;
+      padding-left: 0 !important;
+    }
+
+    .story-tap-indicator {
+      text-align: center;
+      color: var(--accent);
+      font-size: 0.75rem;
+      animation: blink 0.9s step-start infinite;
+    }
+
+    .story-name-prompt {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .story-name-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+
+    .story-name-row input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 0.3rem 0.6rem;
+      font-size: 0.9rem;
+      width: 140px;
+      text-align: center;
+    }
+
+    .story-name-row button {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 4px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .story-end-btn {
+      margin-top: 0.5rem;
+      padding: 0.45rem 1.5rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .story-end-btn:hover { background: #4d3f7a; }
+    .story-end-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
     /* ── フッタータブ ── */
     #footer {
       display: flex;
@@ -440,6 +588,25 @@
     }
 
     .dev-btn--danger:hover { background: #501a1a; }
+
+    /* ── キャラクターカード ── */
+    .companion-card {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      background: var(--panel);
+    }
+    .companion-name {
+      font-size: 0.95rem;
+      color: var(--accent);
+      margin-bottom: 0.3rem;
+    }
+    .companion-desc {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
@@ -509,11 +676,27 @@
         </div>
       </div>
       <div class="dev-row">
+        <span class="dev-label">チュートリアル</span>
+        <button id="dev-tutorial-btn" class="dev-btn">開始</button>
+      </div>
+      <div class="dev-row">
         <span class="dev-label">セーブデータをすべて削除してリロード</span>
         <button id="dev-reset-btn" class="dev-btn dev-btn--danger">リセット</button>
       </div>
     </div>
   </div>
+
+  <!-- チュートリアルオーバーレイ -->
+  <div id="tutorial-overlay">
+    <div id="tutorial-box">
+      <div id="tutorial-text"></div>
+      <div id="tutorial-indicator" hidden>▽</div>
+      <button id="tutorial-btn" hidden></button>
+    </div>
+  </div>
+
+  <!-- アクションガイド -->
+  <div id="action-guide">〈ここから行動できます〉</div>
 
   <!-- 物語ポップアップ -->
   <div id="story-overlay">
