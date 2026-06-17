@@ -202,7 +202,6 @@ function render(state) {
       addLog(`【${action.label}】完了 — ${rewards}`, true);
     }
     _cancelled = false;
-    els.actionBtn.disabled = false;
     els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
@@ -232,26 +231,21 @@ function tick() {
 }
 
 // ── フッタータブ ──
-function initTabs() {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(btn.dataset.view).classList.add('active');
-    });
-  });
-}
-
-// ── 行動選択 ──
-let selectedActionId = 'explore';
-
 function switchTab(viewId) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
   document.querySelector(`.tab-btn[data-view="${viewId}"]`).classList.add('active');
   document.getElementById(viewId).classList.add('active');
 }
+
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.view));
+  });
+}
+
+// ── 行動選択 ──
+let selectedActionId = 'explore';
 
 function renderActionList() {
   els.actionList.innerHTML = '';

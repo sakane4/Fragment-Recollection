@@ -70,7 +70,6 @@ function unlockAllStories() {
   const allIds = Object.keys(STORIES);
   const progress = { ...state.storyProgress };
   for (const id of allIds) {
-    if (!progress[id]) progress[id] = Object.keys(STORIES[id]).length || 1;
     progress[id] = 999; // 全ページ解放
   }
   state = { ...state, unlockedStories: allIds, storyProgress: progress };
