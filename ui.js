@@ -600,9 +600,20 @@ function renderCharTab(state) {
   }
 
   if (active.length > 0) {
+    const bonusLines = ['探索報酬 ×2'];
+    for (const id of active) {
+      const rewards = COMPANION_REWARDS[id];
+      if (!rewards) continue;
+      for (const r of rewards) {
+        const label = RESOURCE_LABELS[r.resource] ?? r.resource;
+        bonusLines.push(`${label} を入手`);
+      }
+    }
     const bonus = document.createElement('div');
     bonus.className = 'party-bonus';
-    bonus.textContent = '探索報酬 ×2';
+    bonus.innerHTML = bonusLines.map((line, i) =>
+      i === 0 ? line : `<span class="party-bonus-extra">${line}</span>`
+    ).join('<br>');
     activeSection.appendChild(bonus);
   }
 
