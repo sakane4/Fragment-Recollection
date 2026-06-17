@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStory1Done, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 } from './tutorial.js';
@@ -669,7 +669,7 @@ function startProloguePhase() {
 }
 
 function startLogSt_2(state) {
-  setLogStory2Done();
+  setLogSt2Done();
   _storyLogPlaying = true;
   let cleanup = null;
   cleanup = runLogSt_2(els.mainPanel, {
@@ -686,7 +686,7 @@ function startLogSt_1() {
   const state = getState();
   if (state.logSt1Done) return;
   _waitingForPrologue = false;
-  setLogStory1Done();
+  setLogSt1Done();
   _storyLogPlaying = true;
 
   if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
@@ -708,7 +708,7 @@ function startLogSt_1() {
 function startLogSt_3() {
   const state = getState();
   if (state.logSt3Done) return;
-  setLogStory3Done();
+  setLogSt3Done();
   _storyLogPlaying = true;
   let cleanup = null;
   cleanup = runLogSt_3(els.mainPanel, {
@@ -905,10 +905,10 @@ function initDevTools() {
       fns[n](els.mainPanel, {
         onNameDecided: n === 1 ? (name) => { setPlayerName(name); } : undefined,
         onComplete: n === 1
-          ? () => { setLogStory1Done(); }
+          ? () => { setLogSt1Done(); }
           : n === 2
-          ? () => { setLogStory2Done(); }
-          : () => { setLogStory3Done(); unlockLocation('forest', ['forest_explore']); },
+          ? () => { setLogSt2Done(); }
+          : () => { setLogSt3Done(); unlockLocation('forest', ['forest_explore']); },
       });
     });
   });

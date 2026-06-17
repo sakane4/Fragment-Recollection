@@ -473,17 +473,17 @@ function setTutorialDone() {
   saveToStorage(state);
 }
 
-function setLogStory1Done() {
+function setLogSt1Done() {
   state = { ...state, logSt1Done: true };
   saveToStorage(state);
 }
 
-function setLogStory2Done() {
+function setLogSt2Done() {
   state = { ...state, logSt2Done: true };
   saveToStorage(state);
 }
 
-function setLogStory3Done() {
+function setLogSt3Done() {
   state = { ...state, logSt3Done: true };
   saveToStorage(state);
 }
@@ -527,4 +527,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogStory1Done, setLogStory2Done, setLogStory3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogStory };
