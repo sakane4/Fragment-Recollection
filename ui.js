@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceUnlockStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, startPostExploreStory, startPostExplore2Story } from './tutorial.js';
@@ -192,8 +192,9 @@ function closeStory() {
 
 // ── 物語リスト描画 ──
 function storyIsVisible(story, state) {
-  if (state.unlockedStories.includes(story.id)) return true; // 解放済みは常に表示
-  if (!story.showCondition) return true;
+  if (state.unlockedStories.includes(story.id)) return true;
+  if ((state.appearedStories ?? []).includes(story.id)) return true;
+  if (!story.showCondition) return false;
   const { resource, amount } = story.showCondition;
   return (state.resources[resource] ?? 0) >= amount;
 }
@@ -203,7 +204,9 @@ function renderStoryList(state) {
 
   for (const story of Object.values(STORIES)) {
     if (!storyIsVisible(story, state)) continue;
+
     const unlocked = state.unlockedStories.includes(story.id);
+    const appeared = !unlocked && (state.appearedStories ?? []).includes(story.id);
     const costLabel = story.unlockCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
 
     const item = document.createElement('div');
@@ -212,25 +215,27 @@ function renderStoryList(state) {
     const info = document.createElement('div');
 
     const title = document.createElement('div');
-    title.className = 'story-item-title' + (unlocked ? '' : ' locked');
-    title.textContent = unlocked ? story.title : `??? (${story.title})`;
+    if (unlocked) {
+      // 解放済み：本当のタイトル
+      title.className = 'story-item-title';
+      title.textContent = story.title;
+    } else {
+      // 出現中（未解放）：曖昧なタイトル
+      title.className = 'story-item-title locked';
+      title.textContent = story.lockedTitle ?? 'あいまいな記憶';
+    }
     info.appendChild(title);
 
-    if (!unlocked) {
-      const cost = document.createElement('div');
-      cost.className = 'story-cost';
-      cost.textContent = `解放: ${costLabel}`;
-      info.appendChild(cost);
-    } else {
+    const sub = document.createElement('div');
+    sub.className = 'story-cost';
+    if (unlocked) {
       const pages = state.storyProgress[story.id] ?? 0;
       const total = story.pageCount ?? _storyPageCounts[story.id];
-      const progress = document.createElement('div');
-      progress.className = 'story-cost';
-      progress.textContent = total
-        ? `${pages} / ${total}`
-        : pages > 0 ? `${pages} / ?` : '未読';
-      info.appendChild(progress);
+      sub.textContent = total ? `${pages} / ${total}` : pages > 0 ? `${pages} / ?` : '未読';
+    } else {
+      sub.textContent = `思い出す: ${costLabel}`;
     }
+    info.appendChild(sub);
 
     const btn = document.createElement('button');
     btn.className = 'story-btn' + (unlocked ? '' : ' locked');
@@ -241,7 +246,7 @@ function renderStoryList(state) {
       } else {
         const result = unlockStory(story.id);
         if (!result.ok && result.reason === 'insufficient_resources') {
-          addLog(`【物語】フラグメントが足りません (${costLabel} 必要)`);
+          addLog(`フラグメントが足りません (${costLabel} 必要)`);
         }
       }
     });
@@ -527,7 +532,7 @@ function startProloguePhase() {
   if (!_postExplorePending) return;
   _postExplorePending = false;
   _waitingForPrologue = true;
-  forceUnlockStory('prologue');
+  forceAppearStory('prologue');
   showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
 }
 

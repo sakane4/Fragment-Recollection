@@ -4,6 +4,7 @@ const STORIES = {
   prologue: {
     id: 'prologue',
     title: '再生の書',
+    lockedTitle: 'あいまいな記憶',
     pageCount: 3,
     // 物語タブに出現する条件
     showCondition: { resource: 'fragment', amount: 50 },

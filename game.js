@@ -80,6 +80,7 @@ const INITIAL_STATE = {
   unlockedCompanions: [],     // 解放済み同行者IDの配列
   activeCompanions: [],       // 同行中の同行者IDの配列
   discoveredResources: ['fragment'], // 一度でも入手したリソースID（最初からフラグメントは既知）
+  appearedStories: [],        // リストに出現済みだがまだ解放していない物語ID
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -133,13 +134,13 @@ function unlockAllStories() {
   for (const id of allIds) {
     progress[id] = 999; // 全ページ解放
   }
-  state = { ...state, unlockedStories: allIds, storyProgress: progress };
+  state = { ...state, appearedStories: [], unlockedStories: allIds, storyProgress: progress };
   saveToStorage(state);
   notify();
 }
 
 function lockAllStories() {
-  state = { ...state, unlockedStories: [], storyProgress: {} };
+  state = { ...state, appearedStories: [], unlockedStories: [], storyProgress: {} };
   saveToStorage(state);
   notify();
 }
@@ -336,14 +337,10 @@ function getProgress() {
 }
 
 // 物語を解放する(1ページ目が読めるようになる)
-// コスト消費なしで物語を解放する（チュートリアル用）
-function forceUnlockStory(storyId) {
-  if (state.unlockedStories.includes(storyId)) return;
-  state = {
-    ...state,
-    unlockedStories: [...state.unlockedStories, storyId],
-    storyProgress: { ...state.storyProgress, [storyId]: 0 },
-  };
+// コスト消費なしで物語をリストに出現させる（チュートリアル用）
+function forceAppearStory(storyId) {
+  if (state.appearedStories.includes(storyId) || state.unlockedStories.includes(storyId)) return;
+  state = { ...state, appearedStories: [...state.appearedStories, storyId] };
   saveToStorage(state);
   notify();
 }
@@ -361,11 +358,14 @@ function unlockStory(storyId) {
     newResources[cost.resource] -= cost.amount;
   }
 
+  // appeared状態から解放状態に移行
+  const newAppeared = state.appearedStories.filter(id => id !== storyId);
   state = {
     ...state,
     resources: newResources,
+    appearedStories: newAppeared,
     unlockedStories: [...state.unlockedStories, storyId],
-    storyProgress: { ...state.storyProgress, [storyId]: 1 },
+    storyProgress: { ...state.storyProgress, [storyId]: 0 },
   };
   saveToStorage(state);
   notify();
@@ -411,6 +411,7 @@ function init() {
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
     activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
     discoveredResources: saved.discoveredResources ?? INITIAL_STATE.discoveredResources,
+    appearedStories: saved.appearedStories ?? INITIAL_STATE.appearedStories,
     postExplore2Done: saved.postExplore2Done ?? INITIAL_STATE.postExplore2Done,
     fragmentHintShown: saved.fragmentHintShown ?? INITIAL_STATE.fragmentHintShown,
   };
@@ -476,4 +477,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceUnlockStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockAllActions, lockAllActions, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
