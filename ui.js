@@ -72,12 +72,13 @@ function renderViewerBody(state) {
     block.textContent = _viewerPages[i];
     els.storyBody.appendChild(block);
 
-    // ページ間の区切り
+    // ページ間の空白行
     if (i < unlockedPages - 1 && i < totalPages - 1) {
       const sep = document.createElement('div');
       sep.className = 'story-sep';
       els.storyBody.appendChild(sep);
     }
+
   }
 
   // 次ページ解放ボタン
@@ -96,7 +97,7 @@ function renderViewerBody(state) {
   } else {
     const fin = document.createElement('div');
     fin.className = 'story-fin';
-    fin.textContent = '— 了 —';
+    fin.textContent = '— END —';
     els.storyBody.appendChild(fin);
   }
 

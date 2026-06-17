@@ -16,7 +16,7 @@ const STORIES = {
 function parseStoryPages(text) {
   return text
     .split(/^---$/m)
-    .map(block => block.trim())
+    .map(block => block.replace(/^\n+|\n+$/g, '')) // 先頭・末尾の改行のみ除去(行頭スペースは保持)
     .filter(block => block.length > 0);
 }
 
