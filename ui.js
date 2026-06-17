@@ -606,14 +606,14 @@ function renderCharTab(state) {
       if (!rewards) continue;
       for (const r of rewards) {
         const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-        bonusLines.push(`${label} を入手`);
+        bonusLines.push(`${label} `);
       }
     }
     const bonus = document.createElement('div');
     bonus.className = 'party-bonus';
     bonus.innerHTML = bonusLines.map((line, i) =>
       i === 0 ? line : `<span class="party-bonus-extra">${line}</span>`
-    ).join('<br>');
+    ).join(' / ');
     activeSection.appendChild(bonus);
   }
 
