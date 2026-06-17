@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 
@@ -167,6 +167,8 @@ function renderStoryList(state) {
 // ── 状態レンダリング ──
 let prevActive = null;
 let prevUnlocked = [];
+let prevUnlockedLocations = [];
+let prevUnlockedActions = [];
 let stopFlavor = null;
 let _cancelled = false;
 
@@ -188,7 +190,8 @@ function render(state) {
 
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
-    addLog(`【${action.label}】開始`);
+    const location = LOCATIONS[action.locationId];
+    addLog(`【${location.label} / ${action.label}】開始`);
     els.actionPickerBtn.disabled = true;
     els.actionBtn.textContent = '中断';
     stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text));
@@ -198,13 +201,22 @@ function render(state) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     if (!_cancelled) {
       const action = ACTIONS[prevActive.actionId];
+      const location = LOCATIONS[action.locationId];
       const rewards = action.rewards.map(r => `${RESOURCE_LABELS[r.resource] ?? r.resource} +${r.amount}`).join(', ');
-      addLog(`【${action.label}】完了 — ${rewards}`, true);
+      addLog(`【${location.label} / ${action.label}】完了 — ${rewards}`, true);
     }
+    const wasCancelled = _cancelled;
     _cancelled = false;
     els.actionPickerBtn.disabled = false;
     els.actionBtn.textContent = '開始';
     els.progressBar.style.width = '0%';
+    if (!wasCancelled) {
+      startAction(selectedActionId, {
+        onRandomReward: ({ resource, amount }) => {
+          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+        },
+      });
+    }
   }
 
   for (const id of state.unlockedStories) {
@@ -213,8 +225,23 @@ function render(state) {
     }
   }
 
+  for (const id of state.unlockedLocations) {
+    if (!prevUnlockedLocations.includes(id)) {
+      addLog(`【発見】新しい場所「${LOCATIONS[id].label}」を見つけた`, true);
+    }
+  }
+  for (const id of state.unlockedActions) {
+    if (!prevUnlockedActions.includes(id)) {
+      const action = ACTIONS[id];
+      const location = LOCATIONS[action.locationId];
+      addLog(`【発見】${location.label} で「${action.label}」ができるようになった`, true);
+    }
+  }
+
   prevActive = active;
   prevUnlocked = [...state.unlockedStories];
+  prevUnlockedLocations = [...state.unlockedLocations];
+  prevUnlockedActions = [...state.unlockedActions];
 
   renderStoryList(state);
 
@@ -246,42 +273,62 @@ function initTabs() {
 }
 
 // ── 行動選択 ──
-let selectedActionId = 'explore';
+let selectedActionId = 'forest_explore';
 
 function renderActionList() {
   els.actionList.innerHTML = '';
-  for (const action of Object.values(ACTIONS)) {
-    const card = document.createElement('div');
-    card.className = 'action-card' + (action.id === selectedActionId ? ' selected' : '');
 
-    const info = document.createElement('div');
-    info.className = 'action-card-info';
+  const state = getState();
+  for (const location of Object.values(LOCATIONS)) {
+    if (!state.unlockedLocations.includes(location.id)) continue;
+    const actions = Object.values(ACTIONS).filter(a =>
+      a.locationId === location.id && state.unlockedActions.includes(a.id)
+    );
+    if (actions.length === 0) continue;
 
-    const name = document.createElement('div');
-    name.className = 'action-card-name';
-    name.textContent = action.label;
+    const group = document.createElement('div');
+    group.className = 'action-group';
 
-    const desc = document.createElement('div');
-    desc.className = 'action-card-desc';
-    desc.textContent = action.description ?? '';
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'action-group-label';
+    groupLabel.textContent = location.label;
+    group.appendChild(groupLabel);
 
-    info.appendChild(name);
-    info.appendChild(desc);
+    for (const action of actions) {
+      const card = document.createElement('div');
+      card.className = 'action-card' + (action.id === selectedActionId ? ' selected' : '');
 
-    const meta = document.createElement('div');
-    meta.className = 'action-card-meta';
-    meta.textContent = `${action.duration / 1000}秒`;
+      const info = document.createElement('div');
+      info.className = 'action-card-info';
 
-    card.appendChild(info);
-    card.appendChild(meta);
+      const name = document.createElement('div');
+      name.className = 'action-card-name';
+      name.textContent = action.label;
 
-    card.addEventListener('click', () => {
-      selectedActionId = action.id;
-      els.actionPickerBtn.textContent = action.label;
-      renderActionList();
-    });
+      const desc = document.createElement('div');
+      desc.className = 'action-card-desc';
+      desc.textContent = action.description ?? '';
 
-    els.actionList.appendChild(card);
+      info.appendChild(name);
+      info.appendChild(desc);
+
+      const meta = document.createElement('div');
+      meta.className = 'action-card-meta';
+      meta.textContent = `${action.duration / 1000}秒`;
+
+      card.appendChild(info);
+      card.appendChild(meta);
+
+      card.addEventListener('click', () => {
+        selectedActionId = action.id;
+        els.actionPickerBtn.textContent = `${location.label} — ${action.label}`;
+        renderActionList();
+      });
+
+      group.appendChild(card);
+    }
+
+    els.actionList.appendChild(group);
   }
 }
 
@@ -337,7 +384,9 @@ export function init() {
   els.actionBtn.addEventListener('click', () => {
     const active = getState().activeAction;
     if (active) {
-      const label = ACTIONS[active.actionId]?.label ?? '行動';
+      const action = ACTIONS[active.actionId];
+      const location = LOCATIONS[action?.locationId];
+      const label = location ? `${location.label} / ${action.label}` : (action?.label ?? '行動');
       if (stopFlavor) { stopFlavor(); stopFlavor = null; }
       _cancelled = true;
       cancelAction();
