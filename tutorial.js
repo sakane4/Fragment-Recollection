@@ -247,4 +247,88 @@ function startPostExploreStory(mainPanel, { onNameDecided, onComplete } = {}) {
   return () => mainPanel.removeEventListener('click', handleClick);
 }
 
-export { typewriter, startOpeningTutorial, startPostExploreStory };
+// ── ポスト探索ストーリー002 ──
+const POST_EXPLORE_2_STEPS = [
+  { type: 'text', text: '「これ、いったいなんだろう」' },
+  { type: 'text', text: 'ユウヤの手には、不思議な物体がある。' },
+  { type: 'text', text: 'さきほどから、あなたも見つけていたものだ。' },
+  { type: 'text', text: '「なにかの、かけらみたい」' },
+  { type: 'text', text: '「見つめていると、なんだか、懐かしい気持ちになる」' },
+  { type: 'text', text: '「あそこにも、あるよ」' },
+  { type: 'text', text: '「行ってみよう」' },
+  { type: 'end_button', label: 'ついていく' },
+];
+
+function startPostExplore2Story(mainPanel, { onComplete } = {}) {
+  let stepIndex = 0;
+  let currentTw = null;
+  let waitingForTap = false;
+  let indicator = null;
+
+  function addEntry() {
+    const el = document.createElement('div');
+    el.className = 'log-entry story-log center';
+    mainPanel.appendChild(el);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+    return el;
+  }
+
+  function removeIndicator() {
+    if (indicator) { indicator.remove(); indicator = null; }
+  }
+
+  function showTapIndicator() {
+    removeIndicator();
+    indicator = document.createElement('div');
+    indicator.className = 'story-tap-indicator';
+    indicator.textContent = '▼';
+    mainPanel.appendChild(indicator);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+  }
+
+  function nextStep() {
+    if (stepIndex >= POST_EXPLORE_2_STEPS.length) return;
+    removeIndicator();
+    waitingForTap = false;
+
+    const step = POST_EXPLORE_2_STEPS[stepIndex];
+
+    if (step.type === 'text') {
+      const el = addEntry();
+      currentTw = typewriter(el, step.text, {
+        speed: 55,
+        onDone: () => {
+          waitingForTap = true;
+          showTapIndicator();
+        },
+      });
+      stepIndex++;
+
+    } else if (step.type === 'end_button') {
+      currentTw = null;
+      const wrap = addEntry();
+      const btn = document.createElement('button');
+      btn.className = 'story-end-btn';
+      btn.textContent = step.label;
+      btn.addEventListener('click', () => {
+        btn.disabled = true;
+        removeIndicator();
+        onComplete?.();
+      });
+      wrap.appendChild(btn);
+      mainPanel.scrollTop = mainPanel.scrollHeight;
+    }
+  }
+
+  function handleClick() {
+    if (currentTw && !currentTw.done) { currentTw.skip(); return; }
+    if (waitingForTap) nextStep();
+  }
+
+  mainPanel.addEventListener('click', handleClick);
+  nextStep();
+
+  return () => mainPanel.removeEventListener('click', handleClick);
+}
+
+export { typewriter, startOpeningTutorial, startPostExploreStory, startPostExplore2Story };

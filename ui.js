@@ -1,9 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial } from './game.js';
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, startPostExploreStory } from './tutorial.js';
+import { startOpeningTutorial, startPostExploreStory, startPostExplore2Story } from './tutorial.js';
 
 const els = {
   resourceList: document.getElementById('resource-list'),
@@ -222,8 +222,11 @@ function render(state) {
     els.progressBar.style.width = '0%';
     if (!wasCancelled) {
       if (_postExplorePending) {
-        // render() 完了後にポスト探索ストーリーを開始
+        // render() 完了後にポスト探索ストーリー001を開始
         setTimeout(() => maybeStartPostExplore(), 0);
+      } else if (!state.postExplore2Done && (state.activeCompanions ?? []).length > 0) {
+        // ユウヤ同行中の初回探索完了 → ストーリー002
+        setTimeout(() => maybeStartPostExplore2(state), 0);
       } else {
         // render() 完了後に startAction を呼ぶ（再帰的な notify を防ぐ）
         setTimeout(() => startAction(selectedActionId, {
@@ -258,6 +261,12 @@ function render(state) {
   prevUnlocked = [...state.unlockedStories];
   prevUnlockedLocations = [...state.unlockedLocations];
   prevUnlockedActions = [...state.unlockedActions];
+
+  // フラグメント50個達成ヒント
+  if (!state.fragmentHintShown && (state.resources.fragment ?? 0) >= 50) {
+    setFragmentHintShown();
+    showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
+  }
 
   renderStoryList(state);
   renderCharTab(state);
@@ -375,6 +384,23 @@ function launchTutorial() {
     onComplete: () => {
       setTutorialDone();
       _postExplorePending = true;
+    },
+  });
+}
+
+function maybeStartPostExplore2(state) {
+  setPostExplore2Done();
+  let cleanup = null;
+  cleanup = startPostExplore2Story(els.mainPanel, {
+    onComplete: () => {
+      addLog('フラグメントをもっと集めてみよう...', false);
+      if (cleanup) { cleanup(); cleanup = null; }
+      // ストーリー後に自動再開
+      setTimeout(() => startAction(selectedActionId, {
+        onRandomReward: ({ resource, amount }) => {
+          addLog(`${RESOURCE_LABELS[resource] ?? resource} を ${amount} 個見つけた`);
+        },
+      }), 0);
     },
   });
 }

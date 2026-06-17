@@ -59,6 +59,8 @@ const INITIAL_STATE = {
   unlockedActions: Object.keys(ACTIONS),
   tutorialDone: false,        // オープニングチュートリアル完了フラグ
   postExploreDone: false,     // 探索後ストーリー完了フラグ
+  postExplore2Done: false,    // 探索後ストーリー002完了フラグ
+  fragmentHintShown: false,   // フラグメント50個ヒント表示済みフラグ
   playerName: '',             // プレイヤーネーム
   unlockedCompanions: [],     // 解放済み同行者IDの配列
   activeCompanions: [],       // 同行中の同行者IDの配列
@@ -304,6 +306,8 @@ function init() {
     unlockedLocations: saved.unlockedLocations ?? INITIAL_STATE.unlockedLocations,
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
     activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
+    postExplore2Done: saved.postExplore2Done ?? INITIAL_STATE.postExplore2Done,
+    fragmentHintShown: saved.fragmentHintShown ?? INITIAL_STATE.fragmentHintShown,
   };
 
   if (state.activeAction) {
@@ -325,6 +329,16 @@ function setTutorialDone() {
 
 function setPostExploreDone() {
   state = { ...state, postExploreDone: true };
+  saveToStorage(state);
+}
+
+function setPostExplore2Done() {
+  state = { ...state, postExplore2Done: true };
+  saveToStorage(state);
+}
+
+function setFragmentHintShown() {
+  state = { ...state, fragmentHintShown: true };
   saveToStorage(state);
 }
 
@@ -352,9 +366,9 @@ function setActiveCompanion(id, active) {
 }
 
 function resetTutorial() {
-  state = { ...state, tutorialDone: false, postExploreDone: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
+  state = { ...state, tutorialDone: false, postExploreDone: false, postExplore2Done: false, fragmentHintShown: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
   saveToStorage(state);
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
+export { LOCATIONS, ACTIONS, STORIES, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, setTutorialDone, setPostExploreDone, setPostExplore2Done, setFragmentHintShown, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial };
