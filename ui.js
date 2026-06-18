@@ -1,7 +1,7 @@
 // ui.js — DOM操作・表示更新
 
 import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt } from './game.js';
-import { parseStoryPages } from './stories.js';
+import { parseStoryPages, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 } from './tutorial.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
@@ -144,7 +144,8 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   for (let p = 0; p < _viewerCurrentPage; p++) globalOffset += (pages[p] ?? []).length;
 
   const currentParas = pages[_viewerCurrentPage] ?? [];
-  const costLabel = story.pageCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+  const currentCost = getCostForParagraph(story, unlockedParas);
+  const costLabel = currentCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
   const isNew = (idx) => idx >= _viewerPrevUnlockedPages;
 
   let shownCount = 0;
@@ -161,11 +162,37 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
       // 次に解放できる段落 → 思い出すボタン
       const btn = document.createElement('button');
       btn.className = 'story-next-btn';
-      btn.textContent = `思い出す (${costLabel})`;
+
+      const CIRC = 2 * Math.PI * 14; // r=14 の円周
+      const costsHtml = currentCost.map(c => {
+        const have = state.resources[c.resource] ?? 0;
+        const need = c.amount;
+        const ratio = Math.min(have / need, 1);
+        const offset = CIRC * (1 - ratio);
+        const enough = have >= need;
+        const ringColor = enough ? 'var(--accent)' : 'var(--muted)';
+        const label = RESOURCE_LABELS[c.resource] ?? c.resource;
+        return `
+          <span class="memory-cost-item${enough ? ' enough' : ''}">
+            <svg class="memory-ring" viewBox="0 0 36 36">
+              <circle class="memory-ring-bg" cx="18" cy="18" r="14"/>
+              <circle class="memory-ring-fill" cx="18" cy="18" r="14"
+                stroke="${ringColor}"
+                stroke-dasharray="${CIRC.toFixed(2)}"
+                stroke-dashoffset="${offset.toFixed(2)}"/>
+            </svg>
+            <span class="memory-cost-text">
+              <span class="memory-resource-name">${label}</span>
+              <span class="memory-counts">${need} / ${have}</span>
+            </span>
+          </span>`;
+      }).join('');
+      btn.innerHTML = costsHtml;
+
       btn.addEventListener('click', () => {
         const result = unlockNextPage(_viewerStoryId);
         if (!result.ok && result.reason === 'insufficient_resources') {
-          showViewerToast(`思い出すには ${costLabel} が必要です`);
+          showViewerToast(`素材が足りません`);
         }
       });
       // 段落が1つも表示されていなければ先頭に挿入（別ページ頭）
@@ -290,9 +317,14 @@ function renderStoryList(state) {
     const sub = document.createElement('div');
     sub.className = 'story-cost';
     if (unlocked) {
-      const pages = state.storyProgress[story.id] ?? 0;
+      const progress = state.storyProgress[story.id] ?? 0;
       const total = story.pageCount ?? _storyPageCounts[story.id];
-      sub.textContent = total ? `${pages} / ${total}` : pages > 0 ? `${pages} / ?` : '未読';
+      sub.textContent = total ? `${progress} / ${total}` : progress > 0 ? `${progress} / ?` : '未読';
+      if (total && progress < total) {
+        const nextCost = getCostForParagraph(story, progress);
+        const nextCostLabel = nextCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+        sub.textContent += `  ·  ${nextCostLabel}`;
+      }
     } else {
       sub.textContent = `思い出す: ${costLabel}`;
     }

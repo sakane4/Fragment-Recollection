@@ -20,4 +20,17 @@ function parseStoryPages(text) {
     .filter(page => page.length > 0);
 }
 
-export { parseStoryPages };
+// 段落インデックスに対応するコストを返す
+// pageCostRules があれば fromParagraph が最も近いルールを適用、なければ pageCost
+function getCostForParagraph(story, paragraphIndex) {
+  const rules = story.pageCostRules;
+  if (rules && rules.length > 0) {
+    const applicable = rules
+      .filter(r => r.fromParagraph <= paragraphIndex)
+      .sort((a, b) => b.fromParagraph - a.fromParagraph);
+    if (applicable.length > 0) return applicable[0].cost;
+  }
+  return story.pageCost;
+}
+
+export { parseStoryPages, getCostForParagraph };

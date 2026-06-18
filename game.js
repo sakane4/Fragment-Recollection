@@ -1,5 +1,5 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
-import { STORIES } from './stories.js';
+import { STORIES, getCostForParagraph } from './stories.js';
 
 const LOCATIONS = {
   wherever:   { id: 'wherever',   label: '' },          // 場所不明の初期状態
@@ -418,15 +418,15 @@ function unlockNextPage(storyId) {
   if (!story) return { ok: false, reason: 'unknown_story' };
   if (!state.unlockedStories.includes(storyId)) return { ok: false, reason: 'story_locked' };
 
+  const current = state.storyProgress[storyId] ?? 0;
+  const cost = getCostForParagraph(story, current);
   const newResources = { ...state.resources };
-  for (const cost of story.pageCost) {
-    if ((newResources[cost.resource] ?? 0) < cost.amount) {
+  for (const c of cost) {
+    if ((newResources[c.resource] ?? 0) < c.amount) {
       return { ok: false, reason: 'insufficient_resources' };
     }
-    newResources[cost.resource] -= cost.amount;
+    newResources[c.resource] -= c.amount;
   }
-
-  const current = state.storyProgress[storyId] ?? 0;
   state = {
     ...state,
     resources: newResources,

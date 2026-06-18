@@ -405,17 +405,57 @@
     .story-next-btn {
       align-self: center;
       margin-top: 0.5rem;
-      padding: 0.5rem 1.25rem;
-      background: var(--accent-dim);
-      color: var(--accent);
-      border: 1px solid var(--accent-border);
-      border-radius: 6px;
-      font-size: 0.82rem;
+      padding: 0.5rem 1rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: border-color 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
     }
-
     .story-next-btn:hover { background: #4d3f7a; }
+
+    .memory-cost-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .memory-ring {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      transform: rotate(-90deg);
+    }
+    .memory-ring-bg {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 3;
+    }
+    .memory-ring-fill {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease;
+    }
+    .memory-cost-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.1rem;
+    }
+    .memory-resource-name {
+      font-size: 0.75rem;
+      color: var(--text);
+    }
+    .memory-counts {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .memory-cost-item.enough .memory-counts {
+      color: var(--accent);
+    }
 
 
     #viewer-toast {
