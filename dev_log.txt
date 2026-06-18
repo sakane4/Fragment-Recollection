@@ -162,7 +162,7 @@ ui.js         — DOM操作・表示更新
 stories.js    — パーサー・コストマップ管理(getCostForParagraph / parseStoryCostOverrides)
 rules.js      — アンロック条件の一元管理(UNLOCK_RULES / evaluateRules)
 logs.js       — フレーバーテキスト定義・スケジューラー
-tutorial.js   — タイプライター・チュートリアルフロー(runLogSt_1〜4)
+scenario.js   — シナリオフロー・タイプライターエンジン(runLogSt_1〜4)
 stories/
   index.js      — STORIES エクスポートまとめ
   prologue.js   — プロローグ メタデータ
