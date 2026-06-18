@@ -13,7 +13,7 @@ const ACTIONS = {
     label: '探索',
     locationId: 'wherever',
     description: 'なにもない世界を探索する。',
-    duration: 20000,
+    duration: 15000,
     rewards: [{ resource: 'fragment', amount: 10 }],
     randomRewards: [
       { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
@@ -31,7 +31,8 @@ const ACTIONS = {
     duration: 20000,
     rewards: [{ resource: 'fragment', amount: 10 }],
     randomRewards: [
-      { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
+      { resource: 'fragment',     minAmount: 2, maxAmount: 4, minMs: 4000, maxMs: 9000 },
+      { resource: 'forest_voice', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
     ],
     discoveries: [],
   },
@@ -93,6 +94,7 @@ const INITIAL_STATE = {
     clear_fragment: 0,
     bubble_fragment: 0,
     sky_fragment: 0,
+    forest_voice: 0,
   },
   activeAction: null,
   unlockedStories: [],

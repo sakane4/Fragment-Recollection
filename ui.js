@@ -28,6 +28,7 @@ const RESOURCE_LABELS = {
   bubble_fragment: '泡のフラグメント',
   sky_fragment:    '空のフラグメント',
   herb:            '薬草',
+  forest_voice:    '木々の声',
 };
 
 // ── ユーティリティ ──
