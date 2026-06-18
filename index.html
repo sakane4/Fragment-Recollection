@@ -336,7 +336,7 @@
       position: relative;
       width: 100%;
       max-width: 480px;
-      height: 65svh;
+      height:75svh;
       background: #12141f;
       border-top: 1px solid var(--border);
       border-left: 1px solid var(--border);
@@ -417,6 +417,7 @@
 
     .story-next-btn:hover { background: #4d3f7a; }
 
+
     #viewer-toast {
       position: absolute;
       bottom: 4rem;
@@ -464,6 +465,13 @@
     }
     .story-nav-btn:disabled { opacity: 0.2; cursor: default; }
     .story-nav-btn:not(:disabled):hover { opacity: 1; }
+    @keyframes nav-blink {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+    .story-nav-btn--blink {
+      animation: nav-blink 0.6s ease-in-out 3;
+    }
     .story-nav-info {
       color: var(--muted);
       font-size: 0.82rem;

@@ -1,0 +1,68 @@
+// rules.js — アンロック・発火条件の一元管理
+// condition(state): true のとき action を実行
+// requireViewerClosed: true のとき、ビューアが開いている間はスキップ
+// storyLogPlaying フラグは ctx 経由で渡す
+
+import { STORIES } from './stories.js';
+
+export const UNLOCK_RULES = [
+
+  // ── ログストーリー ──
+  {
+    id: 'log_st_1',
+    requireViewerClosed: true,
+    condition: (state) =>
+      !state.logSt1Done &&
+      (state.storyProgress['prologue'] ?? 0) >= (STORIES['prologue']?.pageCount ?? Infinity),
+    action: (ctx) => ctx.startLogSt_1(),
+  },
+  {
+    id: 'log_st_3',
+    requireViewerClosed: true,
+    condition: (state) =>
+      !state.logSt3Done &&
+      (state.storyProgress['yuya_1'] ?? 0) >= 3,
+    action: (ctx) => ctx.startLogSt_3(),
+  },
+
+  // ── 場所・行動の解放 ──
+  {
+    id: 'unlock_forest',
+    condition: (state) =>
+      state.logSt3Done &&
+      !state.unlockedLocations.includes('forest'),
+    action: (ctx) => ctx.unlockLocation('forest', ['forest_explore']),
+  },
+
+  // ── 記憶の出現 ──
+  // showCondition を持つ物語は stories.js のデータから自動生成
+  ...Object.values(STORIES)
+    .filter(s => s.showCondition)
+    .map(s => ({
+      id: `appear_${s.id}`,
+      condition: (state) =>
+        !state.appearedStories.includes(s.id) &&
+        !state.unlockedStories.includes(s.id) &&
+        (state.resources[s.showCondition.resource] ?? 0) >= s.showCondition.amount,
+      action: (ctx) => ctx.forceAppearStory(s.id),
+    })),
+];
+
+// セッション内の二重発火防止
+const _fired = new Set();
+
+export function evaluateRules(state, ctx) {
+  if (ctx.storyLogPlaying) return;
+  for (const rule of UNLOCK_RULES) {
+    if (_fired.has(rule.id)) continue;
+    if (rule.requireViewerClosed && ctx.viewerOpen) continue;
+    if (rule.condition(state)) {
+      _fired.add(rule.id);
+      rule.action(ctx);
+    }
+  }
+}
+
+export function resetFiredRules() {
+  _fired.clear();
+}

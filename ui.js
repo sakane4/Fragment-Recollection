@@ -4,6 +4,7 @@ import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, st
 import { parseStoryPages } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 } from './tutorial.js';
+import { evaluateRules, resetFiredRules } from './rules.js';
 
 const els = {
   resourceList: document.getElementById('resource-list'),
@@ -184,6 +185,7 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   }
 
   const isLastRevealed = _viewerCurrentPage === revealedPages - 1;
+
   const allDone = unlockedParas >= totalParas;
 
   if (totalPages === 1 && allDone) {
@@ -192,33 +194,29 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     const nav = document.createElement('div');
     nav.className = 'story-nav';
 
-    const prevBtn = document.createElement('button');
-    prevBtn.className = 'story-nav-btn';
-    prevBtn.textContent = '◁';
-    prevBtn.disabled = _viewerCurrentPage === 0;
-    prevBtn.addEventListener('click', () => {
-      _viewerCurrentPage--;
-      _saveLastPage(_viewerStoryId, _viewerCurrentPage);
-      renderViewerBody(getState(), { scrollToTop: true });
-    });
+    const prevLabel = document.createElement('span');
+    prevLabel.className = 'story-nav-btn';
+    prevLabel.textContent = '◁';
+    if (_viewerCurrentPage === 0) prevLabel.style.visibility = 'hidden';
 
     const info = document.createElement('span');
     info.className = 'story-nav-info';
     info.textContent = `${_viewerCurrentPage + 1} / ${revealedPages}`;
 
-    const nextBtn = document.createElement('button');
-    nextBtn.className = 'story-nav-btn';
-    nextBtn.textContent = '▷';
-    nextBtn.disabled = isLastRevealed;
-    nextBtn.addEventListener('click', () => {
-      _viewerCurrentPage++;
-      _saveLastPage(_viewerStoryId, _viewerCurrentPage);
-      renderViewerBody(getState(), { scrollToTop: true });
-    });
+    const nextLabel = document.createElement('span');
+    nextLabel.className = 'story-nav-btn';
+    nextLabel.textContent = '▷';
+    if (isLastRevealed) {
+      nextLabel.style.visibility = 'hidden';
+    } else {
+      const pageLastParaIdx = globalOffset + currentParas.length;
+      const justUnlocked = _viewerPrevUnlockedPages < pageLastParaIdx && unlockedParas >= pageLastParaIdx;
+      if (justUnlocked) nextLabel.classList.add('story-nav-btn--blink');
+    }
 
-    nav.appendChild(prevBtn);
+    nav.appendChild(prevLabel);
     nav.appendChild(info);
-    nav.appendChild(nextBtn);
+    nav.appendChild(nextLabel);
     finBar.appendChild(nav);
   }
 
@@ -245,31 +243,12 @@ function showViewerToast(text) {
 }
 
 function closeStory() {
-  const closedStoryId = _viewerStoryId;
   els.storyOverlay.classList.remove('open');
   _viewerPages = [];
   _viewerStoryId = null;
   resumeLog();
-
-  // プロローグを全ページ読んだ状態で閉じた → ストーリー001へ
-  if (_waitingForPrologue && closedStoryId === 'prologue') {
-    const progress = getState().storyProgress['prologue'] ?? 0;
-    const total = STORIES['prologue'].pageCount;
-    if (total > 0 && progress >= total) {
-      setTimeout(() => startLogSt_1(), 0);
-    }
-  }
-
-  // yuya_1 を全段落読んだ状態で閉じた → ストーリー003へ
-  if (closedStoryId === 'yuya_1') {
-    const st = getState();
-    if (!st.logSt3Done) {
-      const progress = st.storyProgress['yuya_1'] ?? 0;
-      if (progress >= 3) {
-        setTimeout(() => startLogSt_3(), 0);
-      }
-    }
-  }
+  // ビューアを閉じた直後にルール評価（requireViewerClosed なルールを発火させる）
+  setTimeout(() => render(getState()), 0);
 }
 
 // ── 物語リスト描画 ──
@@ -420,8 +399,7 @@ function render(state) {
       if (_logStPending) {
         // render() 完了後にプロローグ解放フェーズへ
         setTimeout(() => startProloguePhase(), 0);
-      } else if (!state.logSt2Done && (state.activeCompanions ?? []).length > 0) {
-        // ユウヤ同行中の初回探索完了 → ストーリー002
+      } else if (state.logSt1Done && !state.logSt2Done && (state.activeCompanions ?? []).length > 0) {
         setTimeout(() => startLogSt_2(state), 0);
       } else if (_autoRestartEnabled) {
         // 自動再開(開発メニューでONのときのみ)
@@ -434,20 +412,11 @@ function render(state) {
     }
   }
 
-  // showCondition による自動出現チェック
-  for (const story of Object.values(STORIES)) {
-    if (state.appearedStories.includes(story.id)) continue;
-    if (state.unlockedStories.includes(story.id)) continue;
-    if (!story.showCondition) continue;
-    const { resource, amount } = story.showCondition;
-    if ((state.resources[resource] ?? 0) >= amount) {
-      forceAppearStory(story.id);
-    }
-  }
 
   for (const id of (state.appearedStories ?? [])) {
     if (!prevAppearedStories.includes(id)) {
       const story = STORIES[id];
+      if (!story) continue;
       addLog(`【記憶】「${story.lockedTitle ?? 'あいまいな記憶'}」を思い出せそうだ`, true);
     }
   }
@@ -455,6 +424,7 @@ function render(state) {
 
   for (const id of state.unlockedStories) {
     if (!prevUnlocked.includes(id)) {
+      if (!STORIES[id]) continue;
       addLog(`【記憶】「${STORIES[id].title}」を解放しました`, true);
     }
   }
@@ -486,6 +456,16 @@ renderStoryList(state);
   // ビューアが開いていればページ表示を更新
   if (_viewerStoryId) renderViewerBody(state);
 
+  // アンロックルール評価
+  evaluateRules(state, {
+    viewerOpen: _viewerStoryId !== null,
+    storyLogPlaying: _storyLogPlaying,
+    startLogSt_1,
+    startLogSt_2: () => startLogSt_2(state),
+    startLogSt_3,
+    unlockLocation,
+    forceAppearStory,
+  });
 }
 
 // ── プログレスバー ──
@@ -616,6 +596,7 @@ function initStoryViewer() {
 
   document.getElementById('story-fin-bar').addEventListener('click', e => {
     if (!_viewerStoryId) return;
+    if (e.target.closest('.story-nav-btn')) return;
     const bar = e.currentTarget;
     const isRight = e.clientX - bar.getBoundingClientRect().left > bar.offsetWidth / 2;
     if (isRight) {
@@ -677,7 +658,7 @@ function startLogSt_2(state) {
       _storyLogPlaying = false;
       addLog('フラグメントをもっと集めてみよう...', false);
       if (cleanup) { cleanup(); cleanup = null; }
-      // ストーリー後は停止状態を維持
+      render(getState());
     },
   });
 }
@@ -699,8 +680,8 @@ function startLogSt_1() {
       _storyLogPlaying = false;
       unlockCompanion('yuuya');
       addLog('【同行】ユウヤが仲間になった', true);
-      renderCharTab(getState());
       if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
+      render(getState());
     },
   });
 }
@@ -714,8 +695,8 @@ function startLogSt_3() {
   cleanup = runLogSt_3(els.mainPanel, {
     onComplete: () => {
       _storyLogPlaying = false;
-      unlockLocation('forest', ['forest_explore']);
       if (cleanup) { cleanup(); cleanup = null; }
+      render(getState());
     },
   });
 }
