@@ -36,21 +36,21 @@ function typewriter(el, text, { speed = 45, onDone } = {}) {
 // ── オープニングチュートリアル ページ定義 ──
 const OPENING_PAGES = [
   {
-    text: '　そこにはもう、なにもない。\n　すべてが失われた世界には、\n　空も、海も、大地も、命も。\n　もう、なにも。\n　でも、"ここ"にはあなたがいる。',
+    text: 'そこにはもう、なにもない。\nすべてが失われた世界には、\n空も、海も、大地も、命も。\n　もう、なにも。\n　でも、"ここ"にはあなたがいる。',
     advance: 'tap',
   },
   {
-    text: '　この世界を再生しますか？',
+    text: 'この世界を再生しますか？',
     advance: 'button',
     buttonLabel: 'はい',
   },
   {
-    text: '　もしも、同じことが繰り返されるとしても？',
+    text: 'もしも、同じことが繰り返されるとしても？',
     advance: 'button',
     buttonLabel: 'はい',
   },
   {
-    text: '　それでも、あなたは、この世界を再生しますか？',
+    text: 'それでも、あなたは、この世界を再生しますか？',
     advance: 'button',
     buttonLabel: 'はい',
   },
@@ -150,8 +150,6 @@ function parseScript(src) {
       if (line === '[name_input]') return { type: 'name_input' };
       const endMatch = line.match(/^\[end:\s*(.+)\]$/);
       if (endMatch) return { type: 'end_button', label: endMatch[1] };
-      const btnMatch = line.match(/^\[button:\s*(.+)\]$/);
-      if (btnMatch) return { type: 'advance_button', label: btnMatch[1] };
       if (line.includes('${name}')) return { type: 'text', text: (name) => line.replace(/\$\{name\}/g, name) };
       return { type: 'text', text: line };
     });
@@ -178,7 +176,7 @@ const LOG_STORY_STEPS = parseScript(`
 `);
 
 // ── ログストーリー共通エンジン ──
-function runLogSt(steps, mainPanel, { onNameDecided, onComplete } = {}) {
+function startLogStory(steps, mainPanel, { onNameDecided, onComplete } = {}) {
   let stepIndex = 0;
   let playerName = '';
   let currentTw = null;
@@ -243,20 +241,6 @@ function runLogSt(steps, mainPanel, { onNameDecided, onComplete } = {}) {
         nextStep();
       });
 
-    } else if (step.type === 'advance_button') {
-      currentTw = null;
-      const wrap = addEntry();
-      const btn = document.createElement('button');
-      btn.className = 'story-end-btn';
-      btn.textContent = step.label;
-      btn.addEventListener('click', () => {
-        btn.disabled = true;
-        stepIndex++;
-        nextStep();
-      });
-      wrap.appendChild(btn);
-      mainPanel.scrollTop = mainPanel.scrollHeight;
-
     } else if (step.type === 'end_button') {
       currentTw = null;
       const wrap = addEntry();
@@ -299,16 +283,15 @@ const LOG_STORY_2_STEPS = parseScript(`
 // ── ログストーリー003 ──
 const LOG_STORY_3_STEPS = parseScript(`
 003
-集めた欠片が、光をはなち、互いに引き寄せられていく。
-そして強まる光を見ていたあなたの頭に浮かんだ、その記憶……。
+集めた欠片が、青い光をはなつ。
+強まる光を見ていたあなたの頭に浮かんだ、その記憶……。
 あなたは直感的にわかる。それは、今隣にいる少年のものだと。
 青い光は、少年の身体に吸い込まれるように、やがて消えていった。
 「今のは……おれの記憶だ」
 「そうだ、……おれには、双子の弟がいた……」
-ユウヤはつぶやく。
-「でも、会えなくなった」
 あなたはうなずく。
-ユウヤは考えていたが、しばらくするとまた口を開く。
+「でも、会えなくなった…」
+ユウヤは少しの間なにか考えていたが、しばらくするとまた口を開く。
 「そうだ、あの時――」
 その時あなたは、木々と土の匂いを感じた。
 葉のこすれる音。
@@ -318,8 +301,8 @@ const LOG_STORY_3_STEPS = parseScript(`
 [end: 探索する]
 `);
 
-function runLogSt_1(mainPanel, opts) { return runLogSt(LOG_STORY_STEPS,   mainPanel, opts); }
-function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPanel, opts); }
-function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
+function startLogStory1(mainPanel, opts) { return startLogStory(LOG_STORY_STEPS,   mainPanel, opts); }
+function startLogStory2(mainPanel, opts) { return startLogStory(LOG_STORY_2_STEPS, mainPanel, opts); }
+function startLogStory3(mainPanel, opts) { return startLogStory(LOG_STORY_3_STEPS, mainPanel, opts); }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 };
+export { typewriter, startOpeningTutorial, startLogStory1, startLogStory2, startLogStory3 };
