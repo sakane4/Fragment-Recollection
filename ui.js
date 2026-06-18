@@ -1,7 +1,7 @@
 // ui.js — DOM操作・表示更新
 
 import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt } from './game.js';
-import { parseStoryPages, getCostForParagraph } from './stories.js';
+import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 } from './tutorial.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
@@ -110,6 +110,7 @@ async function openStory(storyId, { prevProgress } = {}) {
     const res = await fetch(`stories/${storyId}.txt`);
     const text = await res.text();
     pages = parseStoryPages(text);
+    setStoryCostMap(storyId, parseStoryCostOverrides(text));
   } catch {
     addLog('【エラー】物語テキストの読み込みに失敗しました');
     return;

@@ -6,7 +6,4 @@ export default {
   showCondition: { resource: 'blue_fragment', amount: 5 },
   unlockCost: [{ resource: 'blue_fragment', amount: 10 }],
   pageCost: [{ resource: 'blue_fragment', amount: 3 }],
-  pageCostRules: [
-    { fromParagraph: 13, cost: [{ resource: 'red_fragment', amount: 5 }] },
-  ],
 };
