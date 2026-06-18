@@ -382,7 +382,7 @@ function renderStoryList(state) {
     sub.className = 'story-cost';
     if (unlocked) {
       const progress = state.storyProgress[story.id] ?? 0;
-      const total = story.pageCount ?? _storyPageCounts[story.id];
+      const total = _storyPageCounts[story.id] ?? story.pageCount;
       sub.textContent = total ? `${progress} / ${total}` : progress > 0 ? `${progress} / ?` : '未読';
       if (total && progress < total) {
         const nextCost = getCostForParagraph(story, progress);

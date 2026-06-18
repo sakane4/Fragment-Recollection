@@ -70,7 +70,7 @@ const ACTIONS = {
 // 同行者ごとのアクション完了時固有報酬
 // amount は基本量（同行ボーナスの2倍乗算は適用しない）
 const COMPANION_REWARDS = {
-  yuya:  [{ resource: 'blue_fragment',      amount: 3 }],
+  yuya: [{ resource: 'blue_fragment',      amount: 3 }],
   rabi:   [{ resource: 'red_fragment',       amount: 3 }],
   shizuku:[{ resource: 'clear_fragment',     amount: 3 }],
   kaoru:  [{ resource: 'bubble_fragment',    amount: 3 }],
@@ -79,7 +79,7 @@ const COMPANION_REWARDS = {
 
 // 同行者ごとのアクション中ランダム報酬
 const COMPANION_RANDOM_REWARDS = {
-  yuya:  [{ resource: 'blue_fragment',   minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
+  yuya: [{ resource: 'blue_fragment',   minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
   rabi:   [{ resource: 'red_fragment',    minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
   shizuku:[{ resource: 'clear_fragment',  minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
   kaoru:  [{ resource: 'bubble_fragment', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
