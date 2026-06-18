@@ -105,6 +105,7 @@ const INITIAL_STATE = {
   logSt1Done: false,     // 探索後ストーリー完了フラグ
   logSt2Done: false,    // 探索後ストーリー002完了フラグ
   logSt3Done: false,    // 探索後ストーリー003完了フラグ
+  logSt4Done: false,    // 探索後ストーリー004完了フラグ
   playerName: '',             // プレイヤーネーム
   unlockedCompanions: [],     // 解放済み同行者IDの配列
   activeCompanions: [],       // 同行中の同行者IDの配列
@@ -217,6 +218,7 @@ function notify() {
 
 let _timer = null;
 let _randomRewardTimers = [];
+let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null };
 
 function scheduleRandomRewards(action, onReward) {
   if (!action.randomRewards) return;
@@ -282,6 +284,7 @@ function scheduleCompanionRandomRewards(onReward) {
 
 function startAction(actionId, { onRandomReward, onCompanionRandomReward } = {}) {
   if (state.activeAction) return { ok: false, reason: 'already_active' };
+  _savedCallbacks = { onRandomReward, onCompanionRandomReward };
   const action = ACTIONS[actionId];
   if (!action) return { ok: false, reason: 'unknown_action' };
 
@@ -308,6 +311,37 @@ function cancelAction() {
   saveToStorage(state);
   notify();
   return { ok: true };
+}
+
+function pauseAction() {
+  if (!state.activeAction || state.activeAction.pausedAt) return;
+  clearTimeout(_timer);
+  clearRandomRewardTimers();
+  state = { ...state, activeAction: { ...state.activeAction, pausedAt: Date.now() } };
+  saveToStorage(state);
+  notify();
+}
+
+function resumeAction() {
+  if (!state.activeAction || !state.activeAction.pausedAt) return;
+  const pauseDuration = Date.now() - state.activeAction.pausedAt;
+  const newEndsAt = state.activeAction.endsAt + pauseDuration;
+  const actionId = state.activeAction.actionId;
+  state = {
+    ...state,
+    activeAction: { ...state.activeAction, endsAt: newEndsAt, pausedAt: undefined },
+  };
+  saveToStorage(state);
+  notify();
+  const remaining = newEndsAt - Date.now();
+  if (remaining <= 0) {
+    completeAction(actionId);
+  } else {
+    _timer = setTimeout(() => completeAction(actionId), remaining);
+    const action = ACTIONS[actionId];
+    scheduleRandomRewards(action, _savedCallbacks.onRandomReward);
+    scheduleCompanionRandomRewards(_savedCallbacks.onCompanionRandomReward);
+  }
 }
 
 function completeAction(actionId) {
@@ -371,8 +405,8 @@ function completeAction(actionId) {
 
 function getProgress() {
   if (!state.activeAction) return null;
-  const { startedAt, endsAt } = state.activeAction;
-  const now = Date.now();
+  const { startedAt, endsAt, pausedAt } = state.activeAction;
+  const now = pausedAt ?? Date.now();
   const elapsed = now - startedAt;
   const total = endsAt - startedAt;
   return Math.min(elapsed / total, 1);
@@ -456,6 +490,7 @@ function init() {
     appearedStories: saved.appearedStories ?? INITIAL_STATE.appearedStories,
     logSt2Done: saved.logSt2Done ?? INITIAL_STATE.logSt2Done,
     logSt3Done: saved.logSt3Done ?? INITIAL_STATE.logSt3Done,
+    logSt4Done: saved.logSt4Done ?? INITIAL_STATE.logSt4Done,
   };
 
   if (state.activeAction) {
@@ -490,6 +525,11 @@ function setLogSt3Done() {
   saveToStorage(state);
 }
 
+function setLogSt4Done() {
+  state = { ...state, logSt4Done: true };
+  saveToStorage(state);
+}
+
 function setPlayerName(name) {
   state = { ...state, playerName: name };
   saveToStorage(state);
@@ -519,14 +559,15 @@ function jumpToLogSt(n) {
     logSt1Done:  n > 1 ? true : false,
     logSt2Done: n > 2 ? true : false,
     logSt3Done: false,
+    logSt4Done: false,
   };
   saveToStorage(state);
 }
 
 function resetTutorial() {
-  state = { ...state, tutorialDone: false, logSt1Done: false, logSt2Done: false, logSt3Done: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
+  state = { ...state, tutorialDone: false, logSt1Done: false, logSt2Done: false, logSt3Done: false, logSt4Done: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
   saveToStorage(state);
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt };

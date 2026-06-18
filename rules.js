@@ -24,6 +24,14 @@ export const UNLOCK_RULES = [
       (state.storyProgress['yuya_1'] ?? 0) >= 3,
     action: (ctx) => ctx.startLogSt_3(),
   },
+  {
+    id: 'log_st_4',
+    requireViewerClosed: true,
+    condition: (state) =>
+      !state.logSt4Done &&
+      (state.storyProgress['yuya_1'] ?? 0) >= 13,
+    action: (ctx) => ctx.startLogSt_4(),
+  },
 
   // ── 場所・行動の解放 ──
   {

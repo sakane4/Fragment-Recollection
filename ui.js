@@ -1,9 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 } from './tutorial.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './tutorial.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
 const els = {
@@ -31,6 +31,22 @@ const RESOURCE_LABELS = {
   forest_voice:    '木々の声',
 };
 
+const RESOURCE_COLORS = {
+  fragment:        '#7ec8d8',
+  blue_fragment:   '#89b4fa',
+  red_fragment:    '#f38ba8',
+  clear_fragment:  '#cdd6f4',
+  bubble_fragment: '#cba6f7',
+  sky_fragment:    '#89dceb',
+  herb:            '#a6e3a1',
+  forest_voice:    '#a8d8a8',
+};
+
+function resourceSpan(resource, text) {
+  const color = RESOURCE_COLORS[resource] ?? 'var(--text)';
+  return `<span style="color:${color};font-weight:bold">${text}</span>`;
+}
+
 // ── ユーティリティ ──
 function actionDisplayLabel(action, sep = ' / ') {
   const loc = LOCATIONS[action.locationId];
@@ -39,7 +55,7 @@ function actionDisplayLabel(action, sep = ' / ') {
 
 function makeRandomRewardHandler() {
   return ({ resource, amount }) => {
-    addLog(`<span class="log-companion-reward"><span class="log-resource">${RESOURCE_LABELS[resource] ?? resource}</span> を ${amount} 個見つけた</span>`, false, true);
+    addLog(`<span class="log-companion-reward">${resourceSpan(resource, RESOURCE_LABELS[resource] ?? resource)} を ${amount} 個見つけた</span>`, false, true);
   };
 }
 
@@ -47,7 +63,7 @@ function makeCompanionRandomRewardHandler() {
   return ({ companionId, resource, amount }) => {
     const name = COMPANION_DATA[companionId]?.name ?? companionId;
     const label = RESOURCE_LABELS[resource] ?? resource;
-    addLog(`<span class="log-companion-reward">${name}が <span class="log-resource-blue">${label}</span> を ${amount} 個見つけた</span>`, false, true);
+    addLog(`<span class="log-companion-reward">${name}が ${resourceSpan(resource, label)} を ${amount} 個見つけた</span>`, false, true);
   };
 }
 
@@ -226,7 +242,17 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     const prevLabel = document.createElement('span');
     prevLabel.className = 'story-nav-btn';
     prevLabel.textContent = '◁';
-    if (_viewerCurrentPage === 0) prevLabel.style.visibility = 'hidden';
+    if (_viewerCurrentPage === 0) {
+      prevLabel.style.visibility = 'hidden';
+    } else {
+      prevLabel.addEventListener('click', () => {
+        if (_viewerCurrentPage > 0) {
+          _viewerCurrentPage--;
+          _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+          renderViewerBody(getState(), { scrollToTop: true });
+        }
+      });
+    }
 
     const info = document.createElement('span');
     info.className = 'story-nav-info';
@@ -241,6 +267,20 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
       const pageLastParaIdx = globalOffset + currentParas.length;
       const justUnlocked = _viewerPrevUnlockedPages < pageLastParaIdx && unlockedParas >= pageLastParaIdx;
       if (justUnlocked) nextLabel.classList.add('story-nav-btn--blink');
+      nextLabel.addEventListener('click', () => {
+        const st = getState();
+        const up = st.storyProgress[_viewerStoryId] ?? 0;
+        let rp = 1, c = 0;
+        for (let p = 0; p < _viewerPages.length - 1; p++) {
+          c += _viewerPages[p].length;
+          if (up >= c) rp++; else break;
+        }
+        if (_viewerCurrentPage < rp - 1) {
+          _viewerCurrentPage++;
+          _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+          renderViewerBody(st, { scrollToTop: true });
+        }
+      });
     }
 
     nav.appendChild(prevLabel);
@@ -405,8 +445,8 @@ function render(state) {
       const rewardsHtml = action.rewards.map(r => {
         const label = RESOURCE_LABELS[r.resource] ?? r.resource;
         return hasBonus
-          ? `<span class="log-resource">${label}</span> +${r.amount}<span class="log-bonus"> +${r.amount}</span>`
-          : `<span class="log-resource">${label}</span> +${r.amount}`;
+          ? `${resourceSpan(r.resource, label)} +${r.amount}<span class="log-bonus"> +${r.amount}</span>`
+          : `${resourceSpan(r.resource, label)} +${r.amount}`;
       }).join(', ');
       // 同行者固有報酬ログ
       const companionRewardsHtml = (state.activeCompanions ?? []).flatMap(id => {
@@ -415,7 +455,7 @@ function render(state) {
         const companionName = COMPANION_DATA[id]?.name ?? id;
         return rewards.map(r => {
           const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-          return `<span class="log-companion-reward"><span class="log-resource-blue">${label}</span> +${r.amount}</span>`;
+          return `<span class="log-companion-reward">${resourceSpan(r.resource, label)} +${r.amount}</span>`;
         });
       }).join(', ');
       const fullRewardsHtml = companionRewardsHtml
@@ -497,6 +537,7 @@ renderStoryList(state);
     startLogSt_1,
     startLogSt_2: () => startLogSt_2(state),
     startLogSt_3,
+    startLogSt_4,
     unlockLocation,
     forceAppearStory,
   });
@@ -504,6 +545,7 @@ renderStoryList(state);
 
 // ── プログレスバー ──
 function tick() {
+  if (_storyLogPlaying) return;
   const p = getProgress();
   if (p !== null) {
     els.progressBar.style.width = `${(p * 100).toFixed(1)}%`;
@@ -683,16 +725,23 @@ function startProloguePhase() {
   showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
 }
 
+function _onLogStComplete(cleanup, extraFn) {
+  resumeAction();
+  _storyLogPlaying = false;
+  if (cleanup) cleanup();
+  if (extraFn) extraFn();
+  render(getState());
+}
+
 function startLogSt_2(state) {
+  pauseAction();
   setLogSt2Done();
   _storyLogPlaying = true;
   let cleanup = null;
   cleanup = runLogSt_2(els.mainPanel, {
     onComplete: () => {
-      _storyLogPlaying = false;
-      addLog('フラグメントをもっと集めてみよう...', false);
-      if (cleanup) { cleanup(); cleanup = null; }
-      render(getState());
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } },
+        () => addLog('フラグメントをもっと集めてみよう...', false));
     },
   });
 }
@@ -700,6 +749,7 @@ function startLogSt_2(state) {
 function startLogSt_1() {
   const state = getState();
   if (state.logSt1Done) return;
+  pauseAction();
   _waitingForPrologue = false;
   setLogSt1Done();
   _storyLogPlaying = true;
@@ -711,11 +761,9 @@ function startLogSt_1() {
       renderCharTab(getState());
     },
     onComplete: () => {
-      _storyLogPlaying = false;
       unlockCompanion('yuuya');
       addLog('【同行】ユウヤが仲間になった', true);
-      if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
-      render(getState());
+      _onLogStComplete(() => { if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; } });
     },
   });
 }
@@ -723,14 +771,27 @@ function startLogSt_1() {
 function startLogSt_3() {
   const state = getState();
   if (state.logSt3Done) return;
+  pauseAction();
   setLogSt3Done();
   _storyLogPlaying = true;
   let cleanup = null;
   cleanup = runLogSt_3(els.mainPanel, {
     onComplete: () => {
-      _storyLogPlaying = false;
-      if (cleanup) { cleanup(); cleanup = null; }
-      render(getState());
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
+    },
+  });
+}
+
+function startLogSt_4() {
+  const state = getState();
+  if (state.logSt4Done) return;
+  pauseAction();
+  setLogSt4Done();
+  _storyLogPlaying = true;
+  let cleanup = null;
+  cleanup = runLogSt_4(els.mainPanel, {
+    onComplete: () => {
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
     },
   });
 }
@@ -913,18 +974,19 @@ function initDevTools() {
     Object.keys(COMPANION_DATA).forEach(id => unlockCompanion(id));
   });
 
-  [1, 2, 3].forEach(n => {
-    document.getElementById(`dev-log-story-${n}`).addEventListener('click', () => {
-      jumpToLogSt(n);
-      const fns = [null, runLogSt_1, runLogSt_2, runLogSt_3];
-      fns[n](els.mainPanel, {
-        onNameDecided: n === 1 ? (name) => { setPlayerName(name); } : undefined,
-        onComplete: n === 1
-          ? () => { setLogSt1Done(); }
-          : n === 2
-          ? () => { setLogSt2Done(); }
-          : () => { setLogSt3Done(); unlockLocation('forest', ['forest_explore']); },
-      });
+  document.getElementById('dev-log-story-select').addEventListener('change', (e) => {
+    const n = Number(e.target.value);
+    if (!n) return;
+    e.target.value = '';
+    jumpToLogSt(n);
+    const fns = [null, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4];
+    fns[n]?.(els.mainPanel, {
+      onNameDecided: n === 1 ? (name) => { setPlayerName(name); } : undefined,
+      onComplete: n === 1 ? () => { setLogSt1Done(); }
+              : n === 2 ? () => { setLogSt2Done(); }
+              : n === 3 ? () => { setLogSt3Done(); unlockLocation('forest', ['forest_explore']); }
+              : n === 4 ? () => { setLogSt4Done(); }
+              : undefined,
     });
   });
 

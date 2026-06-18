@@ -321,4 +321,9 @@ function runLogSt_1(mainPanel, opts) { return runLogSt(LOG_STORY_STEPS,   mainPa
 function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPanel, opts); }
 function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3 };
+const LOG_STORY_4_STEPS = [
+  // TODO: ログストーリー004 の内容をここに書く
+];
+function runLogSt_4(mainPanel, opts) { return runLogSt(LOG_STORY_4_STEPS, mainPanel, opts); }
+
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 };
