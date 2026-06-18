@@ -37,7 +37,7 @@ const COMPANION_LOGS = [
 // キャラクター固有のフレーバーテキスト
 // 汎用と50/50で抽選される
 const COMPANION_LOGS_SPECIFIC = {
-  yuuya: [
+  yuya: [
     '「何かを思い出しそうだよ」',
     '{name}は立ち止まって、どこかを見つめている...振り向いて笑った',
     '「ここ、来たことある気がする」',

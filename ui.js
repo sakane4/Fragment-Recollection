@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, forceAppearStory, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './tutorial.js';
@@ -145,6 +145,25 @@ async function openStory(storyId, { prevProgress } = {}) {
   renderViewerBody(getState());
 }
 
+function _checkPageLevelUp(storyId, prevProgress) {
+  const story = STORIES[storyId];
+  if (!story?.companionId) return;
+  const pages = _viewerPages;
+  const newProgress = getState().storyProgress[storyId] ?? 0;
+  let cum = 0;
+  for (const page of pages) {
+    cum += page.length;
+    if (prevProgress < cum && newProgress >= cum) {
+      const companionId = story.companionId;
+      const currentLevel = getState().ELv[companionId] ?? 0;
+      const newLevel = currentLevel + 1;
+      setCompanionLevel(companionId, newLevel);
+      const name = COMPANION_DATA[companionId]?.name ?? companionId;
+      addLog(`【同行者】${name}の存在が少し安定した (Lv ${newLevel})`, true);
+    }
+  }
+}
+
 function renderViewerBody(state, { scrollToTop = false } = {}) {
   if (!_viewerStoryId) return;
   const story = STORIES[_viewerStoryId];
@@ -208,9 +227,12 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
       btn.innerHTML = costsHtml;
 
       btn.addEventListener('click', () => {
+        const prevProgress = getState().storyProgress[_viewerStoryId] ?? 0;
         const result = unlockNextPage(_viewerStoryId);
         if (!result.ok && result.reason === 'insufficient_resources') {
           showViewerToast(`素材が足りません`);
+        } else if (result.ok) {
+          _checkPageLevelUp(_viewerStoryId, prevProgress);
         }
       });
       // 段落が1つも表示されていなければ先頭に挿入（別ページ頭）
@@ -761,7 +783,7 @@ function startLogSt_1() {
       renderCharTab(getState());
     },
     onComplete: () => {
-      unlockCompanion('yuuya');
+      unlockCompanion('yuya');
       addLog('【同行】ユウヤが仲間になった', true);
       _onLogStComplete(() => { if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; } });
     },
@@ -835,7 +857,7 @@ function showTabToast(targetTabSelector, text) {
 
 // ── 同行タブ描画 ──
 const COMPANION_DATA = {
-  yuuya:  { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
+  yuya:  { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
   rabi:   { name: 'ラビ',   desc: '盲目の剣士。' },
   shizuku:{ name: 'シズク', desc: '寡黙な青年。' },
   kaoru:  { name: 'カオル', desc: 'いつも笑顔のお姉さん。' },
@@ -872,7 +894,9 @@ function renderCharTab(state) {
     if (!data) continue;
     const card = document.createElement('div');
     card.className = 'companion-card companion-card--active';
-    card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
+    const lv = state.ELv?.[id] ?? 0;
+    const lvTag = lv > 0 ? ` <span class="companion-lv">Lv ${lv}</span>` : '';
+    card.innerHTML = `<div class="companion-name">${data.name}${lvTag}</div><div class="companion-desc">${data.desc}</div>`;
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--remove';
     btn.textContent = '別行動';
@@ -927,7 +951,9 @@ function renderCharTab(state) {
     if (!data) continue;
     const card = document.createElement('div');
     card.className = 'companion-card';
-    card.innerHTML = `<div class="companion-name">${data.name}</div><div class="companion-desc">${data.desc}</div>`;
+    const lv2 = state.ELv?.[id] ?? 0;
+    const lvTag2 = lv2 > 0 ? ` <span class="companion-lv">Lv ${lv2}</span>` : '';
+    card.innerHTML = `<div class="companion-name">${data.name}${lvTag2}</div><div class="companion-desc">${data.desc}</div>`;
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--add';
     btn.textContent = '同行する';

@@ -70,7 +70,7 @@ const ACTIONS = {
 // 同行者ごとのアクション完了時固有報酬
 // amount は基本量（同行ボーナスの2倍乗算は適用しない）
 const COMPANION_REWARDS = {
-  yuuya:  [{ resource: 'blue_fragment',      amount: 3 }],
+  yuya:  [{ resource: 'blue_fragment',      amount: 3 }],
   rabi:   [{ resource: 'red_fragment',       amount: 3 }],
   shizuku:[{ resource: 'clear_fragment',     amount: 3 }],
   kaoru:  [{ resource: 'bubble_fragment',    amount: 3 }],
@@ -79,7 +79,7 @@ const COMPANION_REWARDS = {
 
 // 同行者ごとのアクション中ランダム報酬
 const COMPANION_RANDOM_REWARDS = {
-  yuuya:  [{ resource: 'blue_fragment',   minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
+  yuya:  [{ resource: 'blue_fragment',   minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
   rabi:   [{ resource: 'red_fragment',    minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
   shizuku:[{ resource: 'clear_fragment',  minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
   kaoru:  [{ resource: 'bubble_fragment', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
@@ -109,6 +109,7 @@ const INITIAL_STATE = {
   playerName: '',             // プレイヤーネーム
   unlockedCompanions: [],     // 解放済み同行者IDの配列
   activeCompanions: [],       // 同行中の同行者IDの配列
+  ELv: {},        // 同行者ごとのLv { companionId: number }
   discoveredResources: ['fragment'], // 一度でも入手したリソースID（最初からフラグメントは既知）
   appearedStories: [],        // リストに出現済みだがまだ解放していない物語ID
 };
@@ -359,9 +360,11 @@ function completeAction(actionId) {
   for (const companionId of state.activeCompanions) {
     const rewards = COMPANION_REWARDS[companionId];
     if (!rewards) continue;
+    const level = state.ELv[companionId] ?? 0;
     for (const reward of rewards) {
-      newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount;
-      companionRewardsList.push({ companionId, ...reward });
+      const total = reward.amount + level;
+      newResources[reward.resource] = (newResources[reward.resource] ?? 0) + total;
+      companionRewardsList.push({ companionId, resource: reward.resource, amount: total });
     }
   }
 
@@ -486,6 +489,7 @@ function init() {
     unlockedLocations: saved.unlockedLocations ?? INITIAL_STATE.unlockedLocations,
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
     activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
+    ELv:  saved.ELv  ?? INITIAL_STATE.ELv,
     discoveredResources: saved.discoveredResources ?? INITIAL_STATE.discoveredResources,
     appearedStories: saved.appearedStories ?? INITIAL_STATE.appearedStories,
     logSt2Done: saved.logSt2Done ?? INITIAL_STATE.logSt2Done,
@@ -543,6 +547,12 @@ function unlockCompanion(id) {
   notify();
 }
 
+function setCompanionLevel(companionId, level) {
+  state = { ...state, ELv: { ...state.ELv, [companionId]: level } };
+  saveToStorage(state);
+  notify();
+}
+
 function setActiveCompanion(id, active) {
   const current = state.activeCompanions;
   const next = active
@@ -570,4 +580,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };

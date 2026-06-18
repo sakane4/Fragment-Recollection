@@ -2,6 +2,7 @@ export default {
   id: 'yuya_1',
   title: '青く光る記憶',
   lockedTitle: 'あいまいに青く光る記憶',
+  companionId: 'yuya',
   pageCount: 29,
   showCondition: { resource: 'blue_fragment', amount: 9 },
   unlockCost: [{ resource: 'blue_fragment', amount: 10 }],
