@@ -661,8 +661,23 @@
     /* ── フッタータブ ── */
     #footer {
       display: flex;
+      align-items: center;
       border-top: 1px solid var(--border);
       background: var(--panel);
+    }
+
+    #world-lv-display {
+      margin-left: auto;
+      padding: 0 0.8rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+    }
+
+    #world-lv-display span {
+      color: var(--text);
+      font-weight: bold;
     }
 
     .tab-btn {
@@ -875,6 +890,7 @@
   <!-- ヘッダー -->
   <div id="header">
     <span id="header-title">Fragment Recollection</span>
+    <div id="world-lv-display">worldLv <span id="world-lv-value">0</span></div>
   </div>
 
   <!-- メインパネル(ログ) -->
@@ -1000,6 +1016,7 @@
   <!-- フッター -->
   <div id="footer">
     <button class="tab-btn" data-view="view-stories">記憶</button>
+    <button class="tab-btn" data-view="view-actions">地図</button>
     <button class="tab-btn active" data-view="view-items">持ち物</button>
     <button class="tab-btn" data-view="view-chars">同行</button>
     <button class="tab-btn tab-btn--dev" data-view="view-dev">開発</button>

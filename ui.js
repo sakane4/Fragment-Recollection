@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
@@ -42,9 +42,26 @@ const RESOURCE_COLORS = {
   forest_voice:    '#a8d8a8',
 };
 
+const RESOURCE_UNITS = {
+  fragment:        '片',
+  blue_fragment:   '片',
+  red_fragment:    '片',
+  clear_fragment:  '片',
+  bubble_fragment: '片',
+  sky_fragment:    '片',
+  herb:            '束',
+  forest_voice:    'かけら',
+};
+
 function resourceSpan(resource, text) {
   const color = RESOURCE_COLORS[resource] ?? 'var(--text)';
   return `<span style="color:${color};font-weight:bold">${text}</span>`;
+}
+
+function resourceLog(resource, amount) {
+  const label = RESOURCE_LABELS[resource] ?? resource;
+  const unit = RESOURCE_UNITS[resource] ?? '';
+  return `${resourceSpan(resource, label)} を ${amount}${unit} 見つけた`;
 }
 
 // ── ユーティリティ ──
@@ -55,15 +72,14 @@ function actionDisplayLabel(action, sep = ' / ') {
 
 function makeRandomRewardHandler() {
   return ({ resource, amount }) => {
-    addLog(`<span class="log-companion-reward">${resourceSpan(resource, RESOURCE_LABELS[resource] ?? resource)} を ${amount} 個見つけた</span>`, false, true);
+    addLog(`<span class="log-companion-reward">${resourceLog(resource, amount)}</span>`, false, true);
   };
 }
 
 function makeCompanionRandomRewardHandler() {
   return ({ companionId, resource, amount }) => {
     const name = COMPANION_DATA[companionId]?.name ?? companionId;
-    const label = RESOURCE_LABELS[resource] ?? resource;
-    addLog(`<span class="log-companion-reward">${name}が ${resourceSpan(resource, label)} を ${amount} 個見つけた</span>`, false, true);
+    addLog(`<span class="log-companion-reward">${name}が ${resourceLog(resource, amount)}</span>`, false, true);
   };
 }
 
@@ -440,6 +456,7 @@ function renderResources(resources) {
 }
 
 function render(state) {
+  document.getElementById('world-lv-value').textContent = state.worldLv ?? 0;
   renderResources(state.resources);
 
   const active = state.activeAction;
@@ -462,28 +479,7 @@ function render(state) {
   if (!active && prevActive) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     if (!_cancelled) {
-      const action = ACTIONS[prevActive.actionId];
-      const hasBonus = (state.activeCompanions ?? []).length > 0;
-      const rewardsHtml = action.rewards.map(r => {
-        const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-        return hasBonus
-          ? `${resourceSpan(r.resource, label)} +${r.amount}<span class="log-bonus"> +${r.amount}</span>`
-          : `${resourceSpan(r.resource, label)} +${r.amount}`;
-      }).join(', ');
-      // 同行者固有報酬ログ
-      const companionRewardsHtml = (state.activeCompanions ?? []).flatMap(id => {
-        const rewards = COMPANION_REWARDS[id];
-        if (!rewards) return [];
-        const companionName = COMPANION_DATA[id]?.name ?? id;
-        return rewards.map(r => {
-          const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-          return `<span class="log-companion-reward">${resourceSpan(r.resource, label)} +${r.amount}</span>`;
-        });
-      }).join(', ');
-      const fullRewardsHtml = companionRewardsHtml
-        ? `${rewardsHtml} / ${companionRewardsHtml}`
-        : rewardsHtml;
-      addLog(`【${actionDisplayLabel(action)}】完了 — ${fullRewardsHtml}`, true, true);
+      // 報酬ログは onComplete コールバックで出力する
     }
     const wasCancelled = _cancelled;
     _cancelled = false;
@@ -1049,7 +1045,30 @@ export function init() {
       cancelAction();
       addLog(`【${label}】中断`, true);
     } else {
-      if (!_storyLogPlaying) startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
+      if (!_storyLogPlaying) startAction(selectedActionId, {
+        onRandomReward: makeRandomRewardHandler(),
+        onCompanionRandomReward: makeCompanionRandomRewardHandler(),
+        onComplete: ({ allRewards, companionRewards, worldLvUp }) => {
+          const action = ACTIONS[selectedActionId];
+          const rewardsHtml = (allRewards ?? []).map(r => {
+            const label = RESOURCE_LABELS[r.resource] ?? r.resource;
+            return `${resourceSpan(r.resource, label)} +${r.amount}`;
+          }).join(', ');
+          const companionRewardsHtml = (companionRewards ?? []).map(({ companionId, resource, amount }) => {
+            const label = RESOURCE_LABELS[resource] ?? resource;
+            return `<span class="log-companion-reward">${resourceSpan(resource, label)} +${amount}</span>`;
+          }).join(', ');
+          const fullRewardsHtml = companionRewardsHtml
+            ? `${rewardsHtml} / ${companionRewardsHtml}`
+            : rewardsHtml;
+          addLog(`【${actionDisplayLabel(action)}】完了 — ${fullRewardsHtml}`, true, true);
+          if (worldLvUp != null) {
+            const next = WORLD_LV_THRESHOLDS[worldLvUp];
+            const nextStr = next != null ? `（次: ${next}lg）` : '（最大）';
+            addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
+          }
+        },
+      });
     }
   });
 

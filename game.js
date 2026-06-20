@@ -1,71 +1,104 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
 import { STORIES, getCostForParagraph } from './stories.js';
 
-const LOCATIONS = {
-  wherever:   { id: 'wherever',   label: '' },          // 場所不明の初期状態
-  forest:     { id: 'forest',     label: 'はじまりの森' },
-  touto: { id: 'touto', label: '塔都' },
+// 共通報酬テーブル。関数形式: (state) => Array<reward>
+// 将来、世界Lvや状態を参照して量を変えることができる
+const REWARD_TABLES = {
+  fragment_fixed: (state) => [
+    { resource: 'fragment', amount: 10 + state.worldLv * 2 },
+  ],
+  fragment_random: (state) => [
+    { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2, minMs: 4000, maxMs: 9000 },
+  ],
 };
 
-const ACTIONS = {
-  explore: {
-    id: 'explore',
-    label: '探索',
-    locationId: 'wherever',
-    description: 'なにもない世界を探索する。',
-    duration: 15000,
-    rewards: [{ resource: 'fragment', amount: 10 }],
-    randomRewards: [
-      { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
-    ],
-    discoveries: [
-      // 例: { type: 'location', id: 'touto', chance: 0.3 }
-      // 例: { type: 'action',   id: 'forest_gather', chance: 0.5 }
+// テーブル名 → 展開済み配列を返すヘルパー
+function resolveTable(tableName) {
+  if (!tableName) return [];
+  const fn = REWARD_TABLES[tableName];
+  return fn ? fn(state) : [];
+}
+
+// 場所・行動の定義（行動は場所にネスト）
+const LOCATION_DEFS = [
+  {
+    id: 'wherever',
+    label: '',
+    actions: [
+      {
+        id: 'explore',
+        label: '探索',
+        description: 'なにもない世界を探索する。',
+        duration: 15000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'fragment_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
     ],
   },
-  forest_explore: {
-    id: 'forest_explore',
-    label: '探索',
-    locationId: 'forest',
-    description: 'はじまりの森を探索する。',
-    duration: 20000,
-    rewards: [{ resource: 'fragment', amount: 10 }],
-    randomRewards: [
-      { resource: 'fragment',     minAmount: 2, maxAmount: 4, minMs: 4000, maxMs: 9000 },
-      { resource: 'forest_voice', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
+  {
+    id: 'forest',
+    label: 'はじまりの森',
+    actions: [
+      {
+        id: 'forest_explore',
+        label: '探索',
+        description: 'はじまりの森を探索する。',
+        duration: 20000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'fragment_random',
+        rewards: [],
+        randomRewards: [
+          { resource: 'forest_voice', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
+        ],
+        discoveries: [],
+      },
+      {
+        id: 'forest_gather',
+        label: '採集',
+        description: '森を歩き回り、素材を集める。',
+        duration: 15000,
+        rewards: [
+          { resource: 'herb', amount: 10 },
+        ],
+        randomRewards: [
+          { resource: 'herb',     minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
+          { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
+        ],
+        discoveries: [],
+      },
     ],
-    discoveries: [],
   },
-  forest_gather: {
-    id: 'forest_gather',
-    label: '採集',
-    locationId: 'forest',
-    description: '森を歩き回り、素材を集める。',
-    duration: 15000,
-    rewards: [
-  { resource: 'herb', amount: 10 },
-  { resource: 'fragment', amount: 5 },
+  {
+    id: 'touto',
+    label: '塔都',
+    actions: [
+      {
+        id: 'touto_explore',
+        label: '探索',
+        description: '塔都の街路を歩く。何かが見つかるかもしれない。',
+        duration: 20000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'fragment_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
     ],
-    
-    randomRewards: [
-      { resource: 'herb', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
-      { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
-    ],
-    discoveries: [],
   },
-  touto_explore: {
-    id: 'touto_explore',
-    label: '探索',
-    locationId: 'touto',
-    description: '塔都の街路を歩く。何かが見つかるかもしれない。',
-    duration: 20000,
-    rewards: [{ resource: 'fragment', amount: 10 }],
-    randomRewards: [
-      { resource: 'fragment', minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
-    ],
-    discoveries: [],
-  },
-};
+];
+
+// 既存コードが参照するフラットな lookup map を生成
+const LOCATIONS = {};
+const ACTIONS = {};
+for (const loc of LOCATION_DEFS) {
+  LOCATIONS[loc.id] = { id: loc.id, label: loc.label };
+  for (const action of loc.actions) {
+    ACTIONS[action.id] = { ...action, locationId: loc.id };
+  }
+}
 
 // 同行者ごとのアクション完了時固有報酬
 // amount は基本量（同行ボーナスの2倍乗算は適用しない）
@@ -86,6 +119,16 @@ const COMPANION_RANDOM_REWARDS = {
   yukika: [{ resource: 'sky_fragment',    minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
 };
 
+// 世界LVの閾値（フラグメント総獲得数）
+// インデックス i → Lv i+1 に上がるのに必要な累計数
+const WORLD_LV_THRESHOLDS = [
+  50,    // Lv 0 → 1
+  150,   // Lv 1 → 2
+  350,   // Lv 2 → 3
+  700,   // Lv 3 → 4
+  1200,  // Lv 4 → 5
+];
+
 const INITIAL_STATE = {
   resources: {
     fragment: 0,
@@ -101,17 +144,19 @@ const INITIAL_STATE = {
   storyProgress: {},
   unlockedLocations: ['wherever'],
   unlockedActions: ['explore'],
-  tutorialDone: false,        // オープニングチュートリアル完了フラグ
-  logSt1Done: false,     // 探索後ストーリー完了フラグ
-  logSt2Done: false,    // 探索後ストーリー002完了フラグ
-  logSt3Done: false,    // 探索後ストーリー003完了フラグ
-  logSt4Done: false,    // 探索後ストーリー004完了フラグ
-  playerName: '',             // プレイヤーネーム
-  unlockedCompanions: [],     // 解放済み同行者IDの配列
-  activeCompanions: [],       // 同行中の同行者IDの配列
-  ELv: {},        // 同行者ごとのLv { companionId: number }
-  discoveredResources: ['fragment'], // 一度でも入手したリソースID（最初からフラグメントは既知）
-  appearedStories: [],        // リストに出現済みだがまだ解放していない物語ID
+  tutorialDone: false,
+  logSt1Done: false,
+  logSt2Done: false,
+  logSt3Done: false,
+  logSt4Done: false,
+  playerName: '',
+  unlockedCompanions: [],
+  activeCompanions: [],
+  ELv: {},
+  discoveredResources: ['fragment'],
+  appearedStories: [],
+  worldLv: 0,
+  totalFragments: 0,     // フラグメント累計獲得数（消費しても減らない）
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -149,6 +194,18 @@ function _markDiscovered(resourceId) {
   if (state.discoveredResources.includes(resourceId)) return false;
   state = { ...state, discoveredResources: [...state.discoveredResources, resourceId] };
   return true;
+}
+
+// フラグメント累計を加算し、世界LVアップを判定して返す
+// 戻り値: 新しいLv（上がらなかった場合は現在Lvと同じ）
+function _addTotalFragments(amount) {
+  const newTotal = state.totalFragments + amount;
+  let newLv = state.worldLv;
+  while (newLv < WORLD_LV_THRESHOLDS.length && newTotal >= WORLD_LV_THRESHOLDS[newLv]) {
+    newLv++;
+  }
+  state = { ...state, totalFragments: newTotal, worldLv: newLv };
+  return newLv;
 }
 
 function addResources(resource, amount) {
@@ -222,9 +279,10 @@ let _randomRewardTimers = [];
 let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null };
 
 function scheduleRandomRewards(action, onReward) {
-  if (!action.randomRewards) return;
+  const allRandom = [...resolveTable(action.rewardTableRandom), ...(action.randomRewards ?? [])];
+  if (allRandom.length === 0) return;
 
-  for (const reward of action.randomRewards) {
+  for (const reward of allRandom) {
     const { minMs, maxMs } = reward;
 
     function schedule() {
@@ -236,6 +294,7 @@ function scheduleRandomRewards(action, onReward) {
         newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
         _markDiscovered(reward.resource);
         state = { ...state, resources: newResources };
+        if (reward.resource === 'fragment') _addTotalFragments(amount);
         saveToStorage(state);
         notify();
         if (onReward) onReward({ resource: reward.resource, amount });
@@ -283,9 +342,9 @@ function scheduleCompanionRandomRewards(onReward) {
   }
 }
 
-function startAction(actionId, { onRandomReward, onCompanionRandomReward } = {}) {
+function startAction(actionId, { onRandomReward, onCompanionRandomReward, onComplete } = {}) {
   if (state.activeAction) return { ok: false, reason: 'already_active' };
-  _savedCallbacks = { onRandomReward, onCompanionRandomReward };
+  _savedCallbacks = { onRandomReward, onCompanionRandomReward, onComplete };
   const action = ACTIONS[actionId];
   if (!action) return { ok: false, reason: 'unknown_action' };
 
@@ -298,7 +357,7 @@ function startAction(actionId, { onRandomReward, onCompanionRandomReward } = {})
   saveToStorage(state);
   notify();
 
-  _timer = setTimeout(() => completeAction(actionId), duration);
+  _timer = setTimeout(() => completeAction(actionId, _savedCallbacks.onComplete), duration);
   scheduleRandomRewards(action, onRandomReward);
   scheduleCompanionRandomRewards(onCompanionRandomReward);
   return { ok: true };
@@ -336,23 +395,27 @@ function resumeAction() {
   notify();
   const remaining = newEndsAt - Date.now();
   if (remaining <= 0) {
-    completeAction(actionId);
+    completeAction(actionId, _savedCallbacks.onComplete);
   } else {
-    _timer = setTimeout(() => completeAction(actionId), remaining);
+    _timer = setTimeout(() => completeAction(actionId, _savedCallbacks.onComplete), remaining);
     const action = ACTIONS[actionId];
     scheduleRandomRewards(action, _savedCallbacks.onRandomReward);
     scheduleCompanionRandomRewards(_savedCallbacks.onCompanionRandomReward);
   }
 }
 
-function completeAction(actionId) {
+function completeAction(actionId, onComplete) {
   const action = ACTIONS[actionId];
   if (!action) return;
 
   const newResources = { ...state.resources };
   const multiplier = state.activeCompanions.length > 0 ? 2 : 1;
-  for (const reward of action.rewards) {
-    newResources[reward.resource] = (newResources[reward.resource] ?? 0) + reward.amount * multiplier;
+  const allRewards = [...resolveTable(action.rewardTable), ...(action.rewards ?? [])];
+  let fragmentsGained = 0;
+  for (const reward of allRewards) {
+    const gained = reward.amount * multiplier;
+    newResources[reward.resource] = (newResources[reward.resource] ?? 0) + gained;
+    if (reward.resource === 'fragment') fragmentsGained += gained;
   }
 
   // 同行者固有報酬
@@ -401,9 +464,14 @@ function completeAction(actionId) {
     unlockedActions: newActions,
     discoveredResources: newDiscovered,
   };
+  const prevLv = state.worldLv;
+  if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
+  const lvedUp = state.worldLv > prevLv;
   saveToStorage(state);
   notify();
-  return { discovered, companionRewards: companionRewardsList };
+  const result = { discovered, allRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null };
+  onComplete?.(result);
+  return result;
 }
 
 function getProgress() {
@@ -495,6 +563,8 @@ function init() {
     logSt2Done: saved.logSt2Done ?? INITIAL_STATE.logSt2Done,
     logSt3Done: saved.logSt3Done ?? INITIAL_STATE.logSt3Done,
     logSt4Done: saved.logSt4Done ?? INITIAL_STATE.logSt4Done,
+    worldLv: saved.worldLv ?? INITIAL_STATE.worldLv,
+    totalFragments: saved.totalFragments ?? INITIAL_STATE.totalFragments,
   };
 
   if (state.activeAction) {
@@ -580,4 +650,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };
