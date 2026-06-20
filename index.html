@@ -182,8 +182,14 @@
       padding: 6px 4px;
       border-bottom: 1px solid var(--border);
       gap: 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.15s;
     }
     .action-row:last-child { border-bottom: none; }
+    .action-row:hover { background: var(--accent-dim); }
+    .action-row.selected { background: var(--accent-dim); border-left: 2px solid var(--accent); padding-left: 6px; }
+    .action-row.running { opacity: 0.6; }
 
     .action-row-name {
       font-size: 0.88rem;
@@ -201,7 +207,7 @@
       color: var(--muted);
       white-space: nowrap;
     }
-    .action-play-btn {
+    .action-play-btn-unused {
       flex-shrink: 0;
       width: 26px;
       height: 26px;
@@ -726,6 +732,12 @@
       max-width: 240px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
+    .location-popup-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      margin-bottom: 0.3rem;
+    }
     .location-popup-name {
       font-size: 0.88rem;
       font-weight: 600;
@@ -741,7 +753,6 @@
     .location-popup-lv {
       font-size: 0.78rem;
       color: var(--muted);
-      margin-bottom: 0.5rem;
     }
     .location-popup-lvup-btn {
       position: relative;
@@ -1170,9 +1181,11 @@
   <!-- 場所詳細ポップアップ -->
   <div id="location-popup" class="location-popup">
     <div class="location-popup-inner">
-      <div class="location-popup-name" id="location-popup-name"></div>
+      <div class="location-popup-header">
+        <div class="location-popup-name" id="location-popup-name"></div>
+        <div class="location-popup-lv" id="location-popup-lv"></div>
+      </div>
       <div class="location-popup-desc" id="location-popup-desc"></div>
-      <div class="location-popup-lv" id="location-popup-lv"></div>
       <div class="lvup-have-label" id="location-popup-lvup-have"></div>
       <button class="location-popup-lvup-btn" id="location-popup-lvup-btn"></button>
     </div>

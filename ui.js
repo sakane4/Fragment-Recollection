@@ -830,7 +830,9 @@ function renderActionList() {
 
     for (const action of actions) {
       const row = document.createElement('div');
-      row.className = 'action-row';
+      const isRunning = runningId === action.id;
+      const isSelected = selectedActionId === action.id;
+      row.className = 'action-row' + (isSelected ? ' selected' : '') + (isRunning ? ' running' : '');
 
       const name = document.createElement('span');
       name.className = 'action-row-name';
@@ -844,15 +846,16 @@ function renderActionList() {
       time.className = 'action-row-time';
       time.textContent = `${action.duration / 1000}秒`;
 
-      const btn = document.createElement('button');
-      btn.className = 'action-play-btn' + (runningId === action.id ? ' running' : '');
-      btn.textContent = '▷';
-      btn.addEventListener('click', () => _startActionById(action.id));
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedActionId = action.id;
+        els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+        renderActionList();
+      });
 
       row.appendChild(name);
       row.appendChild(desc);
       row.appendChild(time);
-      row.appendChild(btn);
       rows.appendChild(row);
     }
 
@@ -861,12 +864,31 @@ function renderActionList() {
   }
 }
 
+function _revertActionSelection() {
+  const running = getState().activeAction;
+  if (running) {
+    const action = ACTIONS[running.actionId];
+    selectedActionId = running.actionId;
+    if (action) els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+  }
+  renderActionList();
+}
+
 function initActionPicker() {
   renderActionList();
   els.actionPickerBtn.addEventListener('click', () => {
     if (_storyLogPlaying) { els.mainPanel.click(); return; }
     renderActionList();
     switchTab('view-actions');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!els.actionList.contains(e.target)) {
+      const running = getState().activeAction;
+      if (running && selectedActionId !== running.actionId) {
+        _revertActionSelection();
+      }
+    }
   });
 }
 
