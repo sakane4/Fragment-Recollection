@@ -122,6 +122,7 @@ let _viewerPages = [];
 let _viewerStoryId = null;
 let _viewerCurrentPage = 0;
 let _viewerPrevUnlockedPages = 0;
+let _viewerFadeUpTo = 0; // アニメーション済み段落数（これ未満は再フェードしない）
 const _storyPageCounts = {}; // storyId → 総段落数キャッシュ
 
 function _saveLastPage(storyId, page) {
@@ -156,6 +157,7 @@ async function openStory(storyId, { prevProgress } = {}) {
   _viewerStoryId = storyId;
   _viewerCurrentPage = Math.min(_loadLastPage(storyId), pages.length - 1);
   _viewerPrevUnlockedPages = prevProgress ?? (getState().storyProgress[storyId] ?? 0);
+  _viewerFadeUpTo = _viewerPrevUnlockedPages;
   _storyPageCounts[storyId] = pages.reduce((s, p) => s + p.length, 0);
 
   els.storyViewerTitle.textContent = story.title;
@@ -202,7 +204,7 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   const currentParas = pages[_viewerCurrentPage] ?? [];
   const currentCost = getCostForParagraph(story, unlockedParas);
   const costLabel = currentCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
-  const isNew = (idx) => idx >= _viewerPrevUnlockedPages;
+  const isNew = (idx) => idx >= _viewerFadeUpTo;
 
   let shownCount = 0;
   for (let i = 0; i < currentParas.length; i++) {
@@ -260,6 +262,9 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
       break;
     }
   }
+
+  // アニメーション済み基準点を更新（次のレンダーで再フェードしないよう）
+  _viewerFadeUpTo = Math.max(_viewerFadeUpTo, unlockedParas);
 
   // 解放済み段落数から「表示可能なページ数」を算出
   let revealedPages = 1;
@@ -319,6 +324,7 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
         if (_viewerCurrentPage < rp - 1) {
           _viewerCurrentPage++;
           _viewerPrevUnlockedPages = up;
+          _viewerFadeUpTo = up;
           _saveLastPage(_viewerStoryId, _viewerCurrentPage);
           renderViewerBody(st, { scrollToTop: true });
         }
@@ -357,6 +363,7 @@ function closeStory() {
   _viewerPages = [];
   _viewerStoryId = null;
   _viewerPrevUnlockedPages = 0;
+  _viewerFadeUpTo = 0;
   resumeLog();
   // ビューアを閉じた直後にルール評価（requireViewerClosed なルールを発火させる）
   setTimeout(() => render(getState()), 0);
@@ -730,7 +737,6 @@ function _startActionById(actionId) {
   }
   selectedActionId = actionId;
   els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
-  switchTab('view-items');
   if (!_storyLogPlaying) startAction(actionId, {
     onRandomReward: makeRandomRewardHandler(),
     onCompanionRandomReward: makeCompanionRandomRewardHandler(),

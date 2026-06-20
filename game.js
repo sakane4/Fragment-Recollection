@@ -10,22 +10,26 @@ const REWARD_TABLES = {
   fragment_random: (state, locationLv) => [
     { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2 + locationLv, minMs: 4000, maxMs: 9000 },
   ],
-  forest_voice_random: (_state, locationLv) => [
+  forest_explore_random: (_state, locationLv) => [
     { resource: 'forest_voice', minAmount: 1, maxAmount: locationLv >= 2 ? 2 : 1, minMs: 8000, maxMs: 18000 },
+    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 10000, maxMs: 20000 }] : []),
   ],
   forest_gather_random: (_state, locationLv) => [
     { resource: 'herb',     minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
     { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
-    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 6000, maxMs: 15000 }] : []),
+    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 15000 }] : []),
   ],
 };
 
 // テーブル名 → 展開済み配列を返すヘルパー
-function resolveTable(tableName, locationId) {
-  if (!tableName) return [];
-  const fn = REWARD_TABLES[tableName];
+function resolveTable(tableNameOrArray, locationId) {
+  if (!tableNameOrArray) return [];
+  const names = Array.isArray(tableNameOrArray) ? tableNameOrArray : [tableNameOrArray];
   const locationLv = state.LocationLv?.[locationId] ?? 0;
-  return fn ? fn(state, locationLv) : [];
+  return names.flatMap(name => {
+    const fn = REWARD_TABLES[name];
+    return fn ? fn(state, locationLv) : [];
+  });
 }
 
 // 場所・行動の定義（行動は場所にネスト）
@@ -59,9 +63,8 @@ const LOCATION_DEFS = [
         description: 'はじまりの森を探索する。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: 'fragment_random',
+        rewardTableRandom: 'forest_explore_random',
         rewards: [],
-        rewardTableRandom: 'forest_voice_random',
         randomRewards: [],
         discoveries: [],
       },
