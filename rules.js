@@ -41,6 +41,14 @@ export const UNLOCK_RULES = [
       !state.unlockedLocations.includes('forest'),
     action: (ctx) => ctx.unlockLocation('forest', ['forest_explore']),
   },
+  {
+    id: 'unlock_forest_gather',
+    condition: (state) =>
+      (state.LocationLv?.['forest'] ?? 0) >= 2 &&
+      state.unlockedLocations.includes('forest') &&
+      !(state.unlockedActions ?? []).includes('forest_gather'),
+    action: (ctx) => ctx.unlockAction('forest_gather'),
+  },
 
   // ── 記憶の出現 ──
   // showCondition を持つ物語は stories.js のデータから自動生成

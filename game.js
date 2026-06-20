@@ -11,16 +11,17 @@ const REWARD_TABLES = {
     { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2 + locationLv, minMs: 4000, maxMs: 9000 },
   ],
   // はじまりの森 — 共通ランダム報酬（全行動に適用）
-  forest_common_random: (_state, locationLv) => [
-    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 20000 }] : []),
+  forest_common_random: () => [
+    { resource: 'forest_voice', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
   ],
   // はじまりの森 — 行動別ランダム報酬
   forest_explore_random: (_state, locationLv) => [
-    { resource: 'forest_voice', minAmount: 1, maxAmount: locationLv >= 2 ? 2 : 1, minMs: 8000, maxMs: 18000 },
+    { resource: 'forest_voice', minAmount: 1, maxAmount: locationLv >= 2 ? 3 : 2, minMs: 10000, maxMs: 20000 },
   ],
-  forest_gather_random: () => [
+  forest_gather_random: (_state, locationLv) => [
     { resource: 'herb',     minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
     { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
+    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 20000 }] : []),
   ],
 };
 
@@ -263,6 +264,13 @@ function unlockLocation(locationId, actionIds = []) {
     if (!newActions.includes(id)) newActions.push(id);
   }
   state = { ...state, unlockedLocations: newLocations, unlockedActions: newActions };
+  saveToStorage(state);
+  notify();
+}
+
+function unlockAction(actionId) {
+  if (state.unlockedActions.includes(actionId)) return;
+  state = { ...state, unlockedActions: [...state.unlockedActions, actionId] };
   saveToStorage(state);
   notify();
 }
@@ -686,4 +694,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };

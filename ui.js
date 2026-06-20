@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
@@ -120,6 +120,13 @@ function resumeLog() {
 // _viewerPages: string[][] (pages[i][j] = iページ目のj番目の段落)
 let _viewerPages = [];
 let _viewerStoryId = null;
+
+function _setViewerTitle(text) {
+  const el = els.storyViewerTitle;
+  if (el.textContent === text) return;
+  el.style.opacity = '0';
+  setTimeout(() => { el.textContent = text; el.style.opacity = '1'; }, 1000);
+}
 let _viewerCurrentPage = 0;
 let _viewerPrevUnlockedPages = 0;
 let _viewerFadeUpTo = 0;
@@ -160,7 +167,8 @@ async function openStory(storyId, { prevProgress } = {}) {
   _viewerFadeUpTo = _viewerPrevUnlockedPages;
   _storyPageCounts[storyId] = pages.reduce((s, p) => s + p.length, 0);
 
-  els.storyViewerTitle.textContent = story.title;
+  const _fullyRead = (getState().storyProgress[storyId] ?? 0) >= (story.pageCount ?? Infinity);
+  _setViewerTitle(_fullyRead ? story.title : (story.lockedTitle ?? 'あいまいな記憶'));
   els.storyOverlay.classList.add('open');
   pauseLog();
   renderViewerBody(getState());
@@ -264,6 +272,12 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   }
 
   _viewerFadeUpTo = Math.max(_viewerFadeUpTo, unlockedParas);
+  const _st = getState();
+  const _sv = STORIES[_viewerStoryId];
+  if (_sv) {
+    const _fr = (_st.storyProgress[_viewerStoryId] ?? 0) >= (_sv.pageCount ?? Infinity);
+    _setViewerTitle(_fr ? _sv.title : (_sv.lockedTitle ?? 'あいまいな記憶'));
+  }
 
   // 解放済み段落数から「表示可能なページ数」を算出
   let revealedPages = 1;
@@ -393,12 +407,11 @@ function renderStoryList(state) {
     const info = document.createElement('div');
 
     const title = document.createElement('div');
-    if (unlocked) {
-      // 解放済み：本当のタイトル
+    const fullyRead = (state.storyProgress[story.id] ?? 0) >= (story.pageCount ?? Infinity);
+    if (fullyRead) {
       title.className = 'story-item-title';
       title.textContent = story.title;
     } else {
-      // 出現中（未解放）：曖昧なタイトル
       title.className = 'story-item-title locked';
       title.textContent = story.lockedTitle ?? 'あいまいな記憶';
     }
@@ -564,6 +577,7 @@ renderStoryList(state);
     startLogSt_3,
     startLogSt_4,
     unlockLocation,
+    unlockAction,
     forceAppearStory,
   });
 }
