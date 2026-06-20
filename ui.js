@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
@@ -585,32 +585,60 @@ function initTabs() {
 
 // ── 場所詳細ポップアップ ──
 
-let _locationPopupTimer = null;
+function _renderLocationPopup(location) {
+  const state = getState();
+  const lv = state.LocationLv?.[location.id] ?? 0;
+  const isMax = lv >= LOCATION_LV_MAX;
+  const cost = isMax ? null : LOCATION_LV_COSTS[lv];
+  const hasFragments = cost != null && (state.resources.fragment ?? 0) >= cost;
+
+  document.getElementById('location-popup-name').textContent = location.label;
+  document.getElementById('location-popup-desc').textContent = location.description ?? '';
+
+  const lvArea = document.getElementById('location-popup-lv');
+  const lvLabel = isMax ? `Lv ${lv} (MAX)` : `Lv ${lv}`;
+  const nextStr = isMax ? '' : `　次: フラグメント ×${cost}`;
+  lvArea.innerHTML = `<span class="location-lv-badge">Lv ${lv}</span>${isMax ? ' <span style="font-size:0.7rem;color:var(--muted)">(MAX)</span>' : `<span class="location-lv-next">/ 次: fragment ×${cost}</span>`}`;
+
+  const btn = document.getElementById('location-popup-lvup-btn');
+  if (isMax) {
+    btn.hidden = true;
+  } else {
+    btn.hidden = false;
+    btn.disabled = !hasFragments;
+    btn.textContent = `Lv${lv + 1} へ上げる`;
+  }
+}
 
 function showLocationPopup(location, btnEl) {
   const popup = document.getElementById('location-popup');
-  const nameEl = document.getElementById('location-popup-name');
-  const descEl = document.getElementById('location-popup-desc');
-
-  nameEl.textContent = location.label;
-  descEl.textContent = location.description ?? '';
-
-  const inner = popup.querySelector('.location-popup-inner');
   popup.classList.add('open');
 
-  const rect = btnEl.getBoundingClientRect();
-  const iw = inner.offsetWidth || 240;
-  let left = rect.left;
-  if (left + iw > window.innerWidth - 8) left = window.innerWidth - iw - 8;
-  inner.style.left = left + 'px';
-  inner.style.top = (rect.bottom + 6) + 'px';
+  const inner = popup.querySelector('.location-popup-inner');
+  requestAnimationFrame(() => {
+    const rect = btnEl.getBoundingClientRect();
+    const iw = inner.offsetWidth || 260;
+    const ih = inner.offsetHeight || 160;
+    let left = rect.left;
+    if (left + iw > window.innerWidth - 8) left = window.innerWidth - iw - 8;
+    let top = rect.bottom + 6;
+    if (top + ih > window.innerHeight - 8) top = rect.top - ih - 6;
+    inner.style.left = left + 'px';
+    inner.style.top = Math.max(8, top) + 'px';
+  });
 
-  clearTimeout(_locationPopupTimer);
-  _locationPopupTimer = setTimeout(() => popup.classList.remove('open'), 4000);
+  _renderLocationPopup(location);
 
-  popup.onclick = () => {
-    popup.classList.remove('open');
-    clearTimeout(_locationPopupTimer);
+  document.getElementById('location-popup-lvup-btn').onclick = () => {
+    const result = levelUpLocation(location.id);
+    if (result.ok) {
+      _renderLocationPopup(location);
+      addLog(`【${location.label}】LocationLv が ${result.newLv} になった`, true);
+    }
+  };
+
+  popup.onclick = (e) => {
+    if (e.target === popup) popup.classList.remove('open');
   };
 }
 

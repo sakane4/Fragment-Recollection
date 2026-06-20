@@ -4,19 +4,20 @@ import { STORIES, getCostForParagraph } from './stories.js';
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
 const REWARD_TABLES = {
-  fragment_fixed: (state) => [
-    { resource: 'fragment', amount: 10 + state.worldLv * 2 },
+  fragment_fixed: (state, locationLv) => [
+    { resource: 'fragment', amount: 10 + state.worldLv * 2 + locationLv * 3 },
   ],
-  fragment_random: (state) => [
-    { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2, minMs: 4000, maxMs: 9000 },
+  fragment_random: (state, locationLv) => [
+    { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2 + locationLv, minMs: 4000, maxMs: 9000 },
   ],
 };
 
 // テーブル名 → 展開済み配列を返すヘルパー
-function resolveTable(tableName) {
+function resolveTable(tableName, locationId) {
   if (!tableName) return [];
   const fn = REWARD_TABLES[tableName];
-  return fn ? fn(state) : [];
+  const locationLv = state.LocationLv?.[locationId] ?? 0;
+  return fn ? fn(state, locationLv) : [];
 }
 
 // 場所・行動の定義（行動は場所にネスト）
@@ -103,6 +104,10 @@ for (const loc of LOCATION_DEFS) {
   }
 }
 
+// 場所レベルシステム
+const LOCATION_LV_MAX = 5;
+const LOCATION_LV_COSTS = [50, 150, 350, 700, 1200]; // Lv0→1, 1→2, ..., 4→5 のフラグメントコスト
+
 // 同行者ごとのアクション完了時固有報酬
 // amount は基本量（同行ボーナスの2倍乗算は適用しない）
 const COMPANION_REWARDS = {
@@ -159,7 +164,8 @@ const INITIAL_STATE = {
   discoveredResources: ['fragment'],
   appearedStories: [],
   worldLv: 0,
-  totalFragments: 0,     // フラグメント累計獲得数（消費しても減らない）
+  totalFragments: 0,
+  LocationLv: {},
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -282,7 +288,7 @@ let _randomRewardTimers = [];
 let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null };
 
 function scheduleRandomRewards(action, onReward) {
-  const allRandom = [...resolveTable(action.rewardTableRandom), ...(action.randomRewards ?? [])];
+  const allRandom = [...resolveTable(action.rewardTableRandom, action.locationId), ...(action.randomRewards ?? [])];
   if (allRandom.length === 0) return;
 
   for (const reward of allRandom) {
@@ -413,7 +419,7 @@ function completeAction(actionId, onComplete) {
 
   const newResources = { ...state.resources };
   const multiplier = state.activeCompanions.length > 0 ? 2 : 1;
-  const allRewards = [...resolveTable(action.rewardTable), ...(action.rewards ?? [])];
+  const allRewards = [...resolveTable(action.rewardTable, action.locationId), ...(action.rewards ?? [])];
   let fragmentsGained = 0;
   for (const reward of allRewards) {
     const gained = reward.amount * multiplier;
@@ -568,6 +574,7 @@ function init() {
     logSt4Done: saved.logSt4Done ?? INITIAL_STATE.logSt4Done,
     worldLv: saved.worldLv ?? INITIAL_STATE.worldLv,
     totalFragments: saved.totalFragments ?? INITIAL_STATE.totalFragments,
+    LocationLv: saved.LocationLv ?? INITIAL_STATE.LocationLv,
   };
 
   if (state.activeAction) {
@@ -626,6 +633,19 @@ function setCompanionLevel(companionId, level) {
   notify();
 }
 
+function levelUpLocation(locationId) {
+  const currentLv = state.LocationLv?.[locationId] ?? 0;
+  if (currentLv >= LOCATION_LV_MAX) return { ok: false, reason: 'max_level' };
+  const cost = LOCATION_LV_COSTS[currentLv];
+  if ((state.resources.fragment ?? 0) < cost) return { ok: false, reason: 'insufficient_resources' };
+  const newResources = { ...state.resources, fragment: state.resources.fragment - cost };
+  const newLv = currentLv + 1;
+  state = { ...state, resources: newResources, LocationLv: { ...state.LocationLv, [locationId]: newLv } };
+  saveToStorage(state);
+  notify();
+  return { ok: true, newLv };
+}
+
 function setActiveCompanion(id, active) {
   const current = state.activeCompanions;
   const next = active
@@ -653,4 +673,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };

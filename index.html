@@ -724,19 +724,54 @@
       padding: 0.75rem 1rem;
       max-width: 240px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      pointer-events: none;
     }
     .location-popup-name {
       font-size: 0.88rem;
       font-weight: 600;
       color: var(--text);
-      margin-bottom: 0.35rem;
+      margin-bottom: 0.25rem;
     }
     .location-popup-desc {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       color: var(--muted);
       line-height: 1.6;
+      margin-bottom: 0.5rem;
     }
+    .location-popup-lv {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .location-lv-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+    }
+    .location-lv-next {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+    .location-popup-lvup-btn {
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.78rem;
+      font-family: inherit;
+      border-radius: 5px;
+      border: 1px solid var(--accent-border);
+      background: var(--accent-dim);
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .location-popup-lvup-btn:hover:not(:disabled) { background: #4d3f7a; }
+    .location-popup-lvup-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .location-info-btn {
       background: none;
@@ -1105,6 +1140,8 @@
     <div class="location-popup-inner">
       <div class="location-popup-name" id="location-popup-name"></div>
       <div class="location-popup-desc" id="location-popup-desc"></div>
+      <div class="location-popup-lv" id="location-popup-lv"></div>
+      <button class="location-popup-lvup-btn" id="location-popup-lvup-btn"></button>
     </div>
   </div>
 
