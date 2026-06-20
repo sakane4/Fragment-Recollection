@@ -29,6 +29,7 @@ const RESOURCE_LABELS = {
   sky_fragment:    '空のフラグメント',
   herb:            '薬草',
   forest_voice:    '木々の声',
+  branch:          '木の枝',
 };
 
 const RESOURCE_COLORS = {
@@ -40,6 +41,7 @@ const RESOURCE_COLORS = {
   sky_fragment:    '#89dceb',
   herb:            '#a6e3a1',
   forest_voice:    '#a8d8a8',
+  branch:          '#c8a97e',
 };
 
 const RESOURCE_UNITS = {
@@ -51,6 +53,7 @@ const RESOURCE_UNITS = {
   sky_fragment:    '片',
   herb:            '束',
   forest_voice:    'かけら',
+  branch:          '本',
 };
 
 function resourceSpan(resource, text) {
@@ -584,29 +587,31 @@ function initTabs() {
 }
 
 // ── 場所詳細ポップアップ ──
+const _lvupState = {}; // { [locationId]: { progress, consumed } }
 
 function _renderLocationPopup(location) {
   const state = getState();
   const lv = state.LocationLv?.[location.id] ?? 0;
   const isMax = lv >= LOCATION_LV_MAX;
   const cost = isMax ? null : LOCATION_LV_COSTS[lv];
-  const hasFragments = cost != null && (state.resources.fragment ?? 0) >= cost;
+  const have = state.resources.fragment ?? 0;
+  const canLvUp = cost != null && have >= cost;
 
   document.getElementById('location-popup-name').textContent = location.label;
   document.getElementById('location-popup-desc').textContent = location.description ?? '';
 
-  const lvArea = document.getElementById('location-popup-lv');
-  const lvLabel = isMax ? `Lv ${lv} (MAX)` : `Lv ${lv}`;
-  const nextStr = isMax ? '' : `　次: フラグメント ×${cost}`;
-  lvArea.innerHTML = `<span class="location-lv-badge">Lv ${lv}</span>${isMax ? ' <span style="font-size:0.7rem;color:var(--muted)">(MAX)</span>' : `<span class="location-lv-next">/ 次: fragment ×${cost}</span>`}`;
+  document.getElementById('location-popup-lv').textContent = '';
 
   const btn = document.getElementById('location-popup-lvup-btn');
   if (isMax) {
     btn.hidden = true;
   } else {
     btn.hidden = false;
-    btn.disabled = !hasFragments;
-    btn.textContent = `Lv${lv + 1} へ上げる`;
+    btn.disabled = false;
+    const label = RESOURCE_LABELS['fragment'] ?? 'フラグメント';
+    btn.innerHTML =
+      `<span class="lvup-btn-label">Lv${lv}</span>` +
+      `<span class="lvup-btn-cost">${label}<span class="lvup-btn-ratio ${canLvUp ? 'enough' : ''}">${have} / ${cost}</span></span>`;
   }
 }
 
@@ -629,8 +634,74 @@ function showLocationPopup(location, btnEl) {
 
   _renderLocationPopup(location);
 
-  document.getElementById('location-popup-lvup-btn').onclick = () => {
-    const result = levelUpLocation(location.id);
+  const btn = document.getElementById('location-popup-lvup-btn');
+
+  // プログレスバー要素を常に新規追加
+  const progEl = document.createElement('span');
+  progEl.className = 'lvup-progress';
+  btn.prepend(progEl);
+  btn.classList.remove('ready');
+
+  // 同じ場所なら進捗を引き継ぐ、別の場所ならリセット
+  if (!_lvupState[location.id]) _lvupState[location.id] = { progress: 0, consumed: 0 };
+  const loc = _lvupState[location.id];
+  progEl.style.width = loc.progress + '%';
+  if (loc.progress >= 100) btn.classList.add('ready');
+
+  let _raf = null;
+  let _lastTime = null;
+  const FILL_DURATION = 2500;
+
+  const ratioEl = btn.querySelector('.lvup-btn-ratio');
+  if (ratioEl && loc.consumed > 0) {
+    const cost0 = LOCATION_LV_COSTS[getState().LocationLv?.[location.id] ?? 0];
+    ratioEl.textContent = `${loc.consumed} / ${cost0}`;
+  }
+
+  function startFill() {
+    if (btn.classList.contains('ready') || _raf) return;
+    _lastTime = null;
+    function tick(now) {
+      if (_lastTime == null) _lastTime = now;
+      const dt = now - _lastTime;
+      _lastTime = now;
+      const st = getState();
+      const cost = LOCATION_LV_COSTS[st.LocationLv?.[location.id] ?? 0];
+      const have = st.resources.fragment ?? 0;
+      const cap = cost ? Math.min(100, ((have + loc.consumed) / cost) * 100) : 100;
+      loc.progress = Math.min(cap, loc.progress + (dt / FILL_DURATION) * 100);
+      progEl.style.width = loc.progress + '%';
+      const newConsumed = Math.floor(loc.progress / 100 * cost);
+      if (newConsumed > loc.consumed) {
+        addResources('fragment', -(newConsumed - loc.consumed));
+        loc.consumed = newConsumed;
+      }
+      if (ratioEl) ratioEl.textContent = `${loc.consumed} / ${cost}`;
+      if (loc.progress >= 100) { btn.classList.add('ready'); _raf = null; return; }
+      if (loc.progress >= cap) { _raf = null; return; }
+      _raf = requestAnimationFrame(tick);
+    }
+    _raf = requestAnimationFrame(tick);
+  }
+  function stopFill() {
+    if (_raf) { cancelAnimationFrame(_raf); _raf = null; _lastTime = null; }
+  }
+
+  btn.onmousedown = startFill;
+  btn.onmouseup = stopFill;
+  btn.onmouseleave = stopFill;
+  btn.ontouchstart = () => { startFill(); };
+  btn.ontouchend = stopFill;
+  btn.ontouchcancel = stopFill;
+  btn.onclick = () => {
+    if (!btn.classList.contains('ready')) return;
+    stopFill();
+    btn.classList.remove('ready');
+    const prepaid = loc.consumed;
+    loc.progress = 0;
+    loc.consumed = 0;
+    progEl.style.width = '0%';
+    const result = levelUpLocation(location.id, prepaid);
     if (result.ok) {
       _renderLocationPopup(location);
       addLog(`【${location.label}】LocationLv が ${result.newLv} になった`, true);

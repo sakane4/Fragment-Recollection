@@ -10,6 +10,14 @@ const REWARD_TABLES = {
   fragment_random: (state, locationLv) => [
     { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2 + locationLv, minMs: 4000, maxMs: 9000 },
   ],
+  forest_voice_random: (_state, locationLv) => [
+    { resource: 'forest_voice', minAmount: 1, maxAmount: locationLv >= 2 ? 2 : 1, minMs: 8000, maxMs: 18000 },
+  ],
+  forest_gather_random: (_state, locationLv) => [
+    { resource: 'herb',     minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
+    { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
+    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 6000, maxMs: 15000 }] : []),
+  ],
 };
 
 // テーブル名 → 展開済み配列を返すヘルパー
@@ -53,9 +61,8 @@ const LOCATION_DEFS = [
         rewardTable: 'fragment_fixed',
         rewardTableRandom: 'fragment_random',
         rewards: [],
-        randomRewards: [
-          { resource: 'forest_voice', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
-        ],
+        rewardTableRandom: 'forest_voice_random',
+        randomRewards: [],
         discoveries: [],
       },
       {
@@ -66,10 +73,8 @@ const LOCATION_DEFS = [
         rewards: [
           { resource: 'herb', amount: 10 },
         ],
-        randomRewards: [
-          { resource: 'herb',     minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
-          { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
-        ],
+        rewardTableRandom: 'forest_gather_random',
+        randomRewards: [],
         discoveries: [],
       },
     ],
@@ -146,6 +151,7 @@ const INITIAL_STATE = {
     bubble_fragment: 0,
     sky_fragment: 0,
     forest_voice: 0,
+    branch: 0,
   },
   activeAction: null,
   unlockedStories: [],
@@ -633,12 +639,13 @@ function setCompanionLevel(companionId, level) {
   notify();
 }
 
-function levelUpLocation(locationId) {
+function levelUpLocation(locationId, prepaid = 0) {
   const currentLv = state.LocationLv?.[locationId] ?? 0;
   if (currentLv >= LOCATION_LV_MAX) return { ok: false, reason: 'max_level' };
   const cost = LOCATION_LV_COSTS[currentLv];
-  if ((state.resources.fragment ?? 0) < cost) return { ok: false, reason: 'insufficient_resources' };
-  const newResources = { ...state.resources, fragment: state.resources.fragment - cost };
+  const remaining = cost - prepaid;
+  if ((state.resources.fragment ?? 0) < remaining) return { ok: false, reason: 'insufficient_resources' };
+  const newResources = { ...state.resources, fragment: state.resources.fragment - remaining };
   const newLv = currentLv + 1;
   state = { ...state, resources: newResources, LocationLv: { ...state.LocationLv, [locationId]: newLv } };
   saveToStorage(state);
