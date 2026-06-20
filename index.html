@@ -708,6 +708,51 @@
       background: var(--panel);
     }
 
+    /* ── 場所詳細ポップアップ ── */
+    .location-popup {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+    }
+    .location-popup.open { display: block; }
+    .location-popup-inner {
+      position: absolute;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      max-width: 240px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+    .location-popup-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+    }
+    .location-popup-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .location-info-btn {
+      background: none;
+      border: none;
+      padding: 2px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: opacity 0.15s;
+      flex-shrink: 0;
+      opacity: 0.7;
+      filter: brightness(0) invert(1) sepia(1) saturate(2) hue-rotate(190deg) brightness(1.4);
+    }
+    .location-info-btn:hover { opacity: 1; }
+    .location-info-btn img { width: 14px; height: 14px; display: block; }
+
     #world-lv-display {
       margin-left: auto;
       padding: 0 0.8rem;
@@ -724,7 +769,7 @@
 
     .tab-btn {
       flex: 1;
-      padding: 0.45rem 0.5rem;
+      padding: 0.6rem 0.5rem;
       background: none;
       border: none;
       color: var(--muted);
@@ -1054,6 +1099,14 @@
 
   <!-- タブトースト -->
   <div id="tab-toast"></div>
+
+  <!-- 場所詳細ポップアップ -->
+  <div id="location-popup" class="location-popup">
+    <div class="location-popup-inner">
+      <div class="location-popup-name" id="location-popup-name"></div>
+      <div class="location-popup-desc" id="location-popup-desc"></div>
+    </div>
+  </div>
 
   <!-- フッター -->
   <div id="footer">

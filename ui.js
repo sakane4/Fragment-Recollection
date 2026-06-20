@@ -583,6 +583,37 @@ function initTabs() {
   });
 }
 
+// ── 場所詳細ポップアップ ──
+
+let _locationPopupTimer = null;
+
+function showLocationPopup(location, btnEl) {
+  const popup = document.getElementById('location-popup');
+  const nameEl = document.getElementById('location-popup-name');
+  const descEl = document.getElementById('location-popup-desc');
+
+  nameEl.textContent = location.label;
+  descEl.textContent = location.description ?? '';
+
+  const inner = popup.querySelector('.location-popup-inner');
+  popup.classList.add('open');
+
+  const rect = btnEl.getBoundingClientRect();
+  const iw = inner.offsetWidth || 240;
+  let left = rect.left;
+  if (left + iw > window.innerWidth - 8) left = window.innerWidth - iw - 8;
+  inner.style.left = left + 'px';
+  inner.style.top = (rect.bottom + 6) + 'px';
+
+  clearTimeout(_locationPopupTimer);
+  _locationPopupTimer = setTimeout(() => popup.classList.remove('open'), 4000);
+
+  popup.onclick = () => {
+    popup.classList.remove('open');
+    clearTimeout(_locationPopupTimer);
+  };
+}
+
 // ── 行動選択 ──
 let selectedActionId = 'explore';
 const _openSections = new Set(); // 開いている場所ID
@@ -652,6 +683,18 @@ function renderActionList() {
       else _openSections.add(location.id);
       section.classList.toggle('open');
     });
+
+    if (location.description) {
+      const infoBtn = document.createElement('button');
+      infoBtn.className = 'location-info-btn';
+      infoBtn.innerHTML = `<img src="resource/icon/icon_area.svg" width="14" height="14" style="display:block;">`;
+      infoBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showLocationPopup(location, infoBtn);
+      });
+      header.appendChild(infoBtn);
+    }
+
     section.appendChild(header);
 
     // 行動リスト

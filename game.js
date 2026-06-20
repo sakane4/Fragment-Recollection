@@ -23,7 +23,8 @@ function resolveTable(tableName) {
 const LOCATION_DEFS = [
   {
     id: 'wherever',
-    label: '',
+    label: 'どこか',
+    description: 'なにもない世界。ここから、すべてははじまる。',
     actions: [
       {
         id: 'explore',
@@ -41,6 +42,7 @@ const LOCATION_DEFS = [
   {
     id: 'forest',
     label: 'はじまりの森',
+    description: '静かな緑の森。木々の声が聞こえる気がする。',
     actions: [
       {
         id: 'forest_explore',
@@ -74,6 +76,7 @@ const LOCATION_DEFS = [
   {
     id: 'touto',
     label: '塔都',
+    description: '廃れた都市の残骸。かつてここに、多くの人が暮らしていた。',
     actions: [
       {
         id: 'touto_explore',
@@ -94,7 +97,7 @@ const LOCATION_DEFS = [
 const LOCATIONS = {};
 const ACTIONS = {};
 for (const loc of LOCATION_DEFS) {
-  LOCATIONS[loc.id] = { id: loc.id, label: loc.label };
+  LOCATIONS[loc.id] = { id: loc.id, label: loc.label, description: loc.description ?? '' };
   for (const action of loc.actions) {
     ACTIONS[action.id] = { ...action, locationId: loc.id };
   }
