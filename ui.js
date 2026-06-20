@@ -315,6 +315,7 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
         }
         if (_viewerCurrentPage < rp - 1) {
           _viewerCurrentPage++;
+          _viewerPrevUnlockedPages = up;
           _saveLastPage(_viewerStoryId, _viewerCurrentPage);
           renderViewerBody(st, { scrollToTop: true });
         }
@@ -327,7 +328,6 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     finBar.appendChild(nav);
   }
 
-  _viewerPrevUnlockedPages = unlockedParas;
   if (scrollToTop) els.storyBody.scrollTop = 0;
   else els.storyBody.scrollTop = els.storyBody.scrollHeight;
 }
@@ -353,6 +353,7 @@ function closeStory() {
   els.storyOverlay.classList.remove('open');
   _viewerPages = [];
   _viewerStoryId = null;
+  _viewerPrevUnlockedPages = 0;
   resumeLog();
   // ビューアを閉じた直後にルール評価（requireViewerClosed なルールを発火させる）
   setTimeout(() => render(getState()), 0);
@@ -478,9 +479,6 @@ function render(state) {
 
   if (!active && prevActive) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
-    if (!_cancelled) {
-      // 報酬ログは onComplete コールバックで出力する
-    }
     const wasCancelled = _cancelled;
     _cancelled = false;
     els.actionBtn.textContent = '開始';
@@ -587,11 +585,51 @@ function initTabs() {
 
 // ── 行動選択 ──
 let selectedActionId = 'explore';
+const _openSections = new Set(); // 開いている場所ID
+
+function _startActionById(actionId) {
+  const action = ACTIONS[actionId];
+  if (!action) return;
+  const running = getState().activeAction;
+  if (running) {
+    const curAction = ACTIONS[running.actionId];
+    if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+    _cancelled = true;
+    cancelAction();
+    addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
+  }
+  selectedActionId = actionId;
+  els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+  switchTab('view-items');
+  if (!_storyLogPlaying) startAction(actionId, {
+    onRandomReward: makeRandomRewardHandler(),
+    onCompanionRandomReward: makeCompanionRandomRewardHandler(),
+    onComplete: ({ allRewards, companionRewards, worldLvUp }) => {
+      const act = ACTIONS[actionId];
+      const rewardsHtml = (allRewards ?? []).map(r => {
+        const label = RESOURCE_LABELS[r.resource] ?? r.resource;
+        return `${resourceSpan(r.resource, label)} +${r.amount}`;
+      }).join(', ');
+      const companionRewardsHtml = (companionRewards ?? []).map(({ resource, amount }) => {
+        const label = RESOURCE_LABELS[resource] ?? resource;
+        return `<span class="log-companion-reward">${resourceSpan(resource, label)} +${amount}</span>`;
+      }).join(', ');
+      const fullRewardsHtml = companionRewardsHtml ? `${rewardsHtml} / ${companionRewardsHtml}` : rewardsHtml;
+      addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewardsHtml}`, true, true);
+      if (worldLvUp != null) {
+        const next = WORLD_LV_THRESHOLDS[worldLvUp];
+        const nextStr = next != null ? `（次: ${next}lg）` : '（最大）';
+        addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
+      }
+    },
+  });
+}
 
 function renderActionList() {
   els.actionList.innerHTML = '';
-
   const state = getState();
+  const runningId = state.activeAction?.actionId ?? null;
+
   for (const location of Object.values(LOCATIONS)) {
     if (!state.unlockedLocations.includes(location.id)) continue;
     const actions = Object.values(ACTIONS).filter(a =>
@@ -599,76 +637,57 @@ function renderActionList() {
     );
     if (actions.length === 0) continue;
 
-    const group = document.createElement('div');
-    group.className = 'action-group';
+    // 初回は開いておく
+    if (!_openSections.has(location.id)) _openSections.add(location.id);
 
-    if (location.label) {
-      const groupLabel = document.createElement('div');
-      groupLabel.className = 'action-group-label';
-      groupLabel.textContent = location.label;
-      group.appendChild(groupLabel);
-    }
+    const section = document.createElement('div');
+    section.className = 'action-section' + (_openSections.has(location.id) ? ' open' : '');
+
+    // 場所ヘッダー
+    const header = document.createElement('div');
+    header.className = 'action-place-header';
+    header.innerHTML = `<span class="action-place-toggle">▶</span><span class="action-place-name">${location.label || 'どこか'}</span>`;
+    header.addEventListener('click', () => {
+      if (_openSections.has(location.id)) _openSections.delete(location.id);
+      else _openSections.add(location.id);
+      section.classList.toggle('open');
+    });
+    section.appendChild(header);
+
+    // 行動リスト
+    const rows = document.createElement('div');
+    rows.className = 'action-rows';
 
     for (const action of actions) {
-      const card = document.createElement('div');
-      card.className = 'action-card' + (action.id === selectedActionId ? ' selected' : '');
+      const row = document.createElement('div');
+      row.className = 'action-row';
 
-      const info = document.createElement('div');
-      info.className = 'action-card-info';
-
-      const name = document.createElement('div');
-      name.className = 'action-card-name';
+      const name = document.createElement('span');
+      name.className = 'action-row-name';
       name.textContent = action.label;
 
-      const desc = document.createElement('div');
-      desc.className = 'action-card-desc';
+      const desc = document.createElement('span');
+      desc.className = 'action-row-desc';
       desc.textContent = action.description ?? '';
 
-      info.appendChild(name);
-      info.appendChild(desc);
+      const time = document.createElement('span');
+      time.className = 'action-row-time';
+      time.textContent = `${action.duration / 1000}秒`;
 
-      const meta = document.createElement('div');
-      meta.className = 'action-card-meta';
-      meta.textContent = `${action.duration / 1000}秒`;
+      const btn = document.createElement('button');
+      btn.className = 'action-play-btn' + (runningId === action.id ? ' running' : '');
+      btn.textContent = '▷';
+      btn.addEventListener('click', () => _startActionById(action.id));
 
-      card.appendChild(info);
-      card.appendChild(meta);
-
-      // カードタップ → 選択のみ
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.action-start-btn')) return;
-        selectedActionId = action.id;
-        if (!getState().activeAction) {
-          els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
-        }
-        renderActionList();
-      });
-
-      // 開始ボタン → 現在の行動を中断して即開始
-      const startBtn = document.createElement('button');
-      startBtn.className = 'action-start-btn';
-      startBtn.textContent = '開始';
-      startBtn.addEventListener('click', () => {
-        const running = getState().activeAction;
-        if (running) {
-          const curAction = ACTIONS[running.actionId];
-          if (stopFlavor) { stopFlavor(); stopFlavor = null; }
-          _cancelled = true;
-          cancelAction();
-          addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
-        }
-        selectedActionId = action.id;
-        els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
-        renderActionList();
-        switchTab('view-items');
-        if (!_storyLogPlaying) startAction(action.id, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
-      });
-      card.appendChild(startBtn);
-
-      group.appendChild(card);
+      row.appendChild(name);
+      row.appendChild(desc);
+      row.appendChild(time);
+      row.appendChild(btn);
+      rows.appendChild(row);
     }
 
-    els.actionList.appendChild(group);
+    section.appendChild(rows);
+    els.actionList.appendChild(section);
   }
 }
 
@@ -1045,30 +1064,7 @@ export function init() {
       cancelAction();
       addLog(`【${label}】中断`, true);
     } else {
-      if (!_storyLogPlaying) startAction(selectedActionId, {
-        onRandomReward: makeRandomRewardHandler(),
-        onCompanionRandomReward: makeCompanionRandomRewardHandler(),
-        onComplete: ({ allRewards, companionRewards, worldLvUp }) => {
-          const action = ACTIONS[selectedActionId];
-          const rewardsHtml = (allRewards ?? []).map(r => {
-            const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-            return `${resourceSpan(r.resource, label)} +${r.amount}`;
-          }).join(', ');
-          const companionRewardsHtml = (companionRewards ?? []).map(({ companionId, resource, amount }) => {
-            const label = RESOURCE_LABELS[resource] ?? resource;
-            return `<span class="log-companion-reward">${resourceSpan(resource, label)} +${amount}</span>`;
-          }).join(', ');
-          const fullRewardsHtml = companionRewardsHtml
-            ? `${rewardsHtml} / ${companionRewardsHtml}`
-            : rewardsHtml;
-          addLog(`【${actionDisplayLabel(action)}】完了 — ${fullRewardsHtml}`, true, true);
-          if (worldLvUp != null) {
-            const next = WORLD_LV_THRESHOLDS[worldLvUp];
-            const nextStr = next != null ? `（次: ${next}lg）` : '（最大）';
-            addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
-          }
-        },
-      });
+      if (!_storyLogPlaying) _startActionById(selectedActionId);
     }
   });
 
