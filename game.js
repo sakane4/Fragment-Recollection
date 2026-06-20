@@ -10,14 +10,17 @@ const REWARD_TABLES = {
   fragment_random: (state, locationLv) => [
     { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2 + locationLv, minMs: 4000, maxMs: 9000 },
   ],
+  // はじまりの森 — 共通ランダム報酬（全行動に適用）
+  forest_common_random: (_state, locationLv) => [
+    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 20000 }] : []),
+  ],
+  // はじまりの森 — 行動別ランダム報酬
   forest_explore_random: (_state, locationLv) => [
     { resource: 'forest_voice', minAmount: 1, maxAmount: locationLv >= 2 ? 2 : 1, minMs: 8000, maxMs: 18000 },
-    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 10000, maxMs: 20000 }] : []),
   ],
-  forest_gather_random: (_state, locationLv) => [
+  forest_gather_random: () => [
     { resource: 'herb',     minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
     { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
-    ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 15000 }] : []),
   ],
 };
 
@@ -36,13 +39,13 @@ function resolveTable(tableNameOrArray, locationId) {
 const LOCATION_DEFS = [
   {
     id: 'wherever',
-    label: 'どこか',
+    label: '再生された世界',
     description: 'なにもない世界。ここから、すべてははじまる。',
     actions: [
       {
         id: 'explore',
         label: '探索',
-        description: 'なにもない世界を探索する。',
+        description: '再生された世界を探索する。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
         rewardTableRandom: 'fragment_random',
@@ -63,7 +66,7 @@ const LOCATION_DEFS = [
         description: 'はじまりの森を探索する。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: 'forest_explore_random',
+        rewardTableRandom: ['forest_common_random', 'forest_explore_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
@@ -76,7 +79,7 @@ const LOCATION_DEFS = [
         rewards: [
           { resource: 'herb', amount: 10 },
         ],
-        rewardTableRandom: 'forest_gather_random',
+        rewardTableRandom: ['forest_common_random', 'forest_gather_random'],
         randomRewards: [],
         discoveries: [],
       },
@@ -85,7 +88,7 @@ const LOCATION_DEFS = [
   {
     id: 'touto',
     label: '塔都',
-    description: '廃れた都市の残骸。かつてここに、多くの人が暮らしていた。',
+    description: 'どこまでも空へ伸びる、白亜の塔をとりまく街',
     actions: [
       {
         id: 'touto_explore',

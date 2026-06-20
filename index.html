@@ -797,7 +797,12 @@
       gap: 0.3rem;
     }
     .lvup-btn-ratio { color: var(--muted); }
-    .lvup-btn-ratio.enough { color: var(--accent); }
+    .lvup-have-label {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-align: right;
+      margin-bottom: 0.25rem;
+    }
 
     .location-info-btn {
       background: none;
@@ -1167,6 +1172,7 @@
       <div class="location-popup-name" id="location-popup-name"></div>
       <div class="location-popup-desc" id="location-popup-desc"></div>
       <div class="location-popup-lv" id="location-popup-lv"></div>
+      <div class="lvup-have-label" id="location-popup-lvup-have"></div>
       <button class="location-popup-lvup-btn" id="location-popup-lvup-btn"></button>
     </div>
   </div>

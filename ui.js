@@ -122,7 +122,7 @@ let _viewerPages = [];
 let _viewerStoryId = null;
 let _viewerCurrentPage = 0;
 let _viewerPrevUnlockedPages = 0;
-let _viewerFadeUpTo = 0; // アニメーション済み段落数（これ未満は再フェードしない）
+let _viewerFadeUpTo = 0;
 const _storyPageCounts = {}; // storyId → 総段落数キャッシュ
 
 function _saveLastPage(storyId, page) {
@@ -263,7 +263,6 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     }
   }
 
-  // アニメーション済み基準点を更新（次のレンダーで再フェードしないよう）
   _viewerFadeUpTo = Math.max(_viewerFadeUpTo, unlockedParas);
 
   // 解放済み段落数から「表示可能なページ数」を算出
@@ -602,12 +601,12 @@ function _renderLocationPopup(location) {
   const isMax = lv >= LOCATION_LV_MAX;
   const cost = isMax ? null : LOCATION_LV_COSTS[lv];
   const have = state.resources.fragment ?? 0;
-  const canLvUp = cost != null && have >= cost;
 
   document.getElementById('location-popup-name').textContent = location.label;
   document.getElementById('location-popup-desc').textContent = location.description ?? '';
 
-  document.getElementById('location-popup-lv').textContent = '';
+  document.getElementById('location-popup-lv').textContent =
+    isMax ? `Lv ${lv}  (MAX)` : `Lv ${lv}`;
 
   const btn = document.getElementById('location-popup-lvup-btn');
   if (isMax) {
@@ -616,9 +615,10 @@ function _renderLocationPopup(location) {
     btn.hidden = false;
     btn.disabled = false;
     const label = RESOURCE_LABELS['fragment'] ?? 'フラグメント';
+    document.getElementById('location-popup-lvup-have').textContent = `所持数：${have}`;
     btn.innerHTML =
-      `<span class="lvup-btn-label">Lv${lv}</span>` +
-      `<span class="lvup-btn-cost">${label}<span class="lvup-btn-ratio ${canLvUp ? 'enough' : ''}">${have} / ${cost}</span></span>`;
+      `<span class="lvup-btn-label">Lv${lv + 1} </span>` +
+      `<span class="lvup-btn-cost">${label}<span class="lvup-btn-ratio">${have} / ${cost}</span></span>`;
   }
 }
 
@@ -643,27 +643,27 @@ function showLocationPopup(location, btnEl) {
 
   const btn = document.getElementById('location-popup-lvup-btn');
 
-  // プログレスバー要素を常に新規追加
-  const progEl = document.createElement('span');
+  // プログレスバー要素を追加
+  let progEl = document.createElement('span');
   progEl.className = 'lvup-progress';
   btn.prepend(progEl);
   btn.classList.remove('ready');
 
-  // 同じ場所なら進捗を引き継ぐ、別の場所ならリセット
+  // 場所ごとの進捗を引き継ぐ
   if (!_lvupState[location.id]) _lvupState[location.id] = { progress: 0, consumed: 0 };
   const loc = _lvupState[location.id];
   progEl.style.width = loc.progress + '%';
   if (loc.progress >= 100) btn.classList.add('ready');
-
-  let _raf = null;
-  let _lastTime = null;
-  const FILL_DURATION = 2500;
 
   const ratioEl = btn.querySelector('.lvup-btn-ratio');
   if (ratioEl && loc.consumed > 0) {
     const cost0 = LOCATION_LV_COSTS[getState().LocationLv?.[location.id] ?? 0];
     ratioEl.textContent = `${loc.consumed} / ${cost0}`;
   }
+
+  let _raf = null;
+  let _lastTime = null;
+  const FILL_DURATION = 2500;
 
   function startFill() {
     if (btn.classList.contains('ready') || _raf) return;
@@ -683,7 +683,10 @@ function showLocationPopup(location, btnEl) {
         addResources('fragment', -(newConsumed - loc.consumed));
         loc.consumed = newConsumed;
       }
-      if (ratioEl) ratioEl.textContent = `${loc.consumed} / ${cost}`;
+      const rEl = btn.querySelector('.lvup-btn-ratio');
+      if (rEl) rEl.textContent = `${loc.consumed} / ${cost}`;
+      const hEl = document.getElementById('location-popup-lvup-have');
+      if (hEl) hEl.textContent = `所持数：${getState().resources.fragment ?? 0}`;
       if (loc.progress >= 100) { btn.classList.add('ready'); _raf = null; return; }
       if (loc.progress >= cap) { _raf = null; return; }
       _raf = requestAnimationFrame(tick);
@@ -711,6 +714,11 @@ function showLocationPopup(location, btnEl) {
     const result = levelUpLocation(location.id, prepaid);
     if (result.ok) {
       _renderLocationPopup(location);
+      // _renderLocationPopup が innerHTML を書き換えるので progEl を再追加
+      progEl = document.createElement('span');
+      progEl.className = 'lvup-progress';
+      progEl.style.width = '0%';
+      btn.prepend(progEl);
       addLog(`【${location.label}】LocationLv が ${result.newLv} になった`, true);
     }
   };
