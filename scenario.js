@@ -314,16 +314,37 @@ const LOG_STORY_3_STEPS = parseScript(`
 視界を埋め尽くす、新緑の色。
 いつの間にか、ユウヤも言葉を失っている。
 あなたたちは、森の中にいた。
-[end: 探索する]
+[end: 先へ進む]
 `);
 
 function runLogSt_1(mainPanel, opts) { return runLogSt(LOG_STORY_STEPS,   mainPanel, opts); }
 function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPanel, opts); }
 function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
 
-const LOG_STORY_4_STEPS = [
-  // TODO: ログストーリー004 の内容をここに書く
-];
+const LOG_STORY_4_STEPS =parseScript(`
+004
+森の中、あなたはユウヤと足を止める。
+「あのとき、誰かが……」
+ユウヤはそうして記憶を探る様子だったが、
+しばらくして首を振る。
+「だめだー……思い出せないや」
+何となく、二人は顔を上げる。
+そこは少し開けたところで、地面は短く柔らかい草に覆われ、中心に木があり、日陰を作っている。
+「ん？あれはなんだろう」
+ユウヤが指さすのは木の根本だ。
+なにか陽の光を反射するものがある。
+近づいてみると、落ちていたのは、星をかたどったような金細工のブローチだった。
+「どうしてこんなところに？……」
+あなたはそれを拾い上げる。
+すると、そのブローチはほのかに光った。
+「――」
+まるであなたを導くように。
+「どうしたの？」
+ユウヤは不思議そうだ。
+[end: 星の導きに従う]
+
+`);
+
 function runLogSt_4(mainPanel, opts) { return runLogSt(LOG_STORY_4_STEPS, mainPanel, opts); }
 
 export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 };

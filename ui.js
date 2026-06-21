@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
@@ -462,6 +462,7 @@ let prevUnlocked = [];
 let prevAppearedStories = [];
 let prevUnlockedLocations = [];
 let prevUnlockedActions = [];
+let prevGuideUnlocked = false;
 let stopFlavor = null;
 let _cancelled = false;
 let _isAutoRestart = false;
@@ -578,8 +579,21 @@ renderStoryList(state);
     startLogSt_4,
     unlockLocation,
     unlockAction,
+    unlockGuide,
     forceAppearStory,
   });
+
+  const _curState = getState();
+  const guidePanelEl = document.getElementById('guide-panel');
+  if (guidePanelEl) {
+    if (_curState.guideUnlocked && !prevGuideUnlocked) {
+      guidePanelEl.classList.remove('hidden');
+      addLog('【導き】が解放された', true);
+    } else if (!_curState.guideUnlocked) {
+      guidePanelEl.classList.add('hidden');
+    }
+  }
+  prevGuideUnlocked = _curState.guideUnlocked;
 }
 
 // ── プログレスバー ──

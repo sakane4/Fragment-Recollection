@@ -56,16 +56,71 @@
       flex-direction: column;
       border-left: 1px solid var(--border);
       border-right: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
     }
 
     /* ── メインパネル(ログ) ── */
+    #main-panel-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
     #main-panel {
       overflow-y: auto;
       padding: 0.6rem 0.75rem;
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
-      flex-shrink: 0;
+      height: 100%;
+    }
+
+    /* ── 導きパネル(スライドオーバーレイ) ── */
+    #guide-panel {
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 82%;
+      max-width: 320px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      box-shadow: -6px 0 16px rgba(0,0,0,0.4);
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+    }
+    #guide-panel.open { transform: translateX(0); }
+    #guide-panel.hidden { display: none; }
+    #guide-panel-inner {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 0.7rem;
+      gap: 0.5rem;
+      overflow-y: auto;
+    }
+    #guide-tab-btn {
+      position: absolute;
+      top: 14px;
+      left: -28px;
+      width: 28px;
+      height: 64px;
+      background: var(--accent-dim);
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      color: var(--text);
+      writing-mode: vertical-rl;
+      letter-spacing: 0.1em;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    #guide-panel-header {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
     }
 
     /* ── リサイザー ── */
@@ -1059,8 +1114,17 @@
   </div>
 
   <!-- メインパネル(ログ) -->
-  <div id="main-panel">
-    <div class="log-entry highlight">世界を再生しました</div>
+  <div id="main-panel-wrap">
+    <div id="main-panel">
+      <div class="log-entry highlight">世界を再生しました</div>
+    </div>
+    <div id="guide-panel" class="hidden">
+      <button id="guide-tab-btn">導き</button>
+      <div id="guide-panel-inner">
+        <div id="guide-panel-header">導き</div>
+        <div id="guide-list"></div>
+      </div>
+    </div>
   </div>
 
   <!-- アクション行 -->
@@ -1207,8 +1271,20 @@
   init();
 </script>
 <script>
+  const guidePanel = document.getElementById('guide-panel');
+  const guideTabBtn = document.getElementById('guide-tab-btn');
+  guideTabBtn.addEventListener('click', () => {
+    guidePanel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (guidePanel.classList.contains('open') && !guidePanel.contains(e.target)) {
+      guidePanel.classList.remove('open');
+    }
+  });
+
   const resizer = document.getElementById('resizer');
   const mainPanel = document.getElementById('main-panel');
+  const mainPanelWrap = document.getElementById('main-panel-wrap');
   const MIN_H = 60;
 
   let startY = 0;
@@ -1217,13 +1293,13 @@
   function onMove(y) {
     const appH = document.getElementById('app').clientHeight;
     const newH = Math.max(MIN_H, Math.min(startH + (y - startY), appH - MIN_H - 120));
-    mainPanel.style.height = newH + 'px';
+    mainPanelWrap.style.height = newH + 'px';
     mainPanel.scrollTop = mainPanel.scrollHeight;
   }
 
   resizer.addEventListener('mousedown', e => {
     startY = e.clientY;
-    startH = mainPanel.getBoundingClientRect().height;
+    startH = mainPanelWrap.getBoundingClientRect().height;
     resizer.classList.add('dragging');
     document.body.style.userSelect = 'none';
 
@@ -1240,7 +1316,7 @@
 
   resizer.addEventListener('touchstart', e => {
     startY = e.touches[0].clientY;
-    startH = mainPanel.getBoundingClientRect().height;
+    startH = mainPanelWrap.getBoundingClientRect().height;
     resizer.classList.add('dragging');
 
     const onTouchMove = e => { e.preventDefault(); onMove(e.touches[0].clientY); };
@@ -1254,7 +1330,7 @@
   });
 
   // 初期高さを画面の約45%に設定
-  mainPanel.style.height = (document.getElementById('app').clientHeight * 0.45) + 'px';
+  mainPanelWrap.style.height = (document.getElementById('app').clientHeight * 0.45) + 'px';
 
   document.getElementById('dev-reset-btn').addEventListener('click', () => {
     if (!confirm('セーブデータをすべて削除してリセットしますか？')) return;

@@ -170,6 +170,7 @@ const INITIAL_STATE = {
   logSt2Done: false,
   logSt3Done: false,
   logSt4Done: false,
+  guideUnlocked: false,
   playerName: '',
   unlockedCompanions: [],
   activeCompanions: [],
@@ -271,6 +272,13 @@ function unlockLocation(locationId, actionIds = []) {
 function unlockAction(actionId) {
   if (state.unlockedActions.includes(actionId)) return;
   state = { ...state, unlockedActions: [...state.unlockedActions, actionId] };
+  saveToStorage(state);
+  notify();
+}
+
+function unlockGuide() {
+  if (state.guideUnlocked) return;
+  state = { ...state, guideUnlocked: true };
   saveToStorage(state);
   notify();
 }
@@ -592,6 +600,7 @@ function init() {
     logSt2Done: saved.logSt2Done ?? INITIAL_STATE.logSt2Done,
     logSt3Done: saved.logSt3Done ?? INITIAL_STATE.logSt3Done,
     logSt4Done: saved.logSt4Done ?? INITIAL_STATE.logSt4Done,
+    guideUnlocked: saved.guideUnlocked ?? INITIAL_STATE.guideUnlocked,
     worldLv: saved.worldLv ?? INITIAL_STATE.worldLv,
     totalFragments: saved.totalFragments ?? INITIAL_STATE.totalFragments,
     LocationLv: saved.LocationLv ?? INITIAL_STATE.LocationLv,
@@ -684,14 +693,15 @@ function jumpToLogSt(n) {
     logSt2Done: n > 2 ? true : false,
     logSt3Done: false,
     logSt4Done: false,
+    guideUnlocked: false,
   };
   saveToStorage(state);
 }
 
 function resetTutorial() {
-  state = { ...state, tutorialDone: false, logSt1Done: false, logSt2Done: false, logSt3Done: false, logSt4Done: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
+  state = { ...state, tutorialDone: false, logSt1Done: false, logSt2Done: false, logSt3Done: false, logSt4Done: false, guideUnlocked: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
   saveToStorage(state);
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };
