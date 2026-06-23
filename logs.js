@@ -73,12 +73,12 @@ function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000, com
       if (stopped) return;
 
       let text;
-      // 同行者がいて1/3の確率で同行者ログを出す
-      if (companions.length > 0 && Math.random() < 0.35) {
+      // 同行者がいるとき、約55%の確率で同行者ログを出す
+      if (companions.length > 0 && Math.random() < 0.55) {
         const companion = companions[Math.floor(Math.random() * companions.length)];
         const specific = COMPANION_LOGS_SPECIFIC[companion.id];
-        // 固有テキストがあれば50/50で汎用か固有かを選ぶ
-        const useSpecific = specific && specific.length > 0 && Math.random() < 0.5;
+        // 固有テキストがあれば70%で固有、30%で汎用を選ぶ
+        const useSpecific = specific && specific.length > 0 && Math.random() < 0.7;
         const source = useSpecific ? specific : COMPANION_LOGS;
         const pool = source.length > 1 ? source.filter(t => t !== lastText) : source;
         const template = pool[Math.floor(Math.random() * pool.length)];
