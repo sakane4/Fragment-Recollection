@@ -413,13 +413,8 @@ function storyIsVisible(story, state) {
   return (state.resources[resource] ?? 0) >= amount;
 }
 
-function renderStoryList(state) {
-  els.storyList.innerHTML = '';
-
-  for (const story of Object.values(STORIES)) {
-    if (!storyIsVisible(story, state)) continue;
-
-    const unlocked = state.unlockedStories.includes(story.id);
+function _buildStoryItem(story, state) {
+  const unlocked = state.unlockedStories.includes(story.id);
     const appeared = !unlocked && (state.appearedStories ?? []).includes(story.id);
     const costLabel = story.unlockCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
 
@@ -482,7 +477,32 @@ function renderStoryList(state) {
       });
       item.appendChild(btn);
     }
-    els.storyList.appendChild(item);
+    return item;
+}
+
+function renderStoryList(state) {
+  els.storyList.innerHTML = '';
+
+  const pending = [];
+  const revealed = [];
+  for (const story of Object.values(STORIES)) {
+    if (!storyIsVisible(story, state)) continue;
+    if (state.titleRevealed?.[story.id]) revealed.push(story);
+    else pending.push(story);
+  }
+
+  for (const story of pending) {
+    els.storyList.appendChild(_buildStoryItem(story, state));
+  }
+
+  if (revealed.length > 0) {
+    const divider = document.createElement('div');
+    divider.className = 'story-section-divider';
+    divider.textContent = '思い出した記憶';
+    els.storyList.appendChild(divider);
+    for (const story of revealed) {
+      els.storyList.appendChild(_buildStoryItem(story, state));
+    }
   }
 }
 

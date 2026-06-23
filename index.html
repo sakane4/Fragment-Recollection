@@ -333,6 +333,11 @@
       margin-bottom: 0.4rem;
     }
 
+    .story-list-title {
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
     .resource-row {
       display: flex;
       justify-content: space-between;
@@ -386,6 +391,15 @@
     }
 
     .story-item:last-child { border-bottom: none; }
+
+    .story-section-divider {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      margin: 0.9rem 0 0.3rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--border);
+    }
     .story-item.unlocked:hover { background: rgba(255,255,255,0.03); }
 
     .story-item-title {
@@ -1260,7 +1274,7 @@
       <div id="resource-list"></div>
     </div>
     <div id="view-stories" class="sub-view">
-      <div class="sub-title">記憶</div>
+      <div class="sub-title story-list-title">記憶</div>
       <div id="story-list"></div>
     </div>
     <div id="view-chars" class="sub-view">
