@@ -1114,7 +1114,8 @@ function _buildCompanionDetail(id, state) {
   const drop = document.createElement('div');
   drop.className = 'companion-detail-section';
   const dropResource = COMPANION_REWARDS[id]?.[0]?.resource;
-  const dropLabel = dropResource ? (RESOURCE_LABELS[dropResource] ?? dropResource) : '—';
+  const dropDiscovered = dropResource && (state.discoveredResources ?? []).includes(dropResource);
+  const dropLabel = !dropResource ? '—' : dropDiscovered ? (RESOURCE_LABELS[dropResource] ?? dropResource) : '???';
   drop.innerHTML = `<div class="companion-detail-label">固有ドロップ品</div><div class="companion-detail-body">${dropLabel}</div>`;
   detail.appendChild(drop);
 
