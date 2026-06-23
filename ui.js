@@ -443,6 +443,14 @@ function renderStoryList(state) {
     if (unlocked) {
       item.classList.add('unlocked');
       item.addEventListener('click', () => openStory(story.id));
+      const openBtn = document.createElement('button');
+      openBtn.className = 'story-open-btn';
+      openBtn.textContent = '▷';
+      openBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openStory(story.id);
+      });
+      item.appendChild(openBtn);
     } else {
       const btn = document.createElement('button');
       btn.className = 'story-btn locked';
@@ -1150,7 +1158,7 @@ function _buildCompanionDetail(id, state) {
   const dropResource = COMPANION_REWARDS[id]?.[0]?.resource;
   const dropDiscovered = dropResource && (state.discoveredResources ?? []).includes(dropResource);
   const dropLabel = !dropResource ? '—' : dropDiscovered ? (RESOURCE_LABELS[dropResource] ?? dropResource) : '???';
-  drop.innerHTML = `<div class="companion-detail-label">固有ドロップ品</div><div class="companion-detail-body">${dropLabel}</div>`;
+  drop.innerHTML = `<div class="companion-detail-label">見つけられるもの</div><div class="companion-detail-body">${dropLabel}</div>`;
   detail.appendChild(drop);
 
   const equip = document.createElement('div');
@@ -1167,15 +1175,37 @@ function _buildCompanionDetail(id, state) {
 
   const memories = document.createElement('div');
   memories.className = 'companion-detail-section';
+  memories.innerHTML = `<div class="companion-detail-label">関連する記憶</div>`;
+  const memoryBody = document.createElement('div');
+  memoryBody.className = 'companion-detail-body';
   const relatedStories = Object.values(STORIES).filter(s => s.companionId === id);
-  const memoryLines = relatedStories.map(s => {
-    const progress = state.storyProgress[s.id] ?? 0;
-    const fullyRead = progress >= (s.pageCount ?? Infinity);
-    const total = _storyPageCounts[s.id] ?? s.pageCount;
-    const title = fullyRead ? s.title : (s.lockedTitle ?? 'あいまいな記憶');
-    return `<div class="companion-memory-line">${title}${total ? `(${progress} / ${total})` : ''}</div>`;
-  });
-  memories.innerHTML = `<div class="companion-detail-label">関連する記憶</div><div class="companion-detail-body">${memoryLines.join('') || 'なし'}</div>`;
+  if (relatedStories.length === 0) {
+    memoryBody.textContent = 'なし';
+  } else {
+    for (const s of relatedStories) {
+      const progress = state.storyProgress[s.id] ?? 0;
+      const fullyRead = progress >= (s.pageCount ?? Infinity);
+      const total = _storyPageCounts[s.id] ?? s.pageCount;
+      const title = fullyRead ? s.title : (s.lockedTitle ?? 'あいまいな記憶');
+      const unlocked = state.unlockedStories.includes(s.id);
+
+      const line = document.createElement('div');
+      line.className = 'companion-memory-line';
+      const label = document.createElement('span');
+      label.textContent = `${title}${total ? `(${progress} / ${total})` : ''}`;
+      line.appendChild(label);
+
+      if (unlocked) {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'story-open-btn';
+        openBtn.textContent = '▷';
+        openBtn.addEventListener('click', (e) => { e.stopPropagation(); openStory(s.id); });
+        line.appendChild(openBtn);
+      }
+      memoryBody.appendChild(line);
+    }
+  }
+  memories.appendChild(memoryBody);
   detail.appendChild(memories);
 
   return detail;

@@ -416,6 +416,18 @@
     }
     .story-btn.locked:hover { background: #1e2030; }
 
+    .story-open-btn {
+      flex-shrink: 0;
+      font-size: 0.85rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--accent);
+    }
+    .story-open-btn:hover { background: var(--accent-dim); }
+
     .story-cost {
       font-size: 0.7rem;
       color: var(--muted);
@@ -1081,6 +1093,10 @@
     .companion-memory-line {
       font-size: 0.78rem;
       color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
     }
     .companion-card--active {
       border-color: var(--accent-border);
