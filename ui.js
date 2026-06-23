@@ -645,6 +645,26 @@ renderStoryList(state);
     }
   }
   prevGuideUnlocked = _curState.guideUnlocked;
+  renderGuideList(_curState);
+}
+
+// 【暫定】導きパネルの中身。表現はあとで詰める。
+function renderGuideList(state) {
+  const list = document.getElementById('guide-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const hints = [];
+  if ((state.worldLv ?? 0) < 5) {
+    hints.push('なにもない世界の探索を進めよう…（Lv5）');
+  }
+
+  for (const hint of hints) {
+    const item = document.createElement('div');
+    item.className = 'guide-hint-item';
+    item.textContent = hint;
+    list.appendChild(item);
+  }
 }
 
 // ── プログレスバー ──
