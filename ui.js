@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
@@ -167,8 +167,8 @@ async function openStory(storyId, { prevProgress } = {}) {
   _viewerFadeUpTo = _viewerPrevUnlockedPages;
   _storyPageCounts[storyId] = pages.reduce((s, p) => s + p.length, 0);
 
-  const _fullyRead = (getState().storyProgress[storyId] ?? 0) >= (story.pageCount ?? Infinity);
-  _setViewerTitle(_fullyRead ? story.title : (story.lockedTitle ?? 'あいまいな記憶'));
+  const _titleRevealed = !!(getState().titleRevealed ?? {})[storyId];
+  _setViewerTitle(_titleRevealed ? story.title : (story.lockedTitle ?? 'あいまいな記憶'));
   els.storyOverlay.classList.add('open');
   pauseLog();
   renderViewerBody(getState());
@@ -271,6 +271,21 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     }
   }
 
+  const allDoneForReveal = unlockedParas >= totalParas;
+  const titleAlreadyRevealed = !!(state.titleRevealed ?? {})[_viewerStoryId];
+  if (allDoneForReveal && !titleAlreadyRevealed) {
+    const onLastPage = globalOffset + currentParas.length >= totalParas;
+    if (onLastPage) {
+      const revealBtn = document.createElement('button');
+      revealBtn.className = 'story-title-reveal-btn';
+      revealBtn.textContent = `「${story.lockedTitle ?? 'あいまいな記憶'}」を思い出す`;
+      revealBtn.addEventListener('click', () => {
+        revealStoryTitle(_viewerStoryId);
+      });
+      els.storyBody.appendChild(revealBtn);
+    }
+  }
+
   // 同一アクション内で複数回 renderViewerBody が呼ばれても(例: 同行者Lvアップ通知による再レンダリング)
   // 新規解放ブロックのフェード判定がブレないよう、更新を次フレームへ遅延させる
   const _fadeTarget = Math.max(_viewerFadeUpTo, unlockedParas);
@@ -280,8 +295,8 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   const _st = getState();
   const _sv = STORIES[_viewerStoryId];
   if (_sv) {
-    const _fr = (_st.storyProgress[_viewerStoryId] ?? 0) >= (_sv.pageCount ?? Infinity);
-    _setViewerTitle(_fr ? _sv.title : (_sv.lockedTitle ?? 'あいまいな記憶'));
+    const _tr = !!(_st.titleRevealed ?? {})[_viewerStoryId];
+    _setViewerTitle(_tr ? _sv.title : (_sv.lockedTitle ?? 'あいまいな記憶'));
   }
 
   // 解放済み段落数から「表示可能なページ数」を算出
@@ -298,7 +313,9 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   const allDone = unlockedParas >= totalParas;
 
   if (totalPages === 1 && allDone) {
-    finBar.textContent = '— END —';
+    const end = document.createElement('span');
+    end.textContent = '— END —';
+    finBar.appendChild(end);
   } else if (totalPages > 1) {
     const nav = document.createElement('div');
     nav.className = 'story-nav';
@@ -412,7 +429,7 @@ function renderStoryList(state) {
     const info = document.createElement('div');
 
     const title = document.createElement('div');
-    const fullyRead = (state.storyProgress[story.id] ?? 0) >= (story.pageCount ?? Infinity);
+    const fullyRead = !!(state.titleRevealed ?? {})[story.id];
     if (fullyRead) {
       title.className = 'story-item-title';
       title.textContent = story.title;
@@ -1184,7 +1201,7 @@ function _buildCompanionDetail(id, state) {
   } else {
     for (const s of relatedStories) {
       const progress = state.storyProgress[s.id] ?? 0;
-      const fullyRead = progress >= (s.pageCount ?? Infinity);
+      const fullyRead = !!(state.titleRevealed ?? {})[s.id];
       const total = _storyPageCounts[s.id] ?? s.pageCount;
       const title = fullyRead ? s.title : (s.lockedTitle ?? 'あいまいな記憶');
       const unlocked = state.unlockedStories.includes(s.id);
