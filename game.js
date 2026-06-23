@@ -732,16 +732,50 @@ function setActiveCompanion(id, active) {
   notify();
 }
 
+// ログストーリーnへジャンプするための前提状態を整える(開発用)
+// nを直接再生するための、ここまでに本来達成されているはずのフラグ・進捗をまとめて反映する
 function jumpToLogSt(n) {
-  state = {
+  const prologueTotal = STORIES['prologue']?.pageCount ?? 0;
+
+  const next = {
     ...state,
-    logSt1Done:  n > 1 ? true : false,
-    logSt2Done: n > 2 ? true : false,
+    tutorialDone: true,
+    logSt1Done: false,
+    logSt2Done: false,
     logSt3Done: false,
     logSt4Done: false,
     guideUnlocked: false,
+    unlockedStories: [...state.unlockedStories],
+    storyProgress: { ...state.storyProgress },
+    unlockedCompanions: [...state.unlockedCompanions],
+    activeCompanions: [...state.activeCompanions],
+    unlockedLocations: [...state.unlockedLocations],
+    unlockedActions: [...state.unlockedActions],
   };
+
+  if (!next.unlockedStories.includes('prologue')) next.unlockedStories.push('prologue');
+  next.storyProgress['prologue'] = prologueTotal;
+
+  if (n >= 2) {
+    next.logSt1Done = true;
+    if (!next.unlockedCompanions.includes('yuya')) next.unlockedCompanions.push('yuya');
+    if (!next.activeCompanions.includes('yuya')) next.activeCompanions.push('yuya');
+  }
+  if (n >= 3) {
+    next.logSt2Done = true;
+    if (!next.unlockedStories.includes('yuya_1')) next.unlockedStories.push('yuya_1');
+    next.storyProgress['yuya_1'] = Math.max(next.storyProgress['yuya_1'] ?? 0, 3);
+  }
+  if (n >= 4) {
+    next.logSt3Done = true;
+    if (!next.unlockedLocations.includes('forest')) next.unlockedLocations.push('forest');
+    if (!next.unlockedActions.includes('forest_explore')) next.unlockedActions.push('forest_explore');
+    next.storyProgress['yuya_1'] = Math.max(next.storyProgress['yuya_1'] ?? 0, 13);
+  }
+
+  state = next;
   saveToStorage(state);
+  notify();
 }
 
 function resetTutorial() {

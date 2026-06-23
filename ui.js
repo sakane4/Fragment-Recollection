@@ -1423,16 +1423,11 @@ function initDevTools() {
     const n = Number(e.target.value);
     if (!n) return;
     e.target.value = '';
+    // n=1,3,4はrules.jsの条件(プロローグ全解放／yuya_1の段落数)を満たす状態にしておくので、
+    // jumpToLogStのnotify()からevaluateRulesが自動でstartLogSt_Xを呼ぶ。
+    // 002は行動完了イベント駆動でジャンプ不可のため選択肢から除外している。
+    resetFiredRules();
     jumpToLogSt(n);
-    const fns = [null, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4];
-    fns[n]?.(els.mainPanel, {
-      onNameDecided: n === 1 ? (name) => { setPlayerName(name); } : undefined,
-      onComplete: n === 1 ? () => { setLogSt1Done(); }
-              : n === 2 ? () => { setLogSt2Done(); }
-              : n === 3 ? () => { setLogSt3Done(); unlockLocation('forest', ['forest_explore']); }
-              : n === 4 ? () => { setLogSt4Done(); }
-              : undefined,
-    });
   });
 
   const autoRestartBtn = document.getElementById('dev-auto-restart-btn');
