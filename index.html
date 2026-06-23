@@ -30,8 +30,8 @@
       --text: #d4cfc7;
       --muted: #6e6a7c;
       --accent: #1e90ff;
-      --accent-dim: #333366;
-      --accent-border: #5a4d8a;
+      --accent-dim: #1c3a5e;
+      --accent-border: #3a6491;
     }
 
     html, body {
@@ -251,7 +251,7 @@
     }
     .action-row:last-child { border-bottom: none; }
     .action-row:hover { background: var(--accent-dim); }
-    .action-row.selected { background: var(--accent-dim); border-left: 2px solid var(--accent); padding-left: 6px; }
+    .action-row.selected { box-shadow: inset 0 0 0 1px var(--accent); }
     .action-row.running { opacity: 0.6; }
 
     .action-row-name {
@@ -259,6 +259,11 @@
       font-weight: 600;
       color: var(--text);
       min-width: 3em;
+    }
+    .action-row-lv {
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--muted);
     }
     .action-row-desc {
       font-size: 0.72rem;
@@ -306,7 +311,7 @@
       transition: background 0.15s, opacity 0.15s;
     }
 
-    #action-btn:hover:not(:disabled) { background: #4d3f7a; }
+    #action-btn:hover:not(:disabled) { background: #2a5580; }
     #action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
     /* プログレスバーはメインパネルの下端 */
@@ -430,7 +435,7 @@
       transition: background 0.15s, opacity 0.15s;
     }
 
-    .story-btn:hover { background: #4d3f7a; }
+    .story-btn:hover { background: #2a5580; }
     .story-btn.locked {
       background: none;
       color: var(--muted);
@@ -553,7 +558,7 @@
       flex-direction: column;
       gap: 0.3rem;
     }
-    .story-next-btn:hover { background: #4d3f7a; }
+    .story-next-btn:hover { background: #2a5580; }
 
     .memory-cost-item {
       display: flex;
@@ -637,7 +642,7 @@
       color: var(--accent);
       cursor: pointer;
     }
-    .story-title-reveal-btn:hover { background: #4d3f7a; }
+    .story-title-reveal-btn:hover { background: #2a5580; }
 
     .story-nav {
       display: flex;
@@ -727,7 +732,7 @@
       transition: background 0.15s;
     }
 
-    #tutorial-btn:hover { background: #4d3f7a; }
+    #tutorial-btn:hover { background: #2a5580; }
 
     @keyframes blink {
       0%, 100% { opacity: 1; }
@@ -807,7 +812,7 @@
       transition: background 0.15s;
     }
 
-    .story-end-btn:hover { background: #4d3f7a; }
+    .story-end-btn:hover { background: #2a5580; }
     .story-end-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── フッタータブ ── */
@@ -1282,7 +1287,7 @@
       <div id="resource-list"></div>
     </div>
     <div id="view-stories" class="sub-view">
-      <div class="sub-title story-list-title">記憶</div>
+      <div class="sub-title story-list-title">失われた記憶</div>
       <div id="story-list"></div>
     </div>
     <div id="view-chars" class="sub-view">

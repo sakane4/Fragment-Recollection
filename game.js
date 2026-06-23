@@ -4,35 +4,36 @@ import { STORIES, getCostForParagraph } from './stories.js';
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
 const REWARD_TABLES = {
-  fragment_fixed: (state, locationLv) => [
-    { resource: 'fragment', amount: 10 + state.worldLv * 2 + locationLv * 3 },
+  fragment_fixed: (state, locationLv, actionLv) => [
+    { resource: 'fragment', amount: 10 + state.worldLv * 2 + locationLv * 3 + actionLv * 2 },
   ],
-  fragment_random: (state, locationLv) => [
-    { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2 + locationLv, minMs: 4000, maxMs: 9000 },
+  fragment_random: (state, locationLv, actionLv) => [
+    { resource: 'fragment', minAmount: 1 + state.worldLv, maxAmount: 3 + state.worldLv * 2 + locationLv + actionLv, minMs: 4000, maxMs: 9000 },
   ],
   // はじまりの森 — 共通ランダム報酬（全行動に適用）
   forest_common_random: () => [
     { resource: 'forest_voice', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
   ],
   // はじまりの森 — 行動別ランダム報酬
-  forest_explore_random: (_state, locationLv) => [
-    { resource: 'forest_voice', minAmount: 1, maxAmount: locationLv >= 2 ? 3 : 2, minMs: 10000, maxMs: 20000 },
+  forest_explore_random: (_state, locationLv, actionLv) => [
+    { resource: 'forest_voice', minAmount: 1, maxAmount: (locationLv >= 2 ? 3 : 2) + actionLv, minMs: 10000, maxMs: 20000 },
   ],
-  forest_gather_random: (_state, locationLv) => [
-    { resource: 'herb',     minAmount: 1, maxAmount: 3, minMs: 4000, maxMs: 9000 },
-    { resource: 'fragment', minAmount: 1, maxAmount: 2, minMs: 5000, maxMs: 12000 },
+  forest_gather_random: (_state, locationLv, actionLv) => [
+    { resource: 'herb',     minAmount: 1, maxAmount: 3 + actionLv, minMs: 4000, maxMs: 9000 },
+    { resource: 'fragment', minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
     ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 20000 }] : []),
   ],
 };
 
 // テーブル名 → 展開済み配列を返すヘルパー
-function resolveTable(tableNameOrArray, locationId) {
+function resolveTable(tableNameOrArray, locationId, actionId) {
   if (!tableNameOrArray) return [];
   const names = Array.isArray(tableNameOrArray) ? tableNameOrArray : [tableNameOrArray];
   const locationLv = state.LocationLv?.[locationId] ?? 0;
+  const actionLv = state.ActionLv?.[actionId] ?? 0;
   return names.flatMap(name => {
     const fn = REWARD_TABLES[name];
-    return fn ? fn(state, locationLv) : [];
+    return fn ? fn(state, locationLv, actionLv) : [];
   });
 }
 
@@ -149,6 +150,15 @@ const WORLD_LV_THRESHOLDS = [
   1200,  // Lv 4 → 5
 ];
 
+// 行動レベル(ActionLv)の閾値(仮値)。実行回数の累計でレベルアップ。LocationLvとは別管理。
+const ACTION_LV_THRESHOLDS = [
+  10,   // Lv 0 → 1
+  30,   // Lv 1 → 2
+  60,   // Lv 2 → 3
+  100,  // Lv 3 → 4
+  150,  // Lv 4 → 5
+];
+
 const INITIAL_STATE = {
   resources: {
     fragment: 0,
@@ -182,6 +192,8 @@ const INITIAL_STATE = {
   worldLv: 0,
   totalFragments: 0,
   LocationLv: {},
+  actionCount: {},
+  ActionLv: {},
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -231,6 +243,20 @@ function _addTotalFragments(amount) {
   }
   state = { ...state, totalFragments: newTotal, worldLv: newLv };
   return newLv;
+}
+
+// 行動の実行回数を加算し、ActionLvアップを判定する
+function _addActionCount(actionId) {
+  const newCount = (state.actionCount[actionId] ?? 0) + 1;
+  let newLv = state.ActionLv[actionId] ?? 0;
+  while (newLv < ACTION_LV_THRESHOLDS.length && newCount >= ACTION_LV_THRESHOLDS[newLv]) {
+    newLv++;
+  }
+  state = {
+    ...state,
+    actionCount: { ...state.actionCount, [actionId]: newCount },
+    ActionLv: { ...state.ActionLv, [actionId]: newLv },
+  };
 }
 
 function addResources(resource, amount) {
@@ -318,7 +344,7 @@ let _randomRewardTimers = [];
 let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null };
 
 function scheduleRandomRewards(action, onReward) {
-  const allRandom = [...resolveTable(action.rewardTableRandom, action.locationId), ...(action.randomRewards ?? [])];
+  const allRandom = [...resolveTable(action.rewardTableRandom, action.locationId, action.id), ...(action.randomRewards ?? [])];
   if (allRandom.length === 0) return;
 
   for (const reward of allRandom) {
@@ -449,7 +475,7 @@ function completeAction(actionId, onComplete) {
 
   const newResources = { ...state.resources };
   const multiplier = state.activeCompanions.length > 0 ? 2 : 1;
-  const allRewards = [...resolveTable(action.rewardTable, action.locationId), ...(action.rewards ?? [])];
+  const allRewards = [...resolveTable(action.rewardTable, action.locationId, action.id), ...(action.rewards ?? [])];
   let fragmentsGained = 0;
   for (const reward of allRewards) {
     const gained = reward.amount * multiplier;
@@ -506,6 +532,7 @@ function completeAction(actionId, onComplete) {
   const prevLv = state.worldLv;
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
   const lvedUp = state.worldLv > prevLv;
+  _addActionCount(actionId);
   saveToStorage(state);
   notify();
   const result = { discovered, allRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null };
@@ -608,6 +635,8 @@ function init() {
     worldLv: saved.worldLv ?? INITIAL_STATE.worldLv,
     totalFragments: saved.totalFragments ?? INITIAL_STATE.totalFragments,
     LocationLv: saved.LocationLv ?? INITIAL_STATE.LocationLv,
+    actionCount: saved.actionCount ?? INITIAL_STATE.actionCount,
+    ActionLv: saved.ActionLv ?? INITIAL_STATE.ActionLv,
   };
 
   if (state.activeAction) {
@@ -721,4 +750,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

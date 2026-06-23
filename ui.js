@@ -921,7 +921,12 @@ function renderActionList() {
 
       const name = document.createElement('span');
       name.className = 'action-row-name';
+      const actionLv = state.ActionLv?.[action.id] ?? 0;
       name.textContent = action.label;
+      const lvTag = document.createElement('span');
+      lvTag.className = 'action-row-lv';
+      lvTag.textContent = ` Lv${actionLv}`;
+      name.appendChild(lvTag);
 
       const desc = document.createElement('span');
       desc.className = 'action-row-desc';
