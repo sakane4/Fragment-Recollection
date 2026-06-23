@@ -1156,7 +1156,7 @@ function _buildCompanionDetail(id, state) {
   const equip = document.createElement('div');
   equip.className = 'companion-detail-section';
   const equippedItem = state.companionEquipment?.[id] ?? null;
-  const equipLabel = equippedItem ? (RESOURCE_LABELS[equippedItem] ?? equippedItem) : '未設定';
+  const equipLabel = equippedItem ? (RESOURCE_LABELS[equippedItem] ?? equippedItem) : 'なにも持っていない…';
   equip.innerHTML = `<div class="companion-detail-label">持ち物</div>`;
   const equipBtn = document.createElement('button');
   equipBtn.className = 'companion-equip-btn';
