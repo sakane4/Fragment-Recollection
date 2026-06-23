@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, getLocationLvCap, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
@@ -706,8 +706,10 @@ const _lvupState = {}; // { [locationId]: { progress, consumed } }
 function _renderLocationPopup(location) {
   const state = getState();
   const lv = state.LocationLv?.[location.id] ?? 0;
+  const cap = getLocationLvCap();
   const isMax = lv >= LOCATION_LV_MAX;
-  const cost = isMax ? null : LOCATION_LV_COSTS[lv];
+  const atWorldCap = !isMax && lv >= cap;
+  const cost = (isMax || atWorldCap) ? null : LOCATION_LV_COSTS[lv];
   const have = state.resources.fragment ?? 0;
 
   document.getElementById('location-popup-name').textContent = location.label;
@@ -717,13 +719,22 @@ function _renderLocationPopup(location) {
     isMax ? `Lv ${lv}  (MAX)` : `Lv ${lv}`;
 
   const btn = document.getElementById('location-popup-lvup-btn');
+  const haveEl = document.getElementById('location-popup-lvup-have');
+  btn.classList.remove('capped');
   if (isMax) {
     btn.hidden = true;
+    haveEl.textContent = '';
+  } else if (atWorldCap) {
+    // worldLvが足りずレベルアップ不可。ボタン内にメッセージを表示
+    btn.hidden = false;
+    btn.classList.add('capped');
+    haveEl.textContent = '';
+    btn.innerHTML = `<span class="lvup-btn-capped">今はこれ以上再生できない...</span>`;
   } else {
     btn.hidden = false;
     btn.disabled = false;
     const label = RESOURCE_LABELS['fragment'] ?? 'フラグメント';
-    document.getElementById('location-popup-lvup-have').textContent = `所持数：${have}`;
+    haveEl.textContent = `所持数：${have}`;
     btn.innerHTML =
       `<span class="lvup-btn-label">Lv${lv + 1} </span>` +
       `<span class="lvup-btn-cost">${label}<span class="lvup-btn-ratio">${have} / ${cost}</span></span>`;
@@ -774,6 +785,7 @@ function showLocationPopup(location, btnEl) {
   const FILL_DURATION = 2500;
 
   function startFill() {
+    if (btn.classList.contains('capped')) return;
     if (btn.classList.contains('ready') || _raf) return;
     _lastTime = null;
     function tick(now) {

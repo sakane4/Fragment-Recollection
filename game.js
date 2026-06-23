@@ -708,9 +708,15 @@ function revealStoryTitle(storyId) {
   notify();
 }
 
+// LocationLvの上限。worldLvが天井になる（worldLv0なら0、最大はLOCATION_LV_MAX=5）
+function getLocationLvCap() {
+  return Math.min(LOCATION_LV_MAX, state.worldLv);
+}
+
 function levelUpLocation(locationId, prepaid = 0) {
   const currentLv = state.LocationLv?.[locationId] ?? 0;
   if (currentLv >= LOCATION_LV_MAX) return { ok: false, reason: 'max_level' };
+  if (currentLv >= getLocationLvCap()) return { ok: false, reason: 'world_lv_cap' };
   const cost = LOCATION_LV_COSTS[currentLv];
   const remaining = cost - prepaid;
   if ((state.resources.fragment ?? 0) < remaining) return { ok: false, reason: 'insufficient_resources' };
@@ -784,4 +790,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
