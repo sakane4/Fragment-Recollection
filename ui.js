@@ -6,6 +6,8 @@ import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
+const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
+
 const els = {
   resourceList: document.getElementById('resource-list'),
   actionPickerBtn: document.getElementById('action-picker-btn'),
@@ -65,6 +67,26 @@ function resourceLog(resource, amount) {
   const label = RESOURCE_LABELS[resource] ?? resource;
   const unit = RESOURCE_UNITS[resource] ?? '';
   return `${resourceSpan(resource, label)} を ${amount}${unit} 見つけた`;
+}
+
+function formatCostLabel(costs) {
+  return costs.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+}
+
+// 解放済み段落数(unlockedParas)から「表示可能なページ数」を算出
+function computeRevealedPages(pages, unlockedParas) {
+  let revealedPages = 1;
+  let cumOffset = 0;
+  for (let p = 0; p < pages.length - 1; p++) {
+    cumOffset += pages[p].length;
+    if (unlockedParas >= cumOffset) revealedPages++;
+    else break;
+  }
+  return revealedPages;
+}
+
+function companionLvTagHtml(level) {
+  return level > 0 ? ` <span class="companion-lv">Lv ${level}</span>` : '';
 }
 
 // ── ユーティリティ ──
@@ -168,7 +190,7 @@ async function openStory(storyId, { prevProgress } = {}) {
   _storyPageCounts[storyId] = pages.reduce((s, p) => s + p.length, 0);
 
   const _titleRevealed = !!(getState().titleRevealed ?? {})[storyId];
-  _setViewerTitle(_titleRevealed ? story.title : (story.lockedTitle ?? 'あいまいな記憶'));
+  _setViewerTitle(_titleRevealed ? story.title : (story.lockedTitle ?? DEFAULT_LOCKED_TITLE));
   els.storyOverlay.classList.add('open');
   pauseLog();
   renderViewerBody(getState());
@@ -211,7 +233,7 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
 
   const currentParas = pages[_viewerCurrentPage] ?? [];
   const currentCost = getCostForParagraph(story, unlockedParas);
-  const costLabel = currentCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+  const costLabel = formatCostLabel(currentCost);
   const isNew = (idx) => idx >= _viewerFadeUpTo;
 
   let shownCount = 0;
@@ -278,7 +300,7 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     if (onLastPage) {
       const revealBtn = document.createElement('button');
       revealBtn.className = 'story-title-reveal-btn';
-      revealBtn.textContent = `「${story.lockedTitle ?? 'あいまいな記憶'}」を思い出す`;
+      revealBtn.textContent = `「${story.lockedTitle ?? DEFAULT_LOCKED_TITLE}」を思い出す`;
       revealBtn.addEventListener('click', () => {
         revealStoryTitle(_viewerStoryId);
       });
@@ -296,17 +318,10 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   const _sv = STORIES[_viewerStoryId];
   if (_sv) {
     const _tr = !!(_st.titleRevealed ?? {})[_viewerStoryId];
-    _setViewerTitle(_tr ? _sv.title : (_sv.lockedTitle ?? 'あいまいな記憶'));
+    _setViewerTitle(_tr ? _sv.title : (_sv.lockedTitle ?? DEFAULT_LOCKED_TITLE));
   }
 
-  // 解放済み段落数から「表示可能なページ数」を算出
-  let revealedPages = 1;
-  let cumOffset = 0;
-  for (let p = 0; p < totalPages - 1; p++) {
-    cumOffset += pages[p].length;
-    if (unlockedParas >= cumOffset) revealedPages++;
-    else break;
-  }
+  const revealedPages = computeRevealedPages(pages, unlockedParas);
 
   const isLastRevealed = _viewerCurrentPage === revealedPages - 1;
 
@@ -351,11 +366,7 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
       nextLabel.addEventListener('click', () => {
         const st = getState();
         const up = st.storyProgress[_viewerStoryId] ?? 0;
-        let rp = 1, c = 0;
-        for (let p = 0; p < _viewerPages.length - 1; p++) {
-          c += _viewerPages[p].length;
-          if (up >= c) rp++; else break;
-        }
+        const rp = computeRevealedPages(_viewerPages, up);
         if (_viewerCurrentPage < rp - 1) {
           _viewerCurrentPage++;
           _viewerPrevUnlockedPages = up;
@@ -416,7 +427,7 @@ function storyIsVisible(story, state) {
 function _buildStoryItem(story, state) {
   const unlocked = state.unlockedStories.includes(story.id);
     const appeared = !unlocked && (state.appearedStories ?? []).includes(story.id);
-    const costLabel = story.unlockCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+    const costLabel = formatCostLabel(story.unlockCost);
 
     const item = document.createElement('div');
     item.className = 'story-item';
@@ -430,7 +441,7 @@ function _buildStoryItem(story, state) {
       title.textContent = story.title;
     } else {
       title.className = 'story-item-title locked';
-      title.textContent = story.lockedTitle ?? 'あいまいな記憶';
+      title.textContent = story.lockedTitle ?? DEFAULT_LOCKED_TITLE;
     }
     info.appendChild(title);
 
@@ -442,7 +453,7 @@ function _buildStoryItem(story, state) {
       sub.textContent = total ? `${progress} / ${total}` : progress > 0 ? `${progress} / ?` : '未読';
       if (total && progress < total) {
         const nextCost = getCostForParagraph(story, progress);
-        const nextCostLabel = nextCost.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+        const nextCostLabel = formatCostLabel(nextCost);
         sub.textContent += `  ·  ${nextCostLabel}`;
       }
     } else {
@@ -580,7 +591,7 @@ function render(state) {
     if (!prevAppearedStories.includes(id)) {
       const story = STORIES[id];
       if (!story) continue;
-      addLog(`【記憶】「${story.lockedTitle ?? 'あいまいな記憶'}」を思い出せそうだ`, true);
+      addLog(`【記憶】「${story.lockedTitle ?? DEFAULT_LOCKED_TITLE}」を思い出せそうだ`, true);
     }
   }
   prevAppearedStories = [...(state.appearedStories ?? [])];
@@ -999,11 +1010,7 @@ function initStoryViewer() {
       // revealedPages を再計算
       const state = getState();
       const unlockedParas = state.storyProgress[_viewerStoryId] ?? 0;
-      let revealedPages = 1, cum = 0;
-      for (let p = 0; p < pages.length - 1; p++) {
-        cum += pages[p].length;
-        if (unlockedParas >= cum) revealedPages++; else break;
-      }
+      const revealedPages = computeRevealedPages(pages, unlockedParas);
       if (_viewerCurrentPage < revealedPages - 1) {
         _viewerCurrentPage++;
         _saveLastPage(_viewerStoryId, _viewerCurrentPage);
@@ -1248,7 +1255,7 @@ function _buildCompanionDetail(id, state) {
       const progress = state.storyProgress[s.id] ?? 0;
       const fullyRead = !!(state.titleRevealed ?? {})[s.id];
       const total = _storyPageCounts[s.id] ?? s.pageCount;
-      const title = fullyRead ? s.title : (s.lockedTitle ?? 'あいまいな記憶');
+      const title = fullyRead ? s.title : (s.lockedTitle ?? DEFAULT_LOCKED_TITLE);
       const unlocked = state.unlockedStories.includes(s.id);
 
       const line = document.createElement('div');
@@ -1302,7 +1309,7 @@ function renderCharTab(state) {
     const card = document.createElement('div');
     card.className = 'companion-card companion-card--active';
     const lv = state.ELv?.[id] ?? 0;
-    const lvTag = lv > 0 ? ` <span class="companion-lv">Lv ${lv}</span>` : '';
+    const lvTag = companionLvTagHtml(lv);
     card.innerHTML = `<div class="companion-name">${data.name}${lvTag}</div><div class="companion-desc">${data.desc}</div>`;
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--remove';
@@ -1365,7 +1372,7 @@ function renderCharTab(state) {
     const card = document.createElement('div');
     card.className = 'companion-card';
     const lv2 = state.ELv?.[id] ?? 0;
-    const lvTag2 = lv2 > 0 ? ` <span class="companion-lv">Lv ${lv2}</span>` : '';
+    const lvTag2 = companionLvTagHtml(lv2);
     card.innerHTML = `<div class="companion-name">${data.name}${lvTag2}</div><div class="companion-desc">${data.desc}</div>`;
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--add';

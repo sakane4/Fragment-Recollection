@@ -32,6 +32,7 @@
       --accent: #1e90ff;
       --accent-dim: #1c3a5e;
       --accent-border: #3a6491;
+      --accent-hover: #2a5580;
     }
 
     html, body {
@@ -311,7 +312,7 @@
       transition: background 0.15s, opacity 0.15s;
     }
 
-    #action-btn:hover:not(:disabled) { background: #2a5580; }
+    #action-btn:hover:not(:disabled) { background: var(--accent-hover); }
     #action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
     /* プログレスバーはメインパネルの下端 */
@@ -435,7 +436,7 @@
       transition: background 0.15s, opacity 0.15s;
     }
 
-    .story-btn:hover { background: #2a5580; }
+    .story-btn:hover { background: var(--accent-hover); }
     .story-btn.locked {
       background: none;
       color: var(--muted);
@@ -558,7 +559,7 @@
       flex-direction: column;
       gap: 0.3rem;
     }
-    .story-next-btn:hover { background: #2a5580; }
+    .story-next-btn:hover { background: var(--accent-hover); }
 
     .memory-cost-item {
       display: flex;
@@ -642,7 +643,7 @@
       color: var(--accent);
       cursor: pointer;
     }
-    .story-title-reveal-btn:hover { background: #2a5580; }
+    .story-title-reveal-btn:hover { background: var(--accent-hover); }
 
     .story-nav {
       display: flex;
@@ -732,7 +733,7 @@
       transition: background 0.15s;
     }
 
-    #tutorial-btn:hover { background: #2a5580; }
+    #tutorial-btn:hover { background: var(--accent-hover); }
 
     @keyframes blink {
       0%, 100% { opacity: 1; }
@@ -812,7 +813,7 @@
       transition: background 0.15s;
     }
 
-    .story-end-btn:hover { background: #2a5580; }
+    .story-end-btn:hover { background: var(--accent-hover); }
     .story-end-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── フッタータブ ── */
