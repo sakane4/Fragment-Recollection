@@ -175,6 +175,7 @@ const INITIAL_STATE = {
   unlockedCompanions: [],
   activeCompanions: [],
   ELv: {},
+  companionEquipment: {},
   discoveredResources: ['fragment'],
   appearedStories: [],
   worldLv: 0,
@@ -595,6 +596,7 @@ function init() {
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
     activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
     ELv:  saved.ELv  ?? INITIAL_STATE.ELv,
+    companionEquipment: saved.companionEquipment ?? INITIAL_STATE.companionEquipment,
     discoveredResources: saved.discoveredResources ?? INITIAL_STATE.discoveredResources,
     appearedStories: saved.appearedStories ?? INITIAL_STATE.appearedStories,
     logSt2Done: saved.logSt2Done ?? INITIAL_STATE.logSt2Done,
@@ -662,6 +664,12 @@ function setCompanionLevel(companionId, level) {
   notify();
 }
 
+function setCompanionEquipment(companionId, itemId) {
+  state = { ...state, companionEquipment: { ...state.companionEquipment, [companionId]: itemId } };
+  saveToStorage(state);
+  notify();
+}
+
 function levelUpLocation(locationId, prepaid = 0) {
   const currentLv = state.LocationLv?.[locationId] ?? 0;
   if (currentLv >= LOCATION_LV_MAX) return { ok: false, reason: 'max_level' };
@@ -704,4 +712,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, setActiveCompanion, resetTutorial, jumpToLogSt };

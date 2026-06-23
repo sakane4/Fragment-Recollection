@@ -778,6 +778,56 @@
       z-index: 200;
     }
     .location-popup.open { display: block; }
+    .equip-popup {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+    .equip-popup.open { display: flex; }
+    .equip-popup-inner {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      min-width: 200px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .equip-popup-title {
+      font-size: 0.85rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .equip-popup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .equip-popup-item {
+      text-align: left;
+      font-size: 0.85rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .equip-popup-item:hover { background: var(--accent-dim); }
+    .companion-equip-btn {
+      font-size: 0.78rem;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      align-self: flex-start;
+    }
+    .companion-equip-btn:hover { background: var(--accent-dim); }
     .location-popup-inner {
       position: absolute;
       background: var(--panel);
@@ -1279,6 +1329,14 @@
       <div class="location-popup-desc" id="location-popup-desc"></div>
       <div class="lvup-have-label" id="location-popup-lvup-have"></div>
       <button class="location-popup-lvup-btn" id="location-popup-lvup-btn"></button>
+    </div>
+  </div>
+
+  <!-- 持ち物選択ポップアップ -->
+  <div id="equip-popup" class="equip-popup">
+    <div class="equip-popup-inner">
+      <div class="equip-popup-title">持ち物を選択</div>
+      <div id="equip-popup-list" class="equip-popup-list"></div>
     </div>
   </div>
 
