@@ -816,6 +816,28 @@
     .story-end-btn:hover { background: var(--accent-hover); }
     .story-end-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    .story-choice-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.4rem;
+    }
+    .story-choice-btn {
+      min-width: 60%;
+      padding: 0.45rem 1.2rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .story-choice-btn:hover { background: var(--accent-hover); }
+    .story-choice-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
     /* ── フッタータブ ── */
     #footer {
       display: flex;

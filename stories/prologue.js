@@ -3,7 +3,7 @@ export default {
   title: '再生の書',
   lockedTitle: 'あいまいな記憶',
   pageCount: 3,
-  showCondition: { resource: 'fragment', amount: 50 },
+  showCondition: { resource: 'fragment', amount: 10 },
   unlockCost: [{ resource: 'fragment', amount: 10 }],
   pageCost: [{ resource: 'fragment', amount: 5 }],
   body: `その世界は終わってしまった。

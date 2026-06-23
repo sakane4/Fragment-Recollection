@@ -1,9 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, getLocationLvCap, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
@@ -32,6 +32,24 @@ const RESOURCE_LABELS = {
   herb:            '薬草',
   forest_voice:    '木々の声',
   branch:          '木の枝',
+  // 黄昏の旧校舎
+  old_paint:          '古びた絵具',
+  torn_page:          '破れたページ',
+  art_room_key:       '旧美術室の鍵',
+  // 翼竜の都 レンリル
+  wyvern_claw:        '翼竜の爪',
+  wyvern_scale:       '翼竜の鱗',
+  melon_keychain:     'メロンパンのキーホルダー',
+  // 魔界王都 メフィスト
+  spellbook_page:     '魔術書のページ',
+  magic_circle_shard: '魔法陣の欠片',
+  astard_fragment:    'アスタード文字の破片',
+  sky_compass:        '天空の羅針盤',
+  // 王立騎士団本部
+  subjugation_report: '討伐報告書',
+  old_armband:        '古びた腕章',
+  chipped_insignia:   '欠けた記章',
+  polished_sheath:    'よく磨かれた鞘',
 };
 
 const RESOURCE_COLORS = {
@@ -44,6 +62,20 @@ const RESOURCE_COLORS = {
   herb:            '#a6e3a1',
   forest_voice:    '#a8d8a8',
   branch:          '#c8a97e',
+  old_paint:          '#e0a96d',
+  torn_page:          '#d8cba0',
+  art_room_key:       '#f5c542',
+  wyvern_claw:        '#c0c4cc',
+  wyvern_scale:       '#7fb0c8',
+  melon_keychain:     '#f5c542',
+  spellbook_page:     '#b89cd8',
+  magic_circle_shard: '#a98cd8',
+  astard_fragment:    '#9a8cc8',
+  sky_compass:        '#f5c542',
+  subjugation_report: '#d8cba0',
+  old_armband:        '#b0926a',
+  chipped_insignia:   '#c0c4cc',
+  polished_sheath:    '#f5c542',
 };
 
 const RESOURCE_UNITS = {
@@ -578,7 +610,7 @@ function render(state) {
         setTimeout(() => {
           if (_storyLogPlaying) return;
           _isAutoRestart = true;
-          startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler() });
+          startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler(), onComplete: (result) => _handleActionComplete(selectedActionId, result) });
         }, 0);
       }
     }
@@ -640,6 +672,7 @@ renderStoryList(state);
     unlockLocation,
     unlockAction,
     unlockGuide,
+    showDiscovery,
     forceAppearStory,
   });
 
@@ -868,25 +901,43 @@ function _startActionById(actionId) {
   if (!_storyLogPlaying) startAction(actionId, {
     onRandomReward: makeRandomRewardHandler(),
     onCompanionRandomReward: makeCompanionRandomRewardHandler(),
-    onComplete: ({ allRewards, companionRewards, worldLvUp }) => {
-      const act = ACTIONS[actionId];
-      const rewardsHtml = (allRewards ?? []).map(r => {
-        const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-        return `${resourceSpan(r.resource, label)} +${r.amount}`;
-      }).join(', ');
-      const companionRewardsHtml = (companionRewards ?? []).map(({ resource, amount }) => {
-        const label = RESOURCE_LABELS[resource] ?? resource;
-        return `<span class="log-companion-reward">${resourceSpan(resource, label)} +${amount}</span>`;
-      }).join(', ');
-      const fullRewardsHtml = companionRewardsHtml ? `${rewardsHtml} / ${companionRewardsHtml}` : rewardsHtml;
-      addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewardsHtml}`, true, true);
-      if (worldLvUp != null) {
-        const next = WORLD_LV_THRESHOLDS[worldLvUp];
-        const nextStr = next != null ? `（次: ${next}lg）` : '（最大）';
-        addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
-      }
-    },
+    onComplete: (result) => _handleActionComplete(actionId, result),
   });
+}
+
+function _handleActionComplete(actionId, result) {
+  const { allRewards, companionRewards, worldLvUp, rareDrop } = result;
+  const act = ACTIONS[actionId];
+
+  if (act?.stub) {
+    addLog(`【${act.label}】はまだ準備中だ・・・`, true);
+    return;
+  }
+
+  const rewardsHtml = (allRewards ?? []).map(r => {
+    const label = RESOURCE_LABELS[r.resource] ?? r.resource;
+    return `${resourceSpan(r.resource, label)} +${r.amount}`;
+  }).join(', ');
+  const companionRewardsHtml = (companionRewards ?? []).map(({ resource, amount }) => {
+    const label = RESOURCE_LABELS[resource] ?? resource;
+    return `<span class="log-companion-reward">${resourceSpan(resource, label)} +${amount}</span>`;
+  }).join(', ');
+  const fullRewardsHtml = companionRewardsHtml ? `${rewardsHtml} / ${companionRewardsHtml}` : rewardsHtml;
+  addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewardsHtml}`, true, true);
+
+  if (worldLvUp != null) {
+    const next = WORLD_LV_THRESHOLDS[worldLvUp];
+    const nextStr = next != null ? `（次: ${next}lg）` : '（最大）';
+    addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
+  }
+
+  // レアドロップ → 同行者解放（加入イベント本文は今後実装）
+  if (rareDrop) {
+    const itemLabel = RESOURCE_LABELS[rareDrop.resource] ?? rareDrop.resource;
+    const compName = COMPANION_DATA[rareDrop.companionId]?.name ?? rareDrop.companionId;
+    addLog(`【！】${resourceSpan(rareDrop.resource, itemLabel)} を見つけた`, true, true);
+    addLog(`【同行】${compName} が仲間になった`, true);
+  }
 }
 
 function renderActionList() {
@@ -1130,6 +1181,43 @@ function startLogSt_4() {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
     },
   });
+}
+
+let _choicePending = false;
+
+function showDiscovery() {
+  // 再帰的な render（例: 同フレームの unlockGuide → notify）による多重起動を防ぐ
+  if (_choicePending) return;
+  const pending = getPendingDiscovery(getState());
+  if (!pending) return;
+
+  _choicePending = true;
+  _storyLogPlaying = true;
+  pauseAction();
+
+  let cleanup = null;
+  const finish = (chosenId) => {
+    _choicePending = false;
+    _onLogStComplete(
+      () => { if (cleanup) { cleanup(); cleanup = null; } },
+      () => { resolveDiscovery(chosenId); },
+    );
+  };
+
+  if (pending.kind === 'fixed') {
+    cleanup = runLocationChoice(els.mainPanel, {
+      prompt: '高くそびえる白亜の塔が見えてきた・・・',
+      options: [{ id: pending.locationId, label: `${DISCOVERY_LABELS[pending.locationId] ?? '塔都'}へ向かう` }],
+      onPick: finish,
+    });
+  } else {
+    const options = pending.options.map(id => ({ id, label: DISCOVERY_LABELS[id] ?? id }));
+    cleanup = runLocationChoice(els.mainPanel, {
+      prompt: '新しい場所が見つかりそうだ・・・',
+      options,
+      onPick: finish,
+    });
+  }
 }
 
 // ── タブトースト ──

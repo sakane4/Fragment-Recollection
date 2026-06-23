@@ -4,6 +4,7 @@
 // storyLogPlaying フラグは ctx 経由で渡す
 
 import { STORIES } from './stories.js';
+import { getPendingDiscovery } from './game.js';
 
 export const UNLOCK_RULES = [
 
@@ -56,6 +57,15 @@ export const UNLOCK_RULES = [
       !state.guideUnlocked,
     action: (ctx) => ctx.unlockGuide(),
   },
+  {
+    // ログストーリー004以降 ＆ 再生された世界(wherever)のLvが各ステップの閾値に達したら発見イベントを提示
+    // repeatable: ステップが進むたびに次の閾値で再提示される（詳細スケジュールは game.js）
+    id: 'discover_location_choice',
+    repeatable: true,
+    requireViewerClosed: true,
+    condition: (state) => getPendingDiscovery(state) != null,
+    action: (ctx) => ctx.showDiscovery(),
+  },
 
   // ── 記憶の出現 ──
   // showCondition を持つ物語は stories.js のデータから自動生成
@@ -80,7 +90,7 @@ export function evaluateRules(state, ctx) {
     if (_fired.has(rule.id)) continue;
     if (rule.requireViewerClosed && ctx.viewerOpen) continue;
     if (rule.condition(state)) {
-      _fired.add(rule.id);
+      if (!rule.repeatable) _fired.add(rule.id);
       rule.action(ctx);
     }
   }

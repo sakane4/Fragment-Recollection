@@ -88,21 +88,101 @@ const LOCATION_DEFS = [
     ],
   },
   {
-    id: 'touto',
-    label: '塔都',
-    description: 'どこまでも空へ伸びる、白亜の塔をとりまく街',
+    id: 'kyusha',
+    label: '黄昏の旧校舎',
+    description: '誰もいない、夕暮れの校舎。懐かしくも知らない記憶の匂いがする。',
     actions: [
       {
-        id: 'touto_explore',
+        id: 'kyusha_explore',
         label: '探索',
-        description: '塔都の街路を歩く。何かが見つかるかもしれない。',
+        description: '旧校舎の中を歩き回る。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: 'fragment_random',
+        randomRewards: [
+          { resource: 'old_paint', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
+          { resource: 'torn_page', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
+        ],
+        rareDrop: { resource: 'art_room_key', companionId: 'shizuku', chance: 0.05 },
         rewards: [],
-        randomRewards: [],
         discoveries: [],
       },
+    ],
+  },
+  {
+    id: 'renril',
+    label: '翼竜の都 レンリル',
+    description: '人と翼竜がともに暮らす空の街。',
+    actions: [
+      {
+        id: 'renril_explore',
+        label: '探索',
+        description: 'レンリルの街を歩く。',
+        duration: 20000,
+        rewardTable: 'fragment_fixed',
+        randomRewards: [
+          { resource: 'wyvern_claw', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
+          { resource: 'wyvern_scale', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
+        ],
+        rareDrop: { resource: 'melon_keychain', companionId: 'kaoru', chance: 0.05 },
+        rewards: [],
+        discoveries: [],
+      },
+    ],
+  },
+  {
+    id: 'mephisto',
+    label: '魔界王都 メフィスト',
+    description: '紫煙ただよう魔の都。魔術と禁書のにおい。',
+    actions: [
+      {
+        id: 'mephisto_explore',
+        label: '探索',
+        description: 'メフィストの路地を歩く。',
+        duration: 20000,
+        rewardTable: 'fragment_fixed',
+        randomRewards: [
+          { resource: 'spellbook_page', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
+          { resource: 'magic_circle_shard', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
+          { resource: 'astard_fragment', minAmount: 1, maxAmount: 1, minMs: 9000, maxMs: 20000 },
+        ],
+        rareDrop: { resource: 'sky_compass', companionId: 'yukika', chance: 0.05 },
+        rewards: [],
+        discoveries: [],
+      },
+    ],
+  },
+  {
+    id: 'knights',
+    label: '王立騎士団本部',
+    description: '規律と鋼の気配。騎士たちが行き交う本部。',
+    actions: [
+      {
+        id: 'knights_explore',
+        label: '探索',
+        description: '騎士団本部のまわりを調べる。',
+        duration: 20000,
+        rewardTable: 'fragment_fixed',
+        randomRewards: [
+          { resource: 'subjugation_report', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
+          { resource: 'old_armband', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
+          { resource: 'chipped_insignia', minAmount: 1, maxAmount: 1, minMs: 9000, maxMs: 20000 },
+        ],
+        rareDrop: { resource: 'polished_sheath', companionId: 'rabi', chance: 0.05 },
+        rewards: [],
+        discoveries: [],
+      },
+    ],
+  },
+  {
+    id: 'touto',
+    label: '塔都',
+    description: 'どこまでも空へ伸びる、白亜の塔をとりまく街。さまざまな施設がある。',
+    // 拠点エリア。以下4施設は現状スタブ（中身は今後実装：金貨経済・レリック・調査・宿屋休息）
+    actions: [
+      { id: 'touto_inn',     label: '宿屋 尻尾亭',   description: '料理がおいしい旅の宿で休む。（準備中）', duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
+      { id: 'touto_flower',  label: '花屋 竜の鱗',   description: '花屋を手伝い、金貨を得る。（準備中）',   duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
+      { id: 'touto_library', label: '塔都図書館',     description: '調査を行う。（準備中）',                 duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
+      { id: 'touto_antique', label: '骨董屋 リーリエ', description: '金貨でレリック（装備品）を買う。（準備中）', duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
     ],
   },
 ];
@@ -118,8 +198,82 @@ for (const loc of LOCATION_DEFS) {
 }
 
 // 場所レベルシステム
-const LOCATION_LV_MAX = 5;
-const LOCATION_LV_COSTS = [50, 150, 350, 700, 1200]; // Lv0→1, 1→2, ..., 4→5 のフラグメントコスト
+const LOCATION_LV_MAX = 25;
+// Lv n→n+1 のフラグメントコスト（計算式で自動生成・仮。最初の数段は旧値[50,150,350,...]とほぼ一致）
+const LOCATION_LV_COSTS = Array.from({ length: LOCATION_LV_MAX }, (_, n) => 50 * (n * n + n + 1));
+
+// ── 場所発見スケジュール ──
+// ログストーリー004以降、再生された世界(wherever)のLocationLvが各ステップの閾値に達すると発見イベントが起きる。
+// ステップ: 0=Lv5 序盤2択 / 1=Lv10 塔都(固定) / 2=Lv15 序盤の残り＋終盤の1/2抽選 / 3=Lv20 残り2つ / 4=Lv25 残り1つ
+// キャラはテーマで場所に固定: 旧校舎→シズク, レンリル→カオル, メフィスト→ユキカ, 騎士団本部→ラビ
+const DISCOVERY_EARLY = ['kyusha', 'renril'];
+const DISCOVERY_LATE = ['mephisto', 'knights'];
+const DISCOVERY_CHAR_LOCATIONS = [...DISCOVERY_EARLY, ...DISCOVERY_LATE];
+const DISCOVERY_STEP_LV = [5, 10, 15, 20, 25];
+const DISCOVERY_LABELS = {
+  kyusha:   '黄昏の旧校舎',
+  renril:   '翼竜の都 レンリル',
+  mephisto: '魔界王都 メフィスト',
+  knights:  '王立騎士団本部',
+  touto:    '塔都',
+};
+// 各場所を解放したとき同時に解放する行動
+const DISCOVERY_LOCATION_ACTIONS = {
+  kyusha:   ['kyusha_explore'],
+  renril:   ['renril_explore'],
+  mephisto: ['mephisto_explore'],
+  knights:  ['knights_explore'],
+  touto:    ['touto_inn', 'touto_flower', 'touto_library', 'touto_antique'],
+};
+
+// 指定ステップで提示する選択肢（まだ解放していない場所IDの配列）
+function getDiscoveryOptions(state, step) {
+  const unlocked = state.unlockedLocations ?? [];
+  const remaining = (ids) => ids.filter(id => !unlocked.includes(id));
+  if (step === 0) return remaining(DISCOVERY_EARLY);
+  if (step === 2) {
+    const earlyLeft = remaining(DISCOVERY_EARLY);
+    const late = state.discoveryLatePick ? remaining([state.discoveryLatePick]) : [];
+    return [...earlyLeft, ...late];
+  }
+  return remaining(DISCOVERY_CHAR_LOCATIONS); // step 3, 4
+}
+
+// いま発生すべき発見イベントを返す。なければ null
+// { step, kind: 'choice'|'fixed', options?: string[], locationId?: string }
+function getPendingDiscovery(state) {
+  if (!state.logSt4Done) return null;
+  const step = state.discoveryStep ?? 0;
+  if (step >= DISCOVERY_STEP_LV.length) return null;
+  if ((state.LocationLv?.['wherever'] ?? 0) < DISCOVERY_STEP_LV[step]) return null;
+  if (step === 1) return { step, kind: 'fixed', locationId: 'touto' };
+  const options = getDiscoveryOptions(state, step);
+  if (options.length === 0) return null;
+  return { step, kind: 'choice', options };
+}
+
+// 発見イベントを解決する：選んだ場所（固定時は'touto'）を解放し、ステップを進める
+function resolveDiscovery(chosenLocationId) {
+  const step = state.discoveryStep ?? 0;
+  const actions = DISCOVERY_LOCATION_ACTIONS[chosenLocationId] ?? [];
+  const newLocations = state.unlockedLocations.includes(chosenLocationId)
+    ? state.unlockedLocations
+    : [...state.unlockedLocations, chosenLocationId];
+  const newActions = [...state.unlockedActions];
+  for (const a of actions) if (!newActions.includes(a)) newActions.push(a);
+  // 塔都(step1)を解決した時点で、step2に出す終盤の場所を1/2で抽選・固定
+  let latePick = state.discoveryLatePick;
+  if (step === 1 && !latePick) latePick = DISCOVERY_LATE[Math.random() < 0.5 ? 0 : 1];
+  state = {
+    ...state,
+    unlockedLocations: newLocations,
+    unlockedActions: newActions,
+    discoveryStep: step + 1,
+    discoveryLatePick: latePick,
+  };
+  saveToStorage(state);
+  notify();
+}
 
 // 同行者ごとのアクション完了時固有報酬
 // amount は基本量（同行ボーナスの2倍乗算は適用しない）
@@ -141,14 +295,9 @@ const COMPANION_RANDOM_REWARDS = {
 };
 
 // 世界LVの閾値（フラグメント総獲得数）
-// インデックス i → Lv i+1 に上がるのに必要な累計数
-const WORLD_LV_THRESHOLDS = [
-  50,    // Lv 0 → 1
-  150,   // Lv 1 → 2
-  350,   // Lv 2 → 3
-  700,   // Lv 3 → 4
-  1200,  // Lv 4 → 5
-];
+// インデックス i → Lv i+1 に上がるのに必要な累計数（25段階・計算式で自動生成・仮）
+// 上限=worldLv のため、wherever を Lv25 まで上げる＝worldLv25 が必要。終盤の場所発見までの長い道のりを形成する
+const WORLD_LV_THRESHOLDS = Array.from({ length: 25 }, (_, n) => 50 * (n * n + n + 1));
 
 // 行動レベル(ActionLv)の閾値(仮値)。実行回数の累計でレベルアップ。LocationLvとは別管理。
 const ACTION_LV_THRESHOLDS = [
@@ -194,6 +343,8 @@ const INITIAL_STATE = {
   LocationLv: {},
   actionCount: {},
   ActionLv: {},
+  discoveryStep: 0,
+  discoveryLatePick: null,
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -496,6 +647,17 @@ function completeAction(actionId, onComplete) {
     }
   }
 
+  // レアドロップ判定（一度だけ・加入トリガー）
+  let rareDrop = null;
+  if (action.rareDrop) {
+    const { resource, companionId, chance } = action.rareDrop;
+    const alreadyHas = (state.resources[resource] ?? 0) > 0;
+    if (!alreadyHas && Math.random() < (chance ?? 0.05)) {
+      newResources[resource] = (newResources[resource] ?? 0) + 1;
+      rareDrop = { resource, companionId };
+    }
+  }
+
   // 発見判定
   const newLocations = [...state.unlockedLocations];
   const newActions = [...state.unlockedActions];
@@ -533,9 +695,13 @@ function completeAction(actionId, onComplete) {
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
   const lvedUp = state.worldLv > prevLv;
   _addActionCount(actionId);
+  // レアドロップで同行者を解放（加入イベント本文は今後実装、現状は解放のみ）
+  if (rareDrop && !state.unlockedCompanions.includes(rareDrop.companionId)) {
+    state = { ...state, unlockedCompanions: [...state.unlockedCompanions, rareDrop.companionId] };
+  }
   saveToStorage(state);
   notify();
-  const result = { discovered, allRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null };
+  const result = { discovered, allRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop };
   onComplete?.(result);
   return result;
 }
@@ -637,6 +803,8 @@ function init() {
     LocationLv: saved.LocationLv ?? INITIAL_STATE.LocationLv,
     actionCount: saved.actionCount ?? INITIAL_STATE.actionCount,
     ActionLv: saved.ActionLv ?? INITIAL_STATE.ActionLv,
+    discoveryStep: saved.discoveryStep ?? INITIAL_STATE.discoveryStep,
+    discoveryLatePick: saved.discoveryLatePick ?? INITIAL_STATE.discoveryLatePick,
   };
 
   if (state.activeAction) {
@@ -790,4 +958,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

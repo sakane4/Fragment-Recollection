@@ -348,4 +348,53 @@ const LOG_STORY_4_STEPS =parseScript(`
 
 function runLogSt_4(mainPanel, opts) { return runLogSt(LOG_STORY_4_STEPS, mainPanel, opts); }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4 };
+// ── 場所選択プロンプト ──
+// メインパネルに「新しい場所が見つかりそうだ・・・」とプロンプトを流し、
+// その下に場所候補ボタンを並べる。選択すると onPick(id) を呼ぶ。
+// options: [{ id, label }]
+// 戻り値: cleanup()（リスナー解除）
+function runLocationChoice(mainPanel, { prompt = '新しい場所が見つかりそうだ・・・', options = [], onPick } = {}) {
+  let tw = null;
+
+  function addEntry(cls) {
+    const el = document.createElement('div');
+    el.className = cls;
+    mainPanel.appendChild(el);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+    return el;
+  }
+
+  function handleClick() {
+    if (tw && !tw.done) tw.skip();
+  }
+  mainPanel.addEventListener('click', handleClick);
+
+  function cleanup() {
+    mainPanel.removeEventListener('click', handleClick);
+  }
+
+  const promptEl = addEntry('log-entry story-log center');
+  tw = typewriter(promptEl, prompt, {
+    speed: 55,
+    onDone: () => {
+      const wrap = addEntry('story-choice-wrap');
+      for (const opt of options) {
+        const btn = document.createElement('button');
+        btn.className = 'story-choice-btn';
+        btn.textContent = opt.label;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+          cleanup();
+          onPick?.(opt.id);
+        });
+        wrap.appendChild(btn);
+      }
+      mainPanel.scrollTop = mainPanel.scrollHeight;
+    },
+  });
+
+  return cleanup;
+}
+
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice };
