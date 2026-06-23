@@ -271,7 +271,12 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     }
   }
 
-  _viewerFadeUpTo = Math.max(_viewerFadeUpTo, unlockedParas);
+  // 同一アクション内で複数回 renderViewerBody が呼ばれても(例: 同行者Lvアップ通知による再レンダリング)
+  // 新規解放ブロックのフェード判定がブレないよう、更新を次フレームへ遅延させる
+  const _fadeTarget = Math.max(_viewerFadeUpTo, unlockedParas);
+  if (_fadeTarget !== _viewerFadeUpTo) {
+    setTimeout(() => { _viewerFadeUpTo = Math.max(_viewerFadeUpTo, _fadeTarget); }, 0);
+  }
   const _st = getState();
   const _sv = STORIES[_viewerStoryId];
   if (_sv) {
