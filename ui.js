@@ -167,18 +167,16 @@ function _loadLastPage(storyId) {
   } catch { return 0; }
 }
 
-async function openStory(storyId, { prevProgress } = {}) {
+function openStory(storyId, { prevProgress } = {}) {
   const story = STORIES[storyId];
   if (!story) return;
 
-  let pages;
-  try {
-    const res = await fetch(`stories/${storyId}.txt`);
-    const text = await res.text();
-    pages = parseStoryPages(text);
-    setStoryCostMap(storyId, parseStoryCostOverrides(text));
-  } catch {
-    addLog('【エラー】物語テキストの読み込みに失敗しました');
+  const text = story.body ?? '';
+  const pages = parseStoryPages(text);
+  setStoryCostMap(storyId, parseStoryCostOverrides(text));
+
+  if (pages.length === 0) {
+    addLog('【エラー】この記憶にはまだ本文がありません');
     return;
   }
 
