@@ -1001,9 +1001,36 @@
       border-radius: 6px;
       margin-bottom: 0.3rem;
       background: var(--panel);
+      cursor: pointer;
     }
     .companion-card--fixed {
       opacity: 0.6;
+      cursor: default;
+    }
+    .companion-detail {
+      margin: -0.3rem 0 0.3rem;
+      padding: 0.6rem 0.7rem;
+      border: 1px solid var(--accent-border);
+      border-top: none;
+      border-radius: 0 0 6px 6px;
+      background: var(--accent-dim);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .companion-detail-label {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-bottom: 0.15rem;
+    }
+    .companion-detail-body {
+      font-size: 0.78rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .companion-memory-line {
+      font-size: 0.78rem;
+      color: var(--text);
     }
     .companion-card--active {
       border-color: var(--accent-border);

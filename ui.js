@@ -1083,6 +1083,12 @@ function showTabToast(targetTabSelector, text) {
 }
 
 // ── 同行タブ描画 ──
+// 【暫定メモ・後で変わるかも】キャラ詳細は「にょきっと展開型」(一覧の行の下にアコーディオンで詳細を表示)の方針。
+// 詳細に載せる予定の項目:
+//   - プロフィール(記憶を解放するごとに少しずつアンロック・追加されていく想定)
+//   - 固有ドロップ品の説明
+//   - 装備品(とりあえず1個だけ)
+//   - 関連する記憶一覧(STORIES内のcompanionIdフィールドで絞り込んで取得できる、Lvアップ判定と同じ仕組みを再利用)
 const COMPANION_DATA = {
   yuya:  { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
   rabi:   { name: 'ラビ',   desc: '盲目の剣士。' },
@@ -1092,6 +1098,46 @@ const COMPANION_DATA = {
 };
 
 let _prevUnlockedCompanions = [];
+const _expandedCompanionIds = new Set();
+
+// 「にょきっと展開型」のキャラ詳細(暫定の大枠のみ。内容は今後詰める)
+function _buildCompanionDetail(id, state) {
+  const data = COMPANION_DATA[id];
+  const detail = document.createElement('div');
+  detail.className = 'companion-detail';
+
+  const profile = document.createElement('div');
+  profile.className = 'companion-detail-section';
+  profile.innerHTML = `<div class="companion-detail-label">プロフィール</div><div class="companion-detail-body">${data.desc}</div>`;
+  detail.appendChild(profile);
+
+  const drop = document.createElement('div');
+  drop.className = 'companion-detail-section';
+  const dropResource = COMPANION_REWARDS[id]?.[0]?.resource;
+  const dropLabel = dropResource ? (RESOURCE_LABELS[dropResource] ?? dropResource) : '—';
+  drop.innerHTML = `<div class="companion-detail-label">固有ドロップ品</div><div class="companion-detail-body">${dropLabel}</div>`;
+  detail.appendChild(drop);
+
+  const equip = document.createElement('div');
+  equip.className = 'companion-detail-section';
+  equip.innerHTML = `<div class="companion-detail-label">持ち物</div><div class="companion-detail-body">未設定</div>`;
+  detail.appendChild(equip);
+
+  const memories = document.createElement('div');
+  memories.className = 'companion-detail-section';
+  const relatedStories = Object.values(STORIES).filter(s => s.companionId === id);
+  const memoryLines = relatedStories.map(s => {
+    const progress = state.storyProgress[s.id] ?? 0;
+    const fullyRead = progress >= (s.pageCount ?? Infinity);
+    const total = _storyPageCounts[s.id] ?? s.pageCount;
+    const title = fullyRead ? s.title : (s.lockedTitle ?? 'あいまいな記憶');
+    return `<div class="companion-memory-line">${title}${total ? `(${progress} / ${total})` : ''}</div>`;
+  });
+  memories.innerHTML = `<div class="companion-detail-label">関連する記憶</div><div class="companion-detail-body">${memoryLines.join('') || 'なし'}</div>`;
+  detail.appendChild(memories);
+
+  return detail;
+}
 
 function renderCharTab(state) {
   const view = document.getElementById('view-chars');
@@ -1127,9 +1173,15 @@ function renderCharTab(state) {
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--remove';
     btn.textContent = '別行動';
-    btn.addEventListener('click', () => setActiveCompanion(id, false));
+    btn.addEventListener('click', (e) => { e.stopPropagation(); setActiveCompanion(id, false); });
     card.appendChild(btn);
+    card.addEventListener('click', () => {
+      if (_expandedCompanionIds.has(id)) _expandedCompanionIds.delete(id);
+      else _expandedCompanionIds.add(id);
+      renderCharTab(getState());
+    });
     activeSection.appendChild(card);
+    if (_expandedCompanionIds.has(id)) activeSection.appendChild(_buildCompanionDetail(id, state));
   }
 
   if (active.length > 0) {
@@ -1184,9 +1236,15 @@ function renderCharTab(state) {
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--add';
     btn.textContent = '同行する';
-    btn.addEventListener('click', () => setActiveCompanion(id, true));
+    btn.addEventListener('click', (e) => { e.stopPropagation(); setActiveCompanion(id, true); });
     card.appendChild(btn);
+    card.addEventListener('click', () => {
+      if (_expandedCompanionIds.has(id)) _expandedCompanionIds.delete(id);
+      else _expandedCompanionIds.add(id);
+      renderCharTab(getState());
+    });
     benchSection.appendChild(card);
+    if (_expandedCompanionIds.has(id)) benchSection.appendChild(_buildCompanionDetail(id, state));
   }
 
   view.appendChild(benchSection);
