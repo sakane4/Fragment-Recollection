@@ -570,6 +570,7 @@ function render(state) {
 
 renderStoryList(state);
   renderCharTab(state);
+  renderActionList();
 
   // ビューアが開いていればページ表示を更新
   if (_viewerStoryId) renderViewerBody(state);
