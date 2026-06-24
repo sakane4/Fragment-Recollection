@@ -4,9 +4,9 @@ export default {
   lockedTitle: '旧音楽室の記憶',
   companionId: 'yuya',
   pageCount: 24,
-  showCondition: { resource: 'blue_fragment', amount: 19 },
-  unlockCost: [{ resource: 'blue_fragment', amount: 10 }],
-  pageCost: [{ resource: 'blue_fragment', amount: 3 }],
+  showCondition: { resource: 'broken_piano_sound', amount: 1 },
+  unlockCost: [{ resource: 'broken_piano_sound', amount: 10 }],
+  pageCost: [{ resource: 'blue_fragment', amount: 20 }],
   body: `「あ。宿題のプリント忘れた」
 おれは校門を出た途端にそう気づいた。明日の宿題。引き出しの中に入れっぱなしだ。ということで、方向転換して校舎に戻る。帰宅する生徒たちとはすれ違い、なんだか少し気まずい。
 ---

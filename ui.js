@@ -35,6 +35,7 @@ const RESOURCE_LABELS = {
   // 黄昏の旧校舎
   old_paint:          '古びた絵具',
   torn_page:          '破れたページ',
+  broken_piano_sound: '少し狂ったピアノの音',
   art_room_key:       '旧美術室の鍵',
   // 翼竜の都 レンリル
   wyvern_claw:        '翼竜の爪',
@@ -64,6 +65,7 @@ const RESOURCE_COLORS = {
   branch:          '#c8a97e',
   old_paint:          '#e0a96d',
   torn_page:          '#d8cba0',
+  broken_piano_sound: '#b0a8c8',
   art_room_key:       '#f5c542',
   wyvern_claw:        '#c0c4cc',
   wyvern_scale:       '#7fb0c8',

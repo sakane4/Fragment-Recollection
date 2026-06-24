@@ -101,6 +101,7 @@ const LOCATION_DEFS = [
         randomRewards: [
           { resource: 'old_paint', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
           { resource: 'torn_page', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
+          { resource: 'broken_piano_sound', minAmount: 1, maxAmount: 1, minMs: 9000, maxMs: 20000 },
         ],
         rareDrop: { resource: 'art_room_key', companionId: 'shizuku', chance: 0.05 },
         rewards: [],
