@@ -351,6 +351,36 @@ const LOG_STORY_4_STEPS =parseScript(`
 
 function runLogSt_4(mainPanel, opts) { return runLogSt(LOG_STORY_4_STEPS, mainPanel, opts); }
 
+// ── エンカウントシーン ──
+// actionIdごとに評価/失敗それぞれのシーン台本を持つ汎用辞書。新しい場所のエンカウントを
+// 追加するときはここに1エントリ足すだけでよい(game.js側のENCOUNTERSと対になる)
+const ENCOUNTER_SCENES = {
+  forest_explore: {
+    evaded: parseScript(`
+ふと、木々の合間から無数の気配が押し寄せてくる。
+「亡者の群れ」だ。
+「――下がってろ」
+ラビが前に出て、迷いのない動きで群れを退ける。
+気がつくと、気配はもう遠ざかっていた。
+[end: 探索を続ける]
+`),
+    fail: parseScript(`
+ふと、木々の合間から無数の気配が押し寄せてくる。
+「亡者の群れ」だ。
+抗う間もなく、気配に飲み込まれる。
+我に返ったときには、群れは消え去り、探索は中断されていた。
+[end: 拠点に戻る]
+`),
+  },
+};
+
+function runEncounterScene(actionId, mainPanel, { evaded, ...opts } = {}) {
+  const scenes = ENCOUNTER_SCENES[actionId];
+  if (!scenes) return null;
+  const steps = evaded ? scenes.evaded : scenes.fail;
+  return runLogSt(steps, mainPanel, opts);
+}
+
 // ── 同行者加入イベント ──
 const JOIN_KAORU_STEPS = parseScript(`
 あなたは不思議な生き物を拾った。
@@ -596,4 +626,4 @@ function runFacilityMenu(mainPanel, {
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu, runEncounterScene };

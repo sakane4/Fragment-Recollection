@@ -26,6 +26,25 @@ Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-06-25）
   - 施設(FACILITIES)のUI/表示方法(メインパネルに直接出すか、ポップアップにするか等)は現状の実装のままいったん
     保留。骨格(入店→メニュー→行動/買い物→結果)は今後表示方法を変えても流用できる想定。ユーザーが見た目を
     詰めたい場合は別途相談
+2026-06-25(続き2): はじまりの森に「亡者の群れ」エンカウントを実装。直後に、他の探索場所にも流用できるよう
+  汎用化(ユーザーの要望で同日中に着手)。
+  - 行動(actionId)を開始する瞬間に1回だけ抽選(_scheduleEncounterIfNeeded、game.js)。当たればduration内の
+    ランダムな時点(30%〜80%地点)で強制中断イベントが発生するよう予約する(activeAction.encounterAt、
+    pause/resumeでも経過時間ぶんシフトして引き継ぐ)
+  - ENCOUNTERS(game.js)にactionIdごとの設定をまとめる汎用辞書: enemyLabel(敵名)・base/step/cap(確率カーブ)・
+    evadeCompanion/evadeSkillId/evadeChance(回避できる同行者と異能・回避率)。新しい場所のエンカウントを足す
+    ときはここに1エントリ追加するだけでよい。現在の登録: forest_explore(亡者の群れ、ラビの「戦闘技能」
+    [ELv5解放]で50%回避)
+  - 確率は中断なく連続成功した回数に応じて上昇: base + streak×step(capで上限)。streakはactionIdごとに
+    state.encounterStreak[actionId]で管理(旧: forest_explore専用のforestEncounterStreakから汎用マップに変更)。
+    エンカウントが発生するとそのactionIdのstreakだけ0に戻る。中断なく完了するたびcompleteAction内で+1
+    (ENCOUNTERSに登録されているactionId全て対象)
+  - シーン台本もENCOUNTER_SCENES(scenario.js、actionIdごとにevaded/fail2種)に汎用化。runEncounterScene(actionId,
+    mainPanel, {evaded,...})で再生(旧: forest専用のrunForestEncounterから改名)。失敗時は探索が報酬なしで中断、
+    成功時はそのまま("探索を続ける"のログのみ、行動自体は再開していない＝再度「開始」を押す必要がある)
+  - ui.js側はstartActionにonEncounterコールバックを追加し、_handleEncounterで受け取って再生(他のログシーンと
+    同じ_pauseForStory/_storyLogPlaying機構を流用)。ログ文言もLOCATIONS/ACTIONSから場所名を引いて組み立てる
+    ように汎用化(旧: 「森」「亡者の群れ」をハードコードしていた)
 
 ■ 作業概要
 チュートリアルブランチにて、チュートリアル・UX改善・リファクタリングを実施後、mainにマージ。

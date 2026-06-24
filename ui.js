@@ -3,7 +3,7 @@
 import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu, runEncounterScene } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
@@ -764,7 +764,7 @@ function render(state) {
           if (!(getState().autoRepeat || _autoRestartEnabled)) return; // クールタイム中にオートが切られた場合
           if (getState().activeAction) return; // クールタイム中に別の行動が開始された場合
           _isAutoRestart = true;
-          startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler(), onComplete: (result) => _handleActionComplete(selectedActionId, result) });
+          startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler(), onComplete: (result) => _handleActionComplete(selectedActionId, result), onEncounter: (result) => _handleEncounter(selectedActionId, result) });
         }, 2000);
       }
     }
@@ -1219,6 +1219,7 @@ function _startActionById(actionId) {
     onRandomReward: makeRandomRewardHandler(),
     onCompanionRandomReward: makeCompanionRandomRewardHandler(),
     onComplete: (result) => _handleActionComplete(actionId, result),
+    onEncounter: (result) => _handleEncounter(actionId, result),
   });
 }
 
@@ -1293,6 +1294,23 @@ function _handleActionComplete(actionId, result) {
     addLog(`【！】${resourceSpan(rareDrop.resource, itemLabel)} を見つけた`, true, true);
     setTimeout(() => startCompanionJoin(rareDrop.companionId), 0);
   }
+}
+
+// 行動中にエンカウントが発生し、強制中断された(forest_exploreの「亡者の群れ」など。ENCOUNTERS参照)
+function _handleEncounter(actionId, { evaded, enemyLabel } = {}) {
+  const locationLabel = LOCATIONS[ACTIONS[actionId]?.locationId]?.label ?? '';
+  _pauseForStory();
+  addLog(`【！】${enemyLabel ?? '何か'}に遭遇した`, true, true);
+  _storyLogPlaying = true;
+  let cleanup = null;
+  cleanup = runEncounterScene(actionId, els.mainPanel, {
+    evaded,
+    onComplete: () => {
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      const prefix = locationLabel ? `【${locationLabel}】` : '【！】';
+      addLog(evaded ? `${prefix}難を逃れた` : `${prefix}探索は強制的に中断された`, true);
+    },
+  });
 }
 
 // レアドロップ後の同行者加入イベントを再生し、完了後にunlockCompanionする

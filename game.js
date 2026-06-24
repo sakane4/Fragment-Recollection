@@ -469,6 +469,9 @@ const COMPANION_SKILLS = {
   yuya: [
     { id: 'fragment_convert', label: 'フラグメント変換', lv: 5, desc: 'フラグメントを互いに変換できる。' },
   ],
+  rabi: [
+    { id: 'combat_evade', label: '戦闘技能', lv: 5, desc: '亡者の群れに遭遇しても、確率で被害を回避できる。' },
+  ],
 };
 
 // フラグメント変換で対象になり得る固有フラグメント一覧(同行者の固有報酬リソースをすべて集める)
@@ -610,6 +613,7 @@ const INITIAL_STATE = {
   toutoLastFacilityLv: 0,
   companionTasks: {},
   lastCompanionTaskResult: null,
+  encounterStreak: {},
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -765,6 +769,76 @@ let _timer = null;
 let _randomRewardTimers = [];
 let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null };
 
+// ── エンカウントシステム ──
+// 行動(探索など)を中断なく連続で続けるほど遭遇確率が上がっていく汎用機構。
+// actionIdごとにENCOUNTERSへ1エントリ追加するだけで他の場所にも流用できる。
+// 遭遇すると行動は強制中断され、そのactionIdのストリークは0に戻る。
+// 指定された同行者の異能が解放されていれば、確率で被害を回避できる
+const ENCOUNTERS = {
+  forest_explore: {
+    enemyLabel: '亡者の群れ',
+    base: 0.05,
+    step: 0.07,
+    cap: 0.6,
+    evadeCompanion: 'rabi',
+    evadeSkillId: 'combat_evade',
+    evadeChance: 0.5,
+  },
+};
+
+let _encounterTimer = null;
+
+function _clearEncounterTimer() {
+  clearTimeout(_encounterTimer);
+  _encounterTimer = null;
+}
+
+function _encounterChance(actionId) {
+  const cfg = ENCOUNTERS[actionId];
+  if (!cfg) return 0;
+  const streak = state.encounterStreak?.[actionId] ?? 0;
+  return Math.min(cfg.base + streak * cfg.step, cfg.cap);
+}
+
+// 指定エンカウントの回避同行者が、いま回避可能な状態(同行中・異能解放済み)かどうか
+function _canEvadeEncounter(cfg) {
+  if (!cfg?.evadeCompanion) return false;
+  if (!state.activeCompanions.includes(cfg.evadeCompanion)) return false;
+  const skill = (COMPANION_SKILLS[cfg.evadeCompanion] ?? []).find(s => s.id === cfg.evadeSkillId);
+  if (!skill) return false;
+  return (state.ELv[cfg.evadeCompanion] ?? 0) >= skill.lv;
+}
+
+// 行動開始時に1回だけ判定。当たれば、durationの30%〜80%地点でエンカウントが発生するよう予約する
+function _scheduleEncounterIfNeeded(actionId, duration, onEncounter) {
+  if (!ENCOUNTERS[actionId]) return;
+  if (Math.random() >= _encounterChance(actionId)) return;
+  const delay = Math.floor(duration * 0.3 + Math.random() * duration * 0.5);
+  const encounterAt = Date.now() + delay;
+  state = { ...state, activeAction: { ...state.activeAction, encounterAt } };
+  saveToStorage(state);
+  _encounterTimer = setTimeout(() => _triggerEncounter(actionId, onEncounter), delay);
+}
+
+// エンカウント発生。行動を強制終了し、そのactionIdのストリークをリセットして結果をコールバックで返す
+function _triggerEncounter(actionId, onEncounter) {
+  if (!state.activeAction) return;
+  clearTimeout(_timer);
+  clearRandomRewardTimers();
+  _clearEncounterTimer();
+  const cfg = ENCOUNTERS[actionId] ?? {};
+  const canEvade = _canEvadeEncounter(cfg);
+  const evaded = canEvade && Math.random() < (cfg.evadeChance ?? 0.5);
+  state = {
+    ...state,
+    activeAction: null,
+    encounterStreak: { ...state.encounterStreak, [actionId]: 0 },
+  };
+  saveToStorage(state);
+  notify();
+  onEncounter?.({ actionId, evaded, canEvade, enemyLabel: cfg.enemyLabel, companionId: cfg.evadeCompanion });
+}
+
 // ランダム報酬1件を、minMs〜maxMsの間隔で繰り返しactiveAction中に付与し続けるループを仕掛ける
 // applyExtra: 報酬付与時に追加で行う処理(worldLv加算など)。onReward: 付与後の通知コールバック
 function _scheduleRandomRewardLoop(reward, onReward, applyExtra) {
@@ -820,9 +894,9 @@ function scheduleCompanionRandomRewards(onReward) {
   }
 }
 
-function startAction(actionId, { onRandomReward, onCompanionRandomReward, onComplete } = {}) {
+function startAction(actionId, { onRandomReward, onCompanionRandomReward, onComplete, onEncounter } = {}) {
   if (state.activeAction) return { ok: false, reason: 'already_active' };
-  _savedCallbacks = { onRandomReward, onCompanionRandomReward, onComplete };
+  _savedCallbacks = { onRandomReward, onCompanionRandomReward, onComplete, onEncounter };
   const action = ACTIONS[actionId];
   if (!action) return { ok: false, reason: 'unknown_action' };
 
@@ -838,6 +912,7 @@ function startAction(actionId, { onRandomReward, onCompanionRandomReward, onComp
   _timer = setTimeout(() => completeAction(actionId, _savedCallbacks.onComplete), duration);
   scheduleRandomRewards(action, onRandomReward);
   scheduleCompanionRandomRewards(onCompanionRandomReward);
+  _scheduleEncounterIfNeeded(actionId, duration, onEncounter);
   return { ok: true };
 }
 
@@ -845,6 +920,7 @@ function cancelAction() {
   if (!state.activeAction) return { ok: false, reason: 'no_active_action' };
   clearTimeout(_timer);
   clearRandomRewardTimers();
+  _clearEncounterTimer();
   state = { ...state, activeAction: null };
   saveToStorage(state);
   notify();
@@ -855,6 +931,7 @@ function pauseAction() {
   if (!state.activeAction || state.activeAction.pausedAt) return;
   clearTimeout(_timer);
   clearRandomRewardTimers();
+  _clearEncounterTimer();
   state = { ...state, activeAction: { ...state.activeAction, pausedAt: Date.now() } };
   saveToStorage(state);
   notify();
@@ -864,10 +941,11 @@ function resumeAction() {
   if (!state.activeAction || !state.activeAction.pausedAt) return;
   const pauseDuration = Date.now() - state.activeAction.pausedAt;
   const newEndsAt = state.activeAction.endsAt + pauseDuration;
+  const newEncounterAt = state.activeAction.encounterAt != null ? state.activeAction.encounterAt + pauseDuration : undefined;
   const actionId = state.activeAction.actionId;
   state = {
     ...state,
-    activeAction: { ...state.activeAction, endsAt: newEndsAt, pausedAt: undefined },
+    activeAction: { ...state.activeAction, endsAt: newEndsAt, encounterAt: newEncounterAt, pausedAt: undefined },
   };
   saveToStorage(state);
   notify();
@@ -879,6 +957,14 @@ function resumeAction() {
     const action = ACTIONS[actionId];
     scheduleRandomRewards(action, _savedCallbacks.onRandomReward);
     scheduleCompanionRandomRewards(_savedCallbacks.onCompanionRandomReward);
+    if (newEncounterAt != null) {
+      const encRemaining = newEncounterAt - Date.now();
+      if (encRemaining <= 0) {
+        _triggerEncounter(actionId, _savedCallbacks.onEncounter);
+      } else {
+        _encounterTimer = setTimeout(() => _triggerEncounter(actionId, _savedCallbacks.onEncounter), encRemaining);
+      }
+    }
   }
 }
 
@@ -959,6 +1045,14 @@ function completeAction(actionId, onComplete) {
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
   const lvedUp = state.worldLv > prevLv;
   _addActionCount(actionId);
+
+  // エンカウント対象の行動: 中断なく完了するたびにストリークを+1(遭遇確率の上昇に使う)
+  if (ENCOUNTERS[actionId]) {
+    state = {
+      ...state,
+      encounterStreak: { ...state.encounterStreak, [actionId]: (state.encounterStreak?.[actionId] ?? 0) + 1 },
+    };
+  }
 
   // 塔都の探索: 探索ごとに抽選で施設を発見する。見つからないままActionLvが上がるほど確率が上昇し、
   // 1つ見つかると確率はベースに戻る（ランダムな順）
@@ -1100,6 +1194,7 @@ function init() {
     toutoLastFacilityLv: saved.toutoLastFacilityLv ?? INITIAL_STATE.toutoLastFacilityLv,
     companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
     lastCompanionTaskResult: saved.lastCompanionTaskResult ?? INITIAL_STATE.lastCompanionTaskResult,
+    encounterStreak: saved.encounterStreak ?? INITIAL_STATE.encounterStreak,
   };
 
   if (state.activeAction) {
