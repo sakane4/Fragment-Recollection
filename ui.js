@@ -3,7 +3,7 @@
 import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
@@ -1122,13 +1122,29 @@ function _handleActionComplete(actionId, result) {
     addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
   }
 
-  // レアドロップ → 同行者解放（加入イベント本文は今後実装）
+  // レアドロップ → アイテム発見ログのあと、加入イベントを再生してから同行者を解放
   if (rareDrop) {
     const itemLabel = resLabel(rareDrop.resource);
-    const compName = COMPANION_DATA[rareDrop.companionId]?.name ?? rareDrop.companionId;
     addLog(`【！】${resourceSpan(rareDrop.resource, itemLabel)} を見つけた`, true, true);
-    addLog(`【同行】${compName} が仲間になった`, true);
+    setTimeout(() => startCompanionJoin(rareDrop.companionId), 0);
   }
+}
+
+// レアドロップ後の同行者加入イベントを再生し、完了後にunlockCompanionする
+function startCompanionJoin(companionId) {
+  _storyLogPlaying = true;
+  let cleanup = null;
+  cleanup = runCompanionJoin(companionId, els.mainPanel, {
+    initialName: getState().playerName,
+    onComplete: () => {
+      _storyLogPlaying = false;
+      if (cleanup) { cleanup(); cleanup = null; }
+      unlockCompanion(companionId);
+      const compName = COMPANION_DATA[companionId]?.name ?? companionId;
+      addLog(`【同行】${compName} が仲間になった`, true);
+      render(getState());
+    },
+  });
 }
 
 function renderActionList() {

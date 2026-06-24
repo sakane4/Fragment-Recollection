@@ -696,10 +696,7 @@ function completeAction(actionId, onComplete) {
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
   const lvedUp = state.worldLv > prevLv;
   _addActionCount(actionId);
-  // レアドロップで同行者を解放（加入イベント本文は今後実装、現状は解放のみ）
-  if (rareDrop && !state.unlockedCompanions.includes(rareDrop.companionId)) {
-    state = { ...state, unlockedCompanions: [...state.unlockedCompanions, rareDrop.companionId] };
-  }
+  // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
   notify();
   const result = { discovered, allRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop };

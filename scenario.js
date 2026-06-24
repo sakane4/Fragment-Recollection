@@ -178,9 +178,9 @@ const LOG_STORY_STEPS = parseScript(`
 `);
 
 // ── ログストーリー共通エンジン ──
-function runLogSt(steps, mainPanel, { onNameDecided, onComplete } = {}) {
+function runLogSt(steps, mainPanel, { onNameDecided, onComplete, initialName = '' } = {}) {
   let stepIndex = 0;
-  let playerName = '';
+  let playerName = initialName;
   let currentTw = null;
   let waitingForTap = false;
   let indicator = null;
@@ -348,6 +348,96 @@ const LOG_STORY_4_STEPS =parseScript(`
 
 function runLogSt_4(mainPanel, opts) { return runLogSt(LOG_STORY_4_STEPS, mainPanel, opts); }
 
+// ── 同行者加入イベント ──
+const JOIN_KAORU_STEPS = parseScript(`
+あなたは不思議な生き物を拾った。
+もきゅもきゅと鳴いている。
+手のひらに収まる、毛玉のような生き物だ。
+「あ！そこにいるのは！！」
+という声がして、向こうから一人の女性が走ってくる。
+「もっふりん！！」
+もきゅっと鳴きながら、その生き物は彼女の方へ飛んでいく。
+「思い出した、キミはあたしの友達！」
+もっふりんと呼ばれた生き物は嬉しそうだ。
+そしてその女性は顔を上げてあなたの方を見る。
+「ねぇ、なんだかあたし、気づいたらここにいて、何も覚えてなくて……」
+「何か、だいじなことを忘れてる気がするんだ」
+[button: 自分も同じだと伝える]
+「そうなの！？　じゃあ……一緒に行こうよ！」
+[end: 頷く]
+`);
+
+const JOIN_SHIZUKU_STEPS = parseScript(`
+旧美術室の鍵を開けると、そこには一人の青年が立っていた。
+彼は振り向く。
+その瞳にはかすかに戸惑いが浮かんでいる。
+[button: 何か憶えている？]
+「……いや、何も」
+「君もそうなの？」
+うなずくと、彼は教室を見渡した。
+「ずっと昔……ここに来たことがあるような気がする」
+「けど、何も思い出せない」
+[button: 一緒に行こう]
+「わかった……」
+彼はしばらく考えてから、そう答えた。
+「オレはシズク……君は？」
+\${name}と名乗った。
+[end: 頷く]
+`);
+
+const JOIN_YUKIKA_STEPS = parseScript(`
+暗い光に満ちた王都で、精巧な羅針盤を拾った。
+ただの羅針盤ではないようだが、造りが複雑すぎて、
+使い方はまったくわからない。
+するとそんなあなたを、一人の少女がじっと見ている。
+「…………」
+目が合うと、少女は口を開いた。
+「それは、なに？」
+[button: わからない]
+「……なんだか、すごく懐かしい気がするの」
+「見たことがあるような、ずっと使っていたような……」
+少女に羅針盤を見せてみる。
+「私はなにをしていたのか、誰だったのか、思い出せないの」
+「何か夢を見ていた気がするんだ、長い夢を……」
+羅針盤を手にとって少女はつぶやいた。
+「そう……雪架。私の名前は、雪架」
+「あなたといたら、なにか思い出せるかもしれないね」
+「ついていってもいい？」
+[end: うなずく]
+`);
+
+const JOIN_RABI_STEPS = parseScript(`
+騎士団の本部はとても広い建物で、どこまで歩いても終わりがない。
+赤い絨毯の敷かれた廊下に、一振りの剣が落ちていた。
+鞘まで丁寧に磨き抜かれ、抜いてみると刀身は澄んだ銀色だ。しかし、光を反射すると赤く光っているように見える。
+「その剣は……」
+不意に声が聞こえ、あなたは顔を上げる。
+「悪い。何か、思い出せそうな気がしたんだ」
+そこには目元を布で覆った一人の少年がいた。着ている服には、周囲で見かけるのと同じ、騎士団の記章が描かれている。
+[button: 剣を渡す]
+感触を確かめるように、彼は剣を抜き、その音に耳を澄ませている。
+「オレの剣だ。そうだ……ずっとこの剣とともに戦ってきた」
+「でもそれ以外は……思い出せない」
+[button: 自分も同じ。一緒に行こう]
+彼は少し驚いた様子だったが、すぐに気を取り直して、慎重に頷いた。
+「ああ。オレは……ラビ」
+「なにか思い出せるといいんだが……」
+[end: ラビと一緒に行く]
+`);
+
+const JOIN_SCENARIOS = {
+  kaoru:   JOIN_KAORU_STEPS,
+  shizuku: JOIN_SHIZUKU_STEPS,
+  yukika:  JOIN_YUKIKA_STEPS,
+  rabi:    JOIN_RABI_STEPS,
+};
+
+// companionId に対応する加入イベントを再生する。該当が無ければ何もせずnullを返す
+function runCompanionJoin(companionId, mainPanel, opts) {
+  const steps = JOIN_SCENARIOS[companionId];
+  return steps ? runLogSt(steps, mainPanel, opts) : null;
+}
+
 // ── 場所選択プロンプト ──
 // メインパネルに「新しい場所が見つかりそうだ・・・」とプロンプトを流し、
 // その下に場所候補ボタンを並べる。選択すると onPick(id) を呼ぶ。
@@ -397,4 +487,4 @@ function runLocationChoice(mainPanel, { prompt = '新しい場所が見つかり
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin };
