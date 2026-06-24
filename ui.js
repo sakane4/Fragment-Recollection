@@ -959,6 +959,46 @@ function initTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.view));
   });
+  _attachSubPanelSwipe();
+}
+
+// サブパネル(記憶/地図/持ち物/同行)を横フリックで切り替える(開発タブはスワイプ対象外)
+const _SUB_PANEL_SWIPE_ORDER = ['view-stories', 'view-actions', 'view-items', 'view-chars'];
+const _SUB_PANEL_SWIPE_THRESHOLD = 50;
+
+function _attachSubPanelSwipe() {
+  const panel = document.getElementById('sub-panel');
+  let startX = 0, startY = 0;
+  let lastX = 0, lastY = 0;
+  let tracking = false;
+
+  function finish() {
+    if (!tracking) return;
+    tracking = false;
+    const dx = lastX - startX;
+    const dy = lastY - startY;
+    if (Math.abs(dx) < _SUB_PANEL_SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
+    const current = document.querySelector('.sub-view.active')?.id;
+    const idx = _SUB_PANEL_SWIPE_ORDER.indexOf(current);
+    if (idx === -1) return;
+    const nextIdx = dx < 0 ? idx + 1 : idx - 1;
+    if (nextIdx < 0 || nextIdx >= _SUB_PANEL_SWIPE_ORDER.length) return;
+    switchTab(_SUB_PANEL_SWIPE_ORDER[nextIdx]);
+  }
+
+  panel.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button, input, .companion-detail')) return;
+    startX = lastX = e.clientX;
+    startY = lastY = e.clientY;
+    tracking = true;
+  });
+  panel.addEventListener('pointermove', (e) => {
+    if (!tracking) return;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  panel.addEventListener('pointerup', finish);
+  panel.addEventListener('pointercancel', finish);
 }
 
 // ── worldLv 進捗ポップアップ ──
@@ -1995,9 +2035,48 @@ function _buildCompanionDetail(id, state) {
   const content = document.createElement('div');
   content.className = 'companion-detail-content';
   content.appendChild(_DETAIL_TAB_BUILDERS[activeTab](id, state));
+  _attachSwipeTabHandlers(content, id, activeTab);
   detail.appendChild(content);
 
   return detail;
+}
+
+// サブパネル(プロフィール/持ち物/レベル・異能/記憶)を横フリックで切り替える
+const _SWIPE_MOVE_THRESHOLD = 40;
+
+function _attachSwipeTabHandlers(content, companionId, activeTab) {
+  let startX = 0, startY = 0;
+  let lastX = 0, lastY = 0;
+  let tracking = false;
+
+  function finish() {
+    if (!tracking) return;
+    tracking = false;
+    const dx = lastX - startX;
+    const dy = lastY - startY;
+    if (Math.abs(dx) < _SWIPE_MOVE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
+    const idx = _DETAIL_TABS.findIndex(t => t.id === activeTab);
+    const nextIdx = dx < 0 ? idx + 1 : idx - 1;
+    if (nextIdx < 0 || nextIdx >= _DETAIL_TABS.length) return;
+    _companionDetailTab.set(companionId, _DETAIL_TABS[nextIdx].id);
+    renderCharTab(getState());
+  }
+
+  content.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button, input')) return;
+    startX = lastX = e.clientX;
+    startY = lastY = e.clientY;
+    tracking = true;
+  });
+
+  content.addEventListener('pointermove', (e) => {
+    if (!tracking) return;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+
+  content.addEventListener('pointerup', finish);
+  content.addEventListener('pointercancel', finish);
 }
 
 // 同行カードのドラッグハンドルによる長押しドラッグ&ドロップ(同行中⇔別行動の移動)
