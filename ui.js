@@ -776,9 +776,25 @@ function render(state) {
     const wasCancelled = _cancelled;
     _cancelled = false;
     els.actionBtn.textContent = '開始';
-    els.progressBar.style.width = '0%';
     const selAction = ACTIONS[selectedActionId];
     els.actionPickerBtn.textContent = selAction ? actionDisplayLabel(selAction, ' — ') : '探索';
+
+    const willAutoRestart = !wasCancelled && !_logStPending &&
+      !(state.logSt1Done && !state.logSt2Done && (state.activeCompanions ?? []).length > 0) &&
+      (state.autoRepeat || _autoRestartEnabled);
+
+    if (willAutoRestart) {
+      // クールタイム中、プログレスバーを2秒かけてゆっくり0%へ戻す
+      els.progressBar.classList.remove('cooldown');
+      els.progressBar.style.width = '100%';
+      void els.progressBar.offsetWidth; // 強制リフロー(transition切り替えを反映させる)
+      els.progressBar.classList.add('cooldown');
+      els.progressBar.style.width = '0%';
+    } else {
+      els.progressBar.classList.remove('cooldown');
+      els.progressBar.style.width = '0%';
+    }
+
     if (!wasCancelled) {
       if (_logStPending) {
         // render() 完了後にプロローグ解放フェーズへ
@@ -787,11 +803,15 @@ function render(state) {
         setTimeout(() => startLogSt_2(state), 0);
       } else if (state.autoRepeat || _autoRestartEnabled) {
         // 自動再開（プレイヤー設定 autoRepeat、または開発メニューの強制ON）
+        // スピード感が速すぎるとの声を受け、2秒のクールタイムを挟む
         setTimeout(() => {
+          els.progressBar.classList.remove('cooldown');
           if (_storyLogPlaying) return;
+          if (!(getState().autoRepeat || _autoRestartEnabled)) return; // クールタイム中にオートが切られた場合
+          if (getState().activeAction) return; // クールタイム中に別の行動が開始された場合
           _isAutoRestart = true;
           startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler(), onComplete: (result) => _handleActionComplete(selectedActionId, result) });
-        }, 0);
+        }, 2000);
       }
     }
   }
@@ -1369,16 +1389,30 @@ function startProloguePhase() {
   showTabToast('.tab-btn[data-view="view-stories"]', '記憶を解放できます');
 }
 
+// ログストーリー再生中は行動が一時停止するため、フレーバーテキストの表示も止める
+function _pauseForStory() {
+  if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+  pauseAction();
+}
+
 function _onLogStComplete(cleanup, extraFn) {
   resumeAction();
   _storyLogPlaying = false;
   if (cleanup) cleanup();
   if (extraFn) extraFn();
   render(getState());
+  // ポーズ中に止めていたフレーバーテキストを再開
+  const resumedState = getState();
+  if (resumedState.activeAction && !stopFlavor) {
+    const companions = (resumedState.activeCompanions ?? [])
+      .map(id => COMPANION_DATA[id] ? { id, name: COMPANION_DATA[id].name } : null)
+      .filter(Boolean);
+    stopFlavor = startFlavorScheduler(resumedState.activeAction.actionId, text => addLog(text), { companions });
+  }
 }
 
 function startLogSt_2(state) {
-  pauseAction();
+  _pauseForStory();
   setLogSt2Done();
   _storyLogPlaying = true;
   let cleanup = null;
@@ -1393,7 +1427,7 @@ function startLogSt_2(state) {
 function startLogSt_1() {
   const state = getState();
   if (state.logSt1Done) return;
-  pauseAction();
+  _pauseForStory();
   _waitingForPrologue = false;
   setLogSt1Done();
   _storyLogPlaying = true;
@@ -1415,7 +1449,7 @@ function startLogSt_1() {
 function startLogSt_3() {
   const state = getState();
   if (state.logSt3Done) return;
-  pauseAction();
+  _pauseForStory();
   setLogSt3Done();
   _storyLogPlaying = true;
   let cleanup = null;
@@ -1429,7 +1463,7 @@ function startLogSt_3() {
 function startLogSt_4() {
   const state = getState();
   if (state.logSt4Done) return;
-  pauseAction();
+  _pauseForStory();
   setLogSt4Done();
   _storyLogPlaying = true;
   let cleanup = null;
@@ -1456,7 +1490,7 @@ function showDiscovery() {
 
   _choicePending = true;
   _storyLogPlaying = true;
-  pauseAction();
+  _pauseForStory();
 
   let cleanup = null;
   const finish = (chosenId) => {
@@ -1675,7 +1709,11 @@ function renderCharTab(state) {
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--remove';
     btn.textContent = '別行動';
-    btn.addEventListener('click', (e) => { e.stopPropagation(); setActiveCompanion(id, false); });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (getState().activeAction) { addLog('行動を中断してください', true); return; }
+      setActiveCompanion(id, false);
+    });
     card.appendChild(btn);
     card.addEventListener('click', () => {
       if (_expandedCompanionIds.has(id)) _expandedCompanionIds.delete(id);
@@ -1738,7 +1776,11 @@ function renderCharTab(state) {
     const btn = document.createElement('button');
     btn.className = 'companion-btn companion-btn--add';
     btn.textContent = '同行する';
-    btn.addEventListener('click', (e) => { e.stopPropagation(); setActiveCompanion(id, true); });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (getState().activeAction) { addLog('行動を中断してください', true); return; }
+      setActiveCompanion(id, true);
+    });
     card.appendChild(btn);
     card.addEventListener('click', () => {
       if (_expandedCompanionIds.has(id)) _expandedCompanionIds.delete(id);

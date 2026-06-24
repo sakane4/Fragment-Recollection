@@ -350,6 +350,10 @@
       background: var(--accent);
       transition: width 0.1s linear;
     }
+    /* オート再開のクールタイム中、プログレスバーをゆっくり0%へ戻す */
+    #progress-bar.cooldown {
+      transition: width 2s linear;
+    }
 
     /* ── サブパネル ── */
     #sub-panel {
