@@ -866,6 +866,14 @@ function renderGuideList(state) {
     }
   }
 
+  // はじまりの森のLvを2にすると採集が解放されることを示唆
+  if (state.unlockedLocations?.includes('forest') && !state.unlockedActions?.includes('forest_gather')) {
+    const forestLv = state.LocationLv?.['forest'] ?? 0;
+    if (forestLv < 2) {
+      hints.push('【はじまりの森】の再生Lvを上げよう…（Lv2で採集ができるようになる）');
+    }
+  }
+
   // 解放済みの場所に、まだ見つけていない同行者がいれば探索を促す(レアドロップの示唆)
   for (const action of Object.values(ACTIONS)) {
     if (!action.rareDrop) continue;
