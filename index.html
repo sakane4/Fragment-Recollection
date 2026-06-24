@@ -540,6 +540,35 @@
 
     #story-close-btn:hover { color: var(--text); }
 
+    .story-viewer-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    #story-mode-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      line-height: 0;
+      padding: 0.2rem 0.4rem;
+      display: flex;
+      align-items: center;
+    }
+    #story-mode-toggle-btn:hover { color: var(--accent); }
+    #story-mode-toggle-btn svg { display: block; }
+
+    .story-scroll-end {
+      align-self: center;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      padding: 1rem 0 0.5rem;
+      user-select: none;
+    }
+
     #story-body {
       overflow-y: auto;
       flex: 1;
@@ -1422,7 +1451,10 @@
     <div id="story-viewer">
       <div id="story-viewer-header">
         <span id="story-viewer-title"></span>
-        <button id="story-close-btn">✕</button>
+        <div class="story-viewer-actions">
+          <button id="story-mode-toggle-btn" title="スクロール表示に切り替え"></button>
+          <button id="story-close-btn">✕</button>
+        </div>
       </div>
       <div id="story-body"></div>
       <div id="story-fin-bar"></div>

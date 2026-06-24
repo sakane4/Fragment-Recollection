@@ -20,7 +20,14 @@ const els = {
   storyViewerTitle: document.getElementById('story-viewer-title'),
   storyBody: document.getElementById('story-body'),
   storyCloseBtn: document.getElementById('story-close-btn'),
+  storyModeToggleBtn: document.getElementById('story-mode-toggle-btn'),
 };
+
+// 記憶ビューアの表示モード: false=ページ送り / true=スクロール(-----区切りを無視)
+let _viewerScrollMode = (() => {
+  try { return localStorage.getItem('fr_viewer_scrollmode') === '1'; }
+  catch { return false; }
+})();
 
 const RESOURCE_LABELS = {
   fragment:        'フラグメント',
@@ -186,6 +193,7 @@ function _setViewerTitle(text) {
 let _viewerCurrentPage = 0;
 let _viewerPrevUnlockedPages = 0;
 let _viewerFadeUpTo = 0;
+let _viewerRenderedParas = -1; // 直近レンダリング時の解放段落数(スクロール位置維持の判定用)
 const _storyPageCounts = {}; // storyId → 総段落数キャッシュ
 
 function _saveLastPage(storyId, page) {
@@ -219,13 +227,14 @@ function openStory(storyId, { prevProgress } = {}) {
   _viewerCurrentPage = Math.min(_loadLastPage(storyId), pages.length - 1);
   _viewerPrevUnlockedPages = prevProgress ?? (getState().storyProgress[storyId] ?? 0);
   _viewerFadeUpTo = _viewerPrevUnlockedPages;
+  _viewerRenderedParas = _viewerPrevUnlockedPages; // 開いた直後は先頭表示(段落増加扱いにしない)
   _storyPageCounts[storyId] = pages.reduce((s, p) => s + p.length, 0);
 
   const _titleRevealed = !!(getState().titleRevealed ?? {})[storyId];
   _setViewerTitle(_titleRevealed ? story.title : (story.lockedTitle ?? DEFAULT_LOCKED_TITLE));
   els.storyOverlay.classList.add('open');
   pauseLog();
-  renderViewerBody(getState());
+  renderViewerBody(getState(), { scrollToTop: true });
 }
 
 function _checkPageLevelUp(storyId, prevProgress) {
@@ -247,6 +256,60 @@ function _checkPageLevelUp(storyId, prevProgress) {
   }
 }
 
+// 「次の段落を思い出す」ボタン(コストリング付き)を生成
+function _buildUnlockButton(currentCost, state) {
+  const btn = document.createElement('button');
+  btn.className = 'story-next-btn';
+
+  const CIRC = 2 * Math.PI * 14; // r=14 の円周
+  const costsHtml = currentCost.map(c => {
+    const have = state.resources[c.resource] ?? 0;
+    const need = c.amount;
+    const ratio = Math.min(have / need, 1);
+    const offset = CIRC * (1 - ratio);
+    const enough = have >= need;
+    const ringColor = enough ? 'var(--accent)' : 'var(--muted)';
+    const label = RESOURCE_LABELS[c.resource] ?? c.resource;
+    return `
+      <span class="memory-cost-item${enough ? ' enough' : ''}">
+        <svg class="memory-ring" viewBox="0 0 36 36">
+          <circle class="memory-ring-bg" cx="18" cy="18" r="14"/>
+          <circle class="memory-ring-fill" cx="18" cy="18" r="14"
+            stroke="${ringColor}"
+            stroke-dasharray="${CIRC.toFixed(2)}"
+            stroke-dashoffset="${offset.toFixed(2)}"/>
+        </svg>
+        <span class="memory-cost-text">
+          <span class="memory-resource-name">${label}</span>
+          <span class="memory-counts">${need} / ${have}</span>
+        </span>
+      </span>`;
+  }).join('');
+  btn.innerHTML = costsHtml;
+
+  btn.addEventListener('click', () => {
+    const prevProgress = getState().storyProgress[_viewerStoryId] ?? 0;
+    const result = unlockNextPage(_viewerStoryId);
+    if (!result.ok && result.reason === 'insufficient_resources') {
+      showViewerToast(`素材が足りません`);
+    } else if (result.ok) {
+      _checkPageLevelUp(_viewerStoryId, prevProgress);
+    }
+  });
+  return btn;
+}
+
+// 「(lockedTitle)を思い出す」タイトル復元ボタンを生成
+function _buildTitleRevealBtn(story) {
+  const revealBtn = document.createElement('button');
+  revealBtn.className = 'story-title-reveal-btn';
+  revealBtn.textContent = `「${story.lockedTitle ?? DEFAULT_LOCKED_TITLE}」を思い出す`;
+  revealBtn.addEventListener('click', () => {
+    revealStoryTitle(_viewerStoryId);
+  });
+  return revealBtn;
+}
+
 function renderViewerBody(state, { scrollToTop = false } = {}) {
   if (!_viewerStoryId) return;
   const story = STORIES[_viewerStoryId];
@@ -256,87 +319,128 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
   const totalParas = pages.reduce((s, p) => s + p.length, 0);
   const finBar = document.getElementById('story-fin-bar');
 
+  // innerHTML クリアでスクロール位置が失われるので事前に退避
+  const _prevScrollTop = els.storyBody.scrollTop;
   els.storyBody.innerHTML = '';
   finBar.innerHTML = '';
 
-  // 現ページの段落グローバル開始インデックス
-  let globalOffset = 0;
-  for (let p = 0; p < _viewerCurrentPage; p++) globalOffset += (pages[p] ?? []).length;
-
-  const currentParas = pages[_viewerCurrentPage] ?? [];
-  const currentCost = getCostForParagraph(story, unlockedParas);
-  const costLabel = formatCostLabel(currentCost);
+  const allDone = unlockedParas >= totalParas;
+  const titleAlreadyRevealed = !!(state.titleRevealed ?? {})[_viewerStoryId];
   const isNew = (idx) => idx >= _viewerFadeUpTo;
 
-  let shownCount = 0;
-  for (let i = 0; i < currentParas.length; i++) {
-    const globalIdx = globalOffset + i;
-
-    if (globalIdx < unlockedParas) {
-      const block = document.createElement('p');
-      block.className = 'story-page' + (isNew(globalIdx) ? ' story-page-new' : '');
-      block.textContent = currentParas[i];
-      els.storyBody.appendChild(block);
-      shownCount++;
-    } else if (globalIdx === unlockedParas) {
-      // 次に解放できる段落 → 思い出すボタン
-      const btn = document.createElement('button');
-      btn.className = 'story-next-btn';
-
-      const CIRC = 2 * Math.PI * 14; // r=14 の円周
-      const costsHtml = currentCost.map(c => {
-        const have = state.resources[c.resource] ?? 0;
-        const need = c.amount;
-        const ratio = Math.min(have / need, 1);
-        const offset = CIRC * (1 - ratio);
-        const enough = have >= need;
-        const ringColor = enough ? 'var(--accent)' : 'var(--muted)';
-        const label = RESOURCE_LABELS[c.resource] ?? c.resource;
-        return `
-          <span class="memory-cost-item${enough ? ' enough' : ''}">
-            <svg class="memory-ring" viewBox="0 0 36 36">
-              <circle class="memory-ring-bg" cx="18" cy="18" r="14"/>
-              <circle class="memory-ring-fill" cx="18" cy="18" r="14"
-                stroke="${ringColor}"
-                stroke-dasharray="${CIRC.toFixed(2)}"
-                stroke-dashoffset="${offset.toFixed(2)}"/>
-            </svg>
-            <span class="memory-cost-text">
-              <span class="memory-resource-name">${label}</span>
-              <span class="memory-counts">${need} / ${have}</span>
-            </span>
-          </span>`;
-      }).join('');
-      btn.innerHTML = costsHtml;
-
-      btn.addEventListener('click', () => {
-        const prevProgress = getState().storyProgress[_viewerStoryId] ?? 0;
-        const result = unlockNextPage(_viewerStoryId);
-        if (!result.ok && result.reason === 'insufficient_resources') {
-          showViewerToast(`素材が足りません`);
-        } else if (result.ok) {
-          _checkPageLevelUp(_viewerStoryId, prevProgress);
-        }
-      });
-      // 段落が1つも表示されていなければ先頭に挿入（別ページ頭）
-      if (shownCount === 0) els.storyBody.insertBefore(btn, els.storyBody.firstChild);
-      else els.storyBody.appendChild(btn);
-      break;
+  if (_viewerScrollMode) {
+    // ── スクロールモード: -----区切りを無視し、解放済み段落を一続きに表示 ──
+    const allParas = [];
+    for (const page of pages) for (const para of page) allParas.push(para);
+    for (let i = 0; i < allParas.length; i++) {
+      if (i < unlockedParas) {
+        const block = document.createElement('p');
+        block.className = 'story-page' + (isNew(i) ? ' story-page-new' : '');
+        block.textContent = allParas[i];
+        els.storyBody.appendChild(block);
+      } else if (i === unlockedParas) {
+        els.storyBody.appendChild(_buildUnlockButton(getCostForParagraph(story, unlockedParas), state));
+        break;
+      }
     }
-  }
+    if (allDone && !titleAlreadyRevealed) {
+      els.storyBody.appendChild(_buildTitleRevealBtn(story));
+    }
+    if (allDone) {
+      // ENDは本文の最下層に表示
+      const end = document.createElement('div');
+      end.className = 'story-scroll-end';
+      end.textContent = '— END —';
+      els.storyBody.appendChild(end);
+    }
+  } else {
+    // ── ページモード: _viewerCurrentPage のページのみ表示し、◁▷でページ送り ──
+    let globalOffset = 0;
+    for (let p = 0; p < _viewerCurrentPage; p++) globalOffset += (pages[p] ?? []).length;
 
-  const allDoneForReveal = unlockedParas >= totalParas;
-  const titleAlreadyRevealed = !!(state.titleRevealed ?? {})[_viewerStoryId];
-  if (allDoneForReveal && !titleAlreadyRevealed) {
-    const onLastPage = globalOffset + currentParas.length >= totalParas;
-    if (onLastPage) {
-      const revealBtn = document.createElement('button');
-      revealBtn.className = 'story-title-reveal-btn';
-      revealBtn.textContent = `「${story.lockedTitle ?? DEFAULT_LOCKED_TITLE}」を思い出す`;
-      revealBtn.addEventListener('click', () => {
-        revealStoryTitle(_viewerStoryId);
-      });
-      els.storyBody.appendChild(revealBtn);
+    const currentParas = pages[_viewerCurrentPage] ?? [];
+    const currentCost = getCostForParagraph(story, unlockedParas);
+
+    let shownCount = 0;
+    for (let i = 0; i < currentParas.length; i++) {
+      const globalIdx = globalOffset + i;
+      if (globalIdx < unlockedParas) {
+        const block = document.createElement('p');
+        block.className = 'story-page' + (isNew(globalIdx) ? ' story-page-new' : '');
+        block.textContent = currentParas[i];
+        els.storyBody.appendChild(block);
+        shownCount++;
+      } else if (globalIdx === unlockedParas) {
+        const btn = _buildUnlockButton(currentCost, state);
+        // 段落が1つも表示されていなければ先頭に挿入（別ページ頭）
+        if (shownCount === 0) els.storyBody.insertBefore(btn, els.storyBody.firstChild);
+        else els.storyBody.appendChild(btn);
+        break;
+      }
+    }
+
+    if (allDone && !titleAlreadyRevealed) {
+      const onLastPage = globalOffset + currentParas.length >= totalParas;
+      if (onLastPage) els.storyBody.appendChild(_buildTitleRevealBtn(story));
+    }
+
+    const revealedPages = computeRevealedPages(pages, unlockedParas);
+    const isLastRevealed = _viewerCurrentPage === revealedPages - 1;
+
+    if (totalPages === 1 && allDone) {
+      const end = document.createElement('span');
+      end.textContent = '— END —';
+      finBar.appendChild(end);
+    } else if (totalPages > 1) {
+      const nav = document.createElement('div');
+      nav.className = 'story-nav';
+
+      const prevLabel = document.createElement('span');
+      prevLabel.className = 'story-nav-btn';
+      prevLabel.textContent = '◁';
+      if (_viewerCurrentPage === 0) {
+        prevLabel.style.visibility = 'hidden';
+      } else {
+        prevLabel.addEventListener('click', () => {
+          if (_viewerCurrentPage > 0) {
+            _viewerCurrentPage--;
+            _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+            renderViewerBody(getState(), { scrollToTop: true });
+          }
+        });
+      }
+
+      const info = document.createElement('span');
+      info.className = 'story-nav-info';
+      info.textContent = `${_viewerCurrentPage + 1} / ${revealedPages}`;
+
+      const nextLabel = document.createElement('span');
+      nextLabel.className = 'story-nav-btn';
+      nextLabel.textContent = '▷';
+      if (isLastRevealed) {
+        nextLabel.style.visibility = 'hidden';
+      } else {
+        const pageLastParaIdx = globalOffset + currentParas.length;
+        const justUnlocked = _viewerPrevUnlockedPages < pageLastParaIdx && unlockedParas >= pageLastParaIdx;
+        if (justUnlocked) nextLabel.classList.add('story-nav-btn--blink');
+        nextLabel.addEventListener('click', () => {
+          const st = getState();
+          const up = st.storyProgress[_viewerStoryId] ?? 0;
+          const rp = computeRevealedPages(_viewerPages, up);
+          if (_viewerCurrentPage < rp - 1) {
+            _viewerCurrentPage++;
+            _viewerPrevUnlockedPages = up;
+            _viewerFadeUpTo = up;
+            _saveLastPage(_viewerStoryId, _viewerCurrentPage);
+            renderViewerBody(st, { scrollToTop: true });
+          }
+        });
+      }
+
+      nav.appendChild(prevLabel);
+      nav.appendChild(info);
+      nav.appendChild(nextLabel);
+      finBar.appendChild(nav);
     }
   }
 
@@ -353,70 +457,13 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     _setViewerTitle(_tr ? _sv.title : (_sv.lockedTitle ?? DEFAULT_LOCKED_TITLE));
   }
 
-  const revealedPages = computeRevealedPages(pages, unlockedParas);
-
-  const isLastRevealed = _viewerCurrentPage === revealedPages - 1;
-
-  const allDone = unlockedParas >= totalParas;
-
-  if (totalPages === 1 && allDone) {
-    const end = document.createElement('span');
-    end.textContent = '— END —';
-    finBar.appendChild(end);
-  } else if (totalPages > 1) {
-    const nav = document.createElement('div');
-    nav.className = 'story-nav';
-
-    const prevLabel = document.createElement('span');
-    prevLabel.className = 'story-nav-btn';
-    prevLabel.textContent = '◁';
-    if (_viewerCurrentPage === 0) {
-      prevLabel.style.visibility = 'hidden';
-    } else {
-      prevLabel.addEventListener('click', () => {
-        if (_viewerCurrentPage > 0) {
-          _viewerCurrentPage--;
-          _saveLastPage(_viewerStoryId, _viewerCurrentPage);
-          renderViewerBody(getState(), { scrollToTop: true });
-        }
-      });
-    }
-
-    const info = document.createElement('span');
-    info.className = 'story-nav-info';
-    info.textContent = `${_viewerCurrentPage + 1} / ${revealedPages}`;
-
-    const nextLabel = document.createElement('span');
-    nextLabel.className = 'story-nav-btn';
-    nextLabel.textContent = '▷';
-    if (isLastRevealed) {
-      nextLabel.style.visibility = 'hidden';
-    } else {
-      const pageLastParaIdx = globalOffset + currentParas.length;
-      const justUnlocked = _viewerPrevUnlockedPages < pageLastParaIdx && unlockedParas >= pageLastParaIdx;
-      if (justUnlocked) nextLabel.classList.add('story-nav-btn--blink');
-      nextLabel.addEventListener('click', () => {
-        const st = getState();
-        const up = st.storyProgress[_viewerStoryId] ?? 0;
-        const rp = computeRevealedPages(_viewerPages, up);
-        if (_viewerCurrentPage < rp - 1) {
-          _viewerCurrentPage++;
-          _viewerPrevUnlockedPages = up;
-          _viewerFadeUpTo = up;
-          _saveLastPage(_viewerStoryId, _viewerCurrentPage);
-          renderViewerBody(st, { scrollToTop: true });
-        }
-      });
-    }
-
-    nav.appendChild(prevLabel);
-    nav.appendChild(info);
-    nav.appendChild(nextLabel);
-    finBar.appendChild(nav);
-  }
-
+  // スクロール位置: 明示指定時は先頭、新たに段落が解放されたときのみ最下部、
+  // それ以外(ログ更新などによる再描画)は元の位置を維持する
+  const _grew = unlockedParas > _viewerRenderedParas;
   if (scrollToTop) els.storyBody.scrollTop = 0;
-  else els.storyBody.scrollTop = els.storyBody.scrollHeight;
+  else if (_grew) els.storyBody.scrollTop = els.storyBody.scrollHeight;
+  else els.storyBody.scrollTop = _prevScrollTop;
+  _viewerRenderedParas = unlockedParas;
 }
 
 let _viewerToastTimer = null;
@@ -1097,14 +1144,40 @@ function initActionPicker() {
 }
 
 // ── 物語ポップアップ ──
+// モード切替ボタンのアイコン(現在のモードを表示)
+const _PAGE_MODE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/></svg>`;
+const _SCROLL_MODE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>`;
+
+function _updateModeToggleBtn() {
+  const btn = els.storyModeToggleBtn;
+  if (!btn) return;
+  // 切り替え先のモードのアイコンを表示
+  btn.innerHTML = _viewerScrollMode ? _PAGE_MODE_ICON : _SCROLL_MODE_ICON;
+  btn.title = _viewerScrollMode ? 'ページ送り表示に切り替え' : 'スクロール表示に切り替え';
+}
+
 function initStoryViewer() {
   els.storyCloseBtn.addEventListener('click', closeStory);
   els.storyOverlay.addEventListener('click', e => {
     if (e.target === els.storyOverlay) closeStory();
   });
 
+  _updateModeToggleBtn();
+  els.storyModeToggleBtn.addEventListener('click', () => {
+    _viewerScrollMode = !_viewerScrollMode;
+    try { localStorage.setItem('fr_viewer_scrollmode', _viewerScrollMode ? '1' : '0'); } catch {}
+    if (!_viewerScrollMode && _viewerStoryId) {
+      // ページモードへ戻る時、最新の解放ページを表示
+      const up = getState().storyProgress[_viewerStoryId] ?? 0;
+      _viewerCurrentPage = Math.max(0, computeRevealedPages(_viewerPages, up) - 1);
+    }
+    _updateModeToggleBtn();
+    if (_viewerStoryId) renderViewerBody(getState(), { scrollToTop: true });
+  });
+
   document.getElementById('story-fin-bar').addEventListener('click', e => {
     if (!_viewerStoryId) return;
+    if (_viewerScrollMode) return;
     if (e.target.closest('.story-nav-btn')) return;
     const bar = e.currentTarget;
     const isRight = e.clientX - bar.getBoundingClientRect().left > bar.offsetWidth / 2;
