@@ -667,11 +667,13 @@ function renderStoryList(state) {
 
 // ── 状態レンダリング ──
 let prevActive = null;
-let prevUnlocked = [];
-let prevAppearedStories = [];
-let prevUnlockedLocations = [];
-let prevUnlockedActions = [];
-let prevGuideUnlocked = null; // null = 未初期化(初回renderは現在値に同期するだけにし、セーブ済みのguideUnlockedを誤って「いま解放された」と判定しない)
+// null = 未初期化。初回renderは現在値に同期するだけにし、セーブ済みの解放済み一覧を
+// 誤って「いま解放された」と判定して再読み込みごとにログが再表示される不具合を防ぐ
+let prevUnlocked = null;
+let prevAppearedStories = null;
+let prevUnlockedLocations = null;
+let prevUnlockedActions = null;
+let prevGuideUnlocked = null;
 let prevCompanionTaskDoneAt = null; // null = 未初期化(初回renderでは現在値に同期するだけ)
 let stopFlavor = null;
 let _cancelled = false;
@@ -771,38 +773,54 @@ function render(state) {
   }
 
 
-  for (const id of (state.appearedStories ?? [])) {
-    if (!prevAppearedStories.includes(id)) {
-      const story = STORIES[id];
-      if (!story) continue;
-      addLog(`【記憶】「${story.lockedTitle ?? DEFAULT_LOCKED_TITLE}」を思い出せそうだ`, true);
+  if (prevAppearedStories === null) {
+    // 初回render: セーブ済みの状態に同期するだけ(「いま現れた」扱いにしない)
+  } else {
+    for (const id of (state.appearedStories ?? [])) {
+      if (!prevAppearedStories.includes(id)) {
+        const story = STORIES[id];
+        if (!story) continue;
+        addLog(`【記憶】「${story.lockedTitle ?? DEFAULT_LOCKED_TITLE}」を思い出せそうだ`, true);
+      }
     }
   }
   prevAppearedStories = [...(state.appearedStories ?? [])];
 
-  for (const id of state.unlockedStories) {
-    if (!prevUnlocked.includes(id)) {
-      if (!STORIES[id]) continue;
-      addLog(`【記憶】「${STORIES[id].title}」を解放しました`, true);
+  if (prevUnlocked === null) {
+    // 初回render: セーブ済みの状態に同期するだけ(「いま解放した」扱いにしない)
+  } else {
+    for (const id of state.unlockedStories) {
+      if (!prevUnlocked.includes(id)) {
+        if (!STORIES[id]) continue;
+        addLog(`【記憶】「${STORIES[id].title}」を解放しました`, true);
+      }
     }
   }
 
-  for (const id of state.unlockedLocations) {
-    if (!prevUnlockedLocations.includes(id) && LOCATIONS[id]?.label) {
-      addLog(`【発見】新しい場所「${LOCATIONS[id].label}」を見つけた`, true);
+  if (prevUnlockedLocations === null) {
+    // 初回render: セーブ済みの状態に同期するだけ(「いま見つけた」扱いにしない)
+  } else {
+    for (const id of state.unlockedLocations) {
+      if (!prevUnlockedLocations.includes(id) && LOCATIONS[id]?.label) {
+        addLog(`【発見】新しい場所「${LOCATIONS[id].label}」を見つけた`, true);
+      }
     }
   }
-  for (const id of state.unlockedActions) {
-    if (!prevUnlockedActions.includes(id)) {
-      const action = ACTIONS[id] ?? FACILITIES[id];
-      if (!action) continue;
-      const location = LOCATIONS[action.locationId];
-      const msg = (action.stub || FACILITIES[id])
-        ? `【発見】${location?.label ? `${location.label}で` : ''}「${action.label}」を見つけた`
-        : (location?.label
-          ? `${location.label} で「${action.label}」ができるようになった`
-          : `「${action.label}」ができるようになった`);
-      addLog(msg, true);
+  if (prevUnlockedActions === null) {
+    // 初回render: セーブ済みの状態に同期するだけ(「いま見つけた/できるようになった」扱いにしない)
+  } else {
+    for (const id of state.unlockedActions) {
+      if (!prevUnlockedActions.includes(id)) {
+        const action = ACTIONS[id] ?? FACILITIES[id];
+        if (!action) continue;
+        const location = LOCATIONS[action.locationId];
+        const msg = (action.stub || FACILITIES[id])
+          ? `【発見】${location?.label ? `${location.label}で` : ''}「${action.label}」を見つけた`
+          : (location?.label
+            ? `${location.label} で「${action.label}」ができるようになった`
+            : `「${action.label}」ができるようになった`);
+        addLog(msg, true);
+      }
     }
   }
 
