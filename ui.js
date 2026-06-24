@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin } from './scenario.js';
@@ -135,17 +135,17 @@ function makeCompanionRandomRewardHandler() {
 let _logBuffer = [];
 let _logPaused = false;
 
-function addLog(text, highlight = false, html = false) {
+function addLog(text, highlight = false, html = false, rightAlign = false) {
   if (_logPaused) {
-    _logBuffer.push({ text, highlight, html });
+    _logBuffer.push({ text, highlight, html, rightAlign });
     return;
   }
-  _appendLog(text, highlight, html);
+  _appendLog(text, highlight, html, rightAlign);
 }
 
-function _appendLog(text, highlight, html) {
+function _appendLog(text, highlight, html, rightAlign = false) {
   const el = document.createElement('div');
-  el.className = 'log-entry' + (highlight ? ' highlight' : '');
+  el.className = 'log-entry' + (highlight ? ' highlight' : '') + (rightAlign ? ' log-entry--right' : '');
   if (html) el.innerHTML = text;
   else el.textContent = text;
   const panel = els.mainPanel;
@@ -157,7 +157,7 @@ function _appendLog(text, highlight, html) {
 function pauseLog()  { _logPaused = true; }
 function resumeLog() {
   _logPaused = false;
-  _logBuffer.forEach(({ text, highlight, html }) => _appendLog(text, highlight, html));
+  _logBuffer.forEach(({ text, highlight, html, rightAlign }) => _appendLog(text, highlight, html, rightAlign));
   _logBuffer = [];
 }
 
@@ -667,6 +667,7 @@ let prevAppearedStories = [];
 let prevUnlockedLocations = [];
 let prevUnlockedActions = [];
 let prevGuideUnlocked = null; // null = 未初期化(初回renderは現在値に同期するだけにし、セーブ済みのguideUnlockedを誤って「いま解放された」と判定しない)
+let prevCompanionTaskDoneAt = null; // null = 未初期化(初回renderでは現在値に同期するだけ)
 let stopFlavor = null;
 let _cancelled = false;
 let _isAutoRestart = false;
@@ -790,11 +791,24 @@ function render(state) {
     if (!prevUnlockedActions.includes(id)) {
       const action = ACTIONS[id];
       const location = LOCATIONS[action.locationId];
-      const msg = location?.label
-        ? `${location.label} で「${action.label}」ができるようになった`
-        : `「${action.label}」ができるようになった`;
+      const msg = action.stub
+        ? `【発見】${location?.label ? `${location.label}で` : ''}「${action.label}」を見つけた`
+        : (location?.label
+          ? `${location.label} で「${action.label}」ができるようになった`
+          : `「${action.label}」ができるようになった`);
       addLog(msg, true);
     }
+  }
+
+  const taskResult = state.lastCompanionTaskResult;
+  if (prevCompanionTaskDoneAt === null) {
+    prevCompanionTaskDoneAt = taskResult?.doneAt ?? 0;
+  } else if (taskResult && taskResult.doneAt > prevCompanionTaskDoneAt) {
+    const name = COMPANION_DATA[taskResult.companionId]?.name ?? taskResult.companionId;
+    const fromSpan = resourceSpan(taskResult.fromRes, `${resLabel(taskResult.fromRes)}${taskResult.amount}`);
+    const toSpan = resourceSpan(taskResult.toRes, `${resLabel(taskResult.toRes)}${taskResult.amount}`);
+    addLog(`【${name}】${fromSpan} → ${toSpan} に変換した`, true, true, true);
+    prevCompanionTaskDoneAt = taskResult.doneAt;
   }
 
   prevActive = active;
@@ -872,6 +886,11 @@ function renderGuideList(state) {
     if (forestLv < 2) {
       hints.push('【はじまりの森】の再生Lvを上げよう…（Lv2で採集ができるようになる）');
     }
+  }
+
+  // 塔都が解放済みで、まだ見つけていない施設があれば探索を促す
+  if (state.unlockedLocations?.includes('touto') && TOUTO_FACILITIES.some(id => !state.unlockedActions?.includes(id))) {
+    hints.push('【塔都】を探索してみよう…まだ見つけていない施設がありそうだ');
   }
 
   // 解放済みの場所に、まだ見つけていない同行者がいれば探索を促す(レアドロップの示唆)
@@ -1199,6 +1218,28 @@ function startCompanionJoin(companionId) {
   });
 }
 
+// 行動アイコン(行動名で判定。未知の行動名は汎用アイコンにフォールバック)
+const _ICON_SEARCH  = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><line x1="20" y1="20" x2="15.5" y2="15.5"/></svg>`;
+const _ICON_GATHER   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c8 0 14-6 14-14-8 0-14 6-14 14z"/><line x1="5" y1="19" x2="13" y2="11"/></svg>`;
+const _ICON_BED      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7"/><path d="M3 19h18"/><path d="M3 14h18"/></svg>`;
+const _ICON_FLOWER   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="5" r="3"/><circle cx="12" cy="19" r="3"/><circle cx="5" cy="12" r="3"/><circle cx="19" cy="12" r="3"/></svg>`;
+const _ICON_BOOK     = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`;
+const _ICON_GEM      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/><path d="M9 3l3 6-3 12"/><path d="M15 3l-3 6 3 12"/></svg>`;
+const _ICON_DEFAULT  = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>`;
+
+const ACTION_ICONS = {
+  '探索':          _ICON_SEARCH,
+  '採集':          _ICON_GATHER,
+  '宿屋 尻尾亭':    _ICON_BED,
+  '花屋 竜の鱗':    _ICON_FLOWER,
+  '塔都図書館':     _ICON_BOOK,
+  '骨董屋 リーリエ': _ICON_GEM,
+};
+
+function actionIconSvg(label) {
+  return ACTION_ICONS[label] ?? _ICON_DEFAULT;
+}
+
 function renderActionList() {
   els.actionList.innerHTML = '';
   const state = getState();
@@ -1260,6 +1301,10 @@ function renderActionList() {
       const isSelected = selectedActionId === action.id;
       row.className = 'action-row' + (isSelected ? ' selected' : '') + (isRunning ? ' running' : '');
 
+      const icon = document.createElement('span');
+      icon.className = 'action-row-icon';
+      icon.innerHTML = actionIconSvg(action.label);
+
       const name = document.createElement('span');
       name.className = 'action-row-name';
       const actionLv = state.ActionLv?.[action.id] ?? 0;
@@ -1284,6 +1329,7 @@ function renderActionList() {
         renderActionList();
       });
 
+      row.appendChild(icon);
       row.appendChild(name);
       row.appendChild(desc);
       row.appendChild(time);
@@ -1626,19 +1672,119 @@ function openEquipPopup(companionId) {
   };
 }
 
+function openConvertPopup(companionId) {
+  const popup = document.getElementById('convert-popup');
+  const topBox = document.getElementById('convert-box-top');
+  const bottomBox = document.getElementById('convert-box-bottom');
+  const fragmentList = document.getElementById('convert-fragment-list');
+  const slider = document.getElementById('convert-slider');
+  const label = document.getElementById('convert-amount-label');
+  const confirmBtn = document.getElementById('convert-confirm-btn');
+
+  const ownedList = () => ['fragment', ...UNIQUE_FRAGMENTS].filter(r => (getState().resources[r] ?? 0) > 0);
+
+  const slots = { top: 'fragment', bottom: UNIQUE_FRAGMENTS.find(r => (getState().resources[r] ?? 0) > 0) ?? null };
+  let selectedSlot = 'top';
+  let convertInfo = { valid: false, direction: null, uniqueResource: null, fromRes: null };
+
+  function computeConvertInfo() {
+    if (slots.top === 'fragment' && slots.bottom && UNIQUE_FRAGMENTS.includes(slots.bottom)) {
+      return { valid: true, direction: 'toUnique', uniqueResource: slots.bottom, fromRes: 'fragment' };
+    }
+    if (slots.bottom === 'fragment' && slots.top && UNIQUE_FRAGMENTS.includes(slots.top)) {
+      return { valid: true, direction: 'toNormal', uniqueResource: slots.top, fromRes: slots.top };
+    }
+    return { valid: false, direction: null, uniqueResource: null, fromRes: null };
+  }
+
+  function updateLabel() {
+    const amount = Number(slider.value);
+    const seconds = (amount * FRAGMENT_CONVERT_MS_PER_UNIT / 1000).toFixed(1);
+    label.textContent = amount > 0 ? `${amount} 個（変換時間 約${seconds}秒）` : '0 個';
+    confirmBtn.disabled = amount <= 0 || !convertInfo.valid;
+  }
+
+  function renderFragmentList() {
+    fragmentList.innerHTML = '';
+    for (const res of ownedList()) {
+      const have = getState().resources[res] ?? 0;
+      const btn = document.createElement('button');
+      btn.className = 'convert-fragment-item' + (slots[selectedSlot] === res ? ' selected' : '');
+      btn.innerHTML = `<div class="resource-row"><span class="resource-name">${resLabel(res)}</span><span class="resource-val">${have}</span></div>`;
+      btn.addEventListener('click', () => {
+        const other = selectedSlot === 'top' ? 'bottom' : 'top';
+        if (slots[other] === res) slots[other] = slots[selectedSlot];
+        slots[selectedSlot] = res;
+        refresh();
+      });
+      fragmentList.appendChild(btn);
+    }
+  }
+
+  function refresh() {
+    topBox.textContent = slots.top ? `${resLabel(slots.top)}　${getState().resources[slots.top] ?? 0}` : '選択してください';
+    topBox.className = 'convert-box' + (selectedSlot === 'top' ? ' is-selected' : '');
+    bottomBox.textContent = slots.bottom ? `${resLabel(slots.bottom)}　${getState().resources[slots.bottom] ?? 0}` : '選択してください';
+    bottomBox.className = 'convert-box' + (selectedSlot === 'bottom' ? ' is-selected' : '');
+
+    convertInfo = computeConvertInfo();
+    const haveFrom = convertInfo.valid ? (getState().resources[convertInfo.fromRes] ?? 0) : 0;
+    slider.max = String(haveFrom);
+    if (Number(slider.value) > haveFrom) slider.value = String(haveFrom);
+    slider.disabled = !convertInfo.valid;
+
+    renderFragmentList();
+    updateLabel();
+  }
+
+  topBox.onclick = () => { selectedSlot = 'top'; refresh(); };
+  bottomBox.onclick = () => { selectedSlot = 'bottom'; refresh(); };
+  slider.oninput = updateLabel;
+  confirmBtn.onclick = () => {
+    const amount = Number(slider.value);
+    if (amount <= 0 || !convertInfo.valid) return;
+    startFragmentConvert(companionId, convertInfo.direction, amount, convertInfo.uniqueResource);
+    popup.classList.remove('open');
+    renderCharTab(getState());
+  };
+
+  slider.value = '0';
+  selectedSlot = 'top';
+  refresh();
+
+  popup.classList.add('open');
+  popup.onclick = (e) => {
+    if (e.target === popup) popup.classList.remove('open');
+  };
+}
+
 let _prevUnlockedCompanions = [];
 const _expandedCompanionIds = new Set();
 
-// 「にょきっと展開型」のキャラ詳細(暫定の大枠のみ。内容は今後詰める)
-function _buildCompanionDetail(id, state) {
+// キャラ詳細パネル用タブアイコン(暫定の線画アイコン)
+const _DETAIL_TAB_ICONS = {
+  profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="1.5"/><line x1="7.5" y1="8.5" x2="16.5" y2="8.5"/><line x1="7.5" y1="12" x2="16.5" y2="12"/><line x1="7.5" y1="15.5" x2="13" y2="15.5"/></svg>',
+  items:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="9" width="14" height="11" rx="2"/><path d="M9 9 V6.5 a3 3 0 0 1 6 0 V9"/></svg>',
+  level:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 4 L14.5 9.5 L20.5 10.2 L16 14.2 L17.2 20 L12 17 L6.8 20 L8 14.2 L3.5 10.2 L9.5 9.5 Z"/></svg>',
+  memory:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5 C6 4.5 9 4.5 11 5.5 V18.5 C9 17.5 6 17.5 4 18.5 Z"/><path d="M20 5.5 C18 4.5 15 4.5 13 5.5 V18.5 C15 17.5 18 17.5 20 18.5 Z"/></svg>',
+};
+const _DETAIL_TABS = [
+  { id: 'profile', label: 'プロフィール' },
+  { id: 'items',   label: '持ち物' },
+  { id: 'level',   label: 'レベル・異能' },
+  { id: 'memory',  label: '記憶' },
+];
+const _companionDetailTab = new Map();
+const _companionTaskTickers = new Map();
+
+function _buildCompanionDetailProfile(id, state) {
   const data = COMPANION_DATA[id];
-  const detail = document.createElement('div');
-  detail.className = 'companion-detail';
+  const wrap = document.createElement('div');
 
   const profile = document.createElement('div');
   profile.className = 'companion-detail-section';
   profile.innerHTML = `<div class="companion-detail-label">プロフィール</div><div class="companion-detail-body">${data.desc}</div>`;
-  detail.appendChild(profile);
+  wrap.appendChild(profile);
 
   const drop = document.createElement('div');
   drop.className = 'companion-detail-section';
@@ -1646,8 +1792,13 @@ function _buildCompanionDetail(id, state) {
   const dropDiscovered = dropResource && (state.discoveredResources ?? []).includes(dropResource);
   const dropLabel = !dropResource ? '—' : dropDiscovered ? resLabel(dropResource) : '???';
   drop.innerHTML = `<div class="companion-detail-label">見つけられるもの</div><div class="companion-detail-body">${dropLabel}</div>`;
-  detail.appendChild(drop);
+  wrap.appendChild(drop);
 
+  return wrap;
+}
+
+function _buildCompanionDetailItems(id, state) {
+  const wrap = document.createElement('div');
   const equip = document.createElement('div');
   equip.className = 'companion-detail-section';
   const equippedItem = state.companionEquipment?.[id] ?? null;
@@ -1661,8 +1812,114 @@ function _buildCompanionDetail(id, state) {
   equipBtn.textContent = equipLabel;
   equipBtn.addEventListener('click', (e) => { e.stopPropagation(); openEquipPopup(id); });
   equip.appendChild(equipBtn);
-  detail.appendChild(equip);
+  wrap.appendChild(equip);
+  return wrap;
+}
 
+function _buildCompanionDetailLevel(id, state) {
+  const wrap = document.createElement('div');
+  const lv = state.ELv?.[id] ?? 0;
+  const uniqueResource = COMPANION_REWARDS[id]?.[0]?.resource;
+
+  const levelSection = document.createElement('div');
+  levelSection.className = 'companion-detail-section';
+  levelSection.innerHTML = `<div class="companion-detail-label">レベル</div>`;
+  const levelRow = document.createElement('div');
+  levelRow.className = 'companion-detail-body companion-level-row';
+  const levelText = document.createElement('span');
+  levelText.textContent = `Lv ${lv}`;
+  levelRow.appendChild(levelText);
+  if (lv < ELV_MAX && uniqueResource) {
+    const cost = ELV_COSTS[lv];
+    const have = state.resources[uniqueResource] ?? 0;
+    const lvUpBtn = document.createElement('button');
+    lvUpBtn.className = 'companion-equip-btn';
+    lvUpBtn.textContent = `レベルアップ（${resLabel(uniqueResource)} ${cost}）`;
+    lvUpBtn.disabled = have < cost;
+    lvUpBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      levelUpCompanion(id);
+      renderCharTab(getState());
+    });
+    levelRow.appendChild(lvUpBtn);
+  }
+  levelSection.appendChild(levelRow);
+  wrap.appendChild(levelSection);
+
+  const skills = COMPANION_SKILLS[id] ?? [];
+  if (skills.length > 0) {
+    const skillSection = document.createElement('div');
+    skillSection.className = 'companion-detail-section';
+    skillSection.innerHTML = `<div class="companion-detail-label">異能</div>`;
+    for (const skill of skills) {
+      const unlocked = lv >= skill.lv;
+      const skillBody = document.createElement('div');
+      skillBody.className = 'companion-detail-body';
+      if (!unlocked) {
+        skillBody.textContent = `${skill.label}（Lv${skill.lv}で解放）`;
+        skillSection.appendChild(skillBody);
+        continue;
+      }
+      skillBody.innerHTML = `<strong>${skill.label}</strong> ${skill.desc}`;
+      skillSection.appendChild(skillBody);
+
+      if (skill.id === 'fragment_convert') {
+        const convertRow = document.createElement('div');
+        convertRow.className = 'companion-skill-convert-row';
+
+        const isActive = (state.activeCompanions ?? []).includes(id);
+        const task = state.companionTasks?.[id];
+
+        if (isActive) {
+          const msg = document.createElement('div');
+          msg.className = 'companion-detail-body';
+          msg.textContent = '別行動中のみ使える異能です';
+          convertRow.appendChild(msg);
+        } else if (task) {
+          const progress = getCompanionTaskProgress(id) ?? 0;
+          const remainingSec = Math.max(0, Math.ceil((task.endsAt - Date.now()) / 1000));
+          const msg = document.createElement('div');
+          msg.className = 'companion-detail-body';
+          msg.textContent = `変換作業中…残り${remainingSec}秒`;
+          convertRow.appendChild(msg);
+          const barWrap = document.createElement('div');
+          barWrap.className = 'convert-task-bar-wrap';
+          const barFill = document.createElement('div');
+          barFill.className = 'convert-task-bar-fill';
+          barFill.style.width = `${Math.round(progress * 100)}%`;
+          barWrap.appendChild(barFill);
+          convertRow.appendChild(barWrap);
+          if (!_companionTaskTickers.has(id)) {
+            _companionTaskTickers.set(id, setInterval(() => {
+              if (!getState().companionTasks?.[id]) {
+                clearInterval(_companionTaskTickers.get(id));
+                _companionTaskTickers.delete(id);
+              }
+              renderCharTab(getState());
+            }, 500));
+          }
+        } else {
+          const openBtn = document.createElement('button');
+          openBtn.className = 'companion-equip-btn';
+          openBtn.textContent = 'フラグメントを変換する';
+          openBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openConvertPopup(id);
+          });
+          convertRow.appendChild(openBtn);
+        }
+
+        skillSection.appendChild(convertRow);
+      }
+    }
+    wrap.appendChild(skillSection);
+  }
+
+  return wrap;
+}
+
+function _buildCompanionDetailMemory(id, state) {
+  const wrap = document.createElement('div');
   const memories = document.createElement('div');
   memories.className = 'companion-detail-section';
   memories.innerHTML = `<div class="companion-detail-label">関連する記憶</div>`;
@@ -1696,7 +1953,44 @@ function _buildCompanionDetail(id, state) {
     }
   }
   memories.appendChild(memoryBody);
-  detail.appendChild(memories);
+  wrap.appendChild(memories);
+  return wrap;
+}
+
+const _DETAIL_TAB_BUILDERS = {
+  profile: _buildCompanionDetailProfile,
+  items: _buildCompanionDetailItems,
+  level: _buildCompanionDetailLevel,
+  memory: _buildCompanionDetailMemory,
+};
+
+// キャラ詳細パネル: 左にタブアイコン、右に選択中タブの内容を表示
+function _buildCompanionDetail(id, state) {
+  const detail = document.createElement('div');
+  detail.className = 'companion-detail';
+
+  const activeTab = _companionDetailTab.get(id) ?? 'profile';
+
+  const nav = document.createElement('div');
+  nav.className = 'companion-detail-nav';
+  for (const tab of _DETAIL_TABS) {
+    const btn = document.createElement('button');
+    btn.className = 'companion-detail-nav-btn' + (tab.id === activeTab ? ' active' : '');
+    btn.innerHTML = _DETAIL_TAB_ICONS[tab.id];
+    btn.title = tab.label;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _companionDetailTab.set(id, tab.id);
+      renderCharTab(getState());
+    });
+    nav.appendChild(btn);
+  }
+  detail.appendChild(nav);
+
+  const content = document.createElement('div');
+  content.className = 'companion-detail-content';
+  content.appendChild(_DETAIL_TAB_BUILDERS[activeTab](id, state));
+  detail.appendChild(content);
 
   return detail;
 }
@@ -1805,6 +2099,7 @@ function renderCharTab(state) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (getState().activeAction) { addLog('行動を中断してください', true); return; }
+      if (getState().companionTasks?.[id]) { addLog('作業中は同行させられません', true); return; }
       setActiveCompanion(id, true);
     });
     card.appendChild(btn);

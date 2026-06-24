@@ -178,8 +178,20 @@ const LOCATION_DEFS = [
     id: 'touto',
     label: '塔都',
     description: 'どこまでも空へ伸びる、白亜の塔をとりまく街。さまざまな施設がある。',
-    // 拠点エリア。以下4施設は現状スタブ（中身は今後実装：金貨経済・レリック・調査・宿屋休息）
+    // 拠点エリア。探索を進める(ActionLvが上がる)ごとに施設をランダムな順で発見する。
+    // 以下4施設は現状スタブ（中身は今後実装：金貨経済・レリック・調査・宿屋休息）
     actions: [
+      {
+        id: 'touto_explore',
+        label: '探索',
+        description: '塔都の街を歩き回る。',
+        duration: 15000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'fragment_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
       { id: 'touto_inn',     label: '宿屋 尻尾亭',   description: '料理がおいしい旅の宿で休む。（準備中）', duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
       { id: 'touto_flower',  label: '花屋 竜の鱗',   description: '花屋を手伝い、金貨を得る。（準備中）',   duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
       { id: 'touto_library', label: '塔都図書館',     description: '調査を行う。（準備中）',                 duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
@@ -227,8 +239,11 @@ const DISCOVERY_LOCATION_ACTIONS = {
   renril:   ['renril_explore'],
   mephisto: ['mephisto_explore'],
   knights:  ['knights_explore'],
-  touto:    ['touto_inn', 'touto_flower', 'touto_library', 'touto_antique'],
+  touto:    ['touto_explore'],
 };
+
+// 塔都の施設。ActionLv(touto_exploreの実行回数レベル)が上がるたびランダムな順で1つずつ発見される
+const TOUTO_FACILITIES = ['touto_inn', 'touto_flower', 'touto_library', 'touto_antique'];
 
 // 指定ステップで提示する選択肢（まだ解放していない場所IDの配列）
 function getDiscoveryOptions(state, step) {
@@ -308,6 +323,99 @@ const COMPANION_RELICS = {
 };
 const EQUIP_BONUS = 5;
 
+// 同行者レベル(ELv)。固有フラグメントを消費して上げる。上限・コストは仮値
+const ELV_MAX = 10;
+const ELV_COSTS = Array.from({ length: ELV_MAX }, (_, n) => 10 * (n + 1));
+
+// 同行者ごとの異能。ELvが指定Lvに達すると解放される
+const COMPANION_SKILLS = {
+  yuya: [
+    { id: 'fragment_convert', label: 'フラグメント変換', lv: 5, desc: 'ノーマルなフラグメントと、いずれかの固有フラグメント(赤・無色・泡・青・空)を互いに変換できる。' },
+  ],
+};
+
+// フラグメント変換で対象になり得る固有フラグメント一覧(同行者の固有報酬リソースをすべて集める)
+const UNIQUE_FRAGMENTS = Object.values(COMPANION_REWARDS).map(r => r[0].resource);
+
+// 同行者レベルを1上げる。固有フラグメントをコスト分消費する
+function levelUpCompanion(companionId) {
+  const lv = state.ELv[companionId] ?? 0;
+  if (lv >= ELV_MAX) return { ok: false };
+  const cost = ELV_COSTS[lv];
+  const uniqueResource = COMPANION_REWARDS[companionId]?.[0]?.resource;
+  if (!uniqueResource) return { ok: false };
+  if ((state.resources[uniqueResource] ?? 0) < cost) return { ok: false };
+  state = {
+    ...state,
+    resources: { ...state.resources, [uniqueResource]: state.resources[uniqueResource] - cost },
+    ELv: { ...state.ELv, [companionId]: lv + 1 },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
+
+// フラグメント変換の異能。direction: 'toUnique'(ノーマル→固有) または 'toNormal'(固有→ノーマル)。レートは1:1
+// 個数に応じて時間がかかる(時間中は別行動扱い=同行できない)。同行中の仲間は使用不可
+const FRAGMENT_CONVERT_MS_PER_UNIT = 200;
+const _companionTaskTimers = {};
+
+function getCompanionTaskProgress(companionId) {
+  const task = state.companionTasks?.[companionId];
+  if (!task) return null;
+  const now = Date.now();
+  const total = task.endsAt - task.startedAt;
+  const elapsed = now - task.startedAt;
+  return Math.min(Math.max(elapsed / total, 0), 1);
+}
+
+function startFragmentConvert(companionId, direction, amount, uniqueResource) {
+  if (amount <= 0) return { ok: false };
+  if (!UNIQUE_FRAGMENTS.includes(uniqueResource)) return { ok: false };
+  if (state.activeCompanions.includes(companionId)) return { ok: false };
+  if (state.companionTasks?.[companionId]) return { ok: false };
+  const lv = state.ELv[companionId] ?? 0;
+  const skill = (COMPANION_SKILLS[companionId] ?? []).find(s => s.id === 'fragment_convert');
+  if (!skill || lv < skill.lv) return { ok: false };
+  const fromRes = direction === 'toUnique' ? 'fragment' : uniqueResource;
+  const toRes = direction === 'toUnique' ? uniqueResource : 'fragment';
+  if ((state.resources[fromRes] ?? 0) < amount) return { ok: false };
+  const now = Date.now();
+  const duration = amount * FRAGMENT_CONVERT_MS_PER_UNIT;
+  state = {
+    ...state,
+    resources: { ...state.resources, [fromRes]: state.resources[fromRes] - amount },
+    companionTasks: {
+      ...state.companionTasks,
+      [companionId]: { type: 'convert', fromRes, toRes, amount, startedAt: now, endsAt: now + duration },
+    },
+  };
+  saveToStorage(state);
+  notify();
+  _scheduleCompanionTask(companionId, duration);
+  return { ok: true };
+}
+
+function _scheduleCompanionTask(companionId, delay) {
+  clearTimeout(_companionTaskTimers[companionId]);
+  _companionTaskTimers[companionId] = setTimeout(() => _completeCompanionTask(companionId), delay);
+}
+
+function _completeCompanionTask(companionId) {
+  const task = state.companionTasks?.[companionId];
+  if (!task) return;
+  const newTasks = { ...state.companionTasks };
+  delete newTasks[companionId];
+  state = {
+    ...state,
+    resources: { ...state.resources, [task.toRes]: (state.resources[task.toRes] ?? 0) + task.amount },
+    companionTasks: newTasks,
+    lastCompanionTaskResult: { companionId, fromRes: task.fromRes, toRes: task.toRes, amount: task.amount, doneAt: Date.now() },
+  };
+  saveToStorage(state);
+  notify();
+}
+
 // 世界LVの閾値（フラグメント総獲得数）
 // インデックス i → Lv i+1 に上がるのに必要な累計数（25段階・計算式で自動生成・仮）
 // 上限=worldLv のため、wherever を Lv25 まで上げる＝worldLv25 が必要。終盤の場所発見までの長い道のりを形成する
@@ -359,6 +467,10 @@ const INITIAL_STATE = {
   ActionLv: {},
   discoveryStep: 0,
   discoveryLatePick: null,
+  toutoFacilityOrder: null,
+  toutoLastFacilityLv: 0,
+  companionTasks: {},
+  lastCompanionTaskResult: null,
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -708,6 +820,35 @@ function completeAction(actionId, onComplete) {
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
   const lvedUp = state.worldLv > prevLv;
   _addActionCount(actionId);
+
+  // 塔都の探索: 探索ごとに抽選で施設を発見する。見つからないままActionLvが上がるほど確率が上昇し、
+  // 1つ見つかると確率はベースに戻る（ランダムな順）
+  if (actionId === 'touto_explore') {
+    let order = state.toutoFacilityOrder;
+    if (!order) {
+      order = [...TOUTO_FACILITIES];
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      state = { ...state, toutoFacilityOrder: order };
+    }
+    const next = order.find(id => !state.unlockedActions.includes(id));
+    if (next) {
+      const actionLv = state.ActionLv['touto_explore'] ?? 0;
+      const diff = actionLv - (state.toutoLastFacilityLv ?? 0);
+      const chance = Math.min(0.05 + diff * 0.1, 0.5);
+      if (Math.random() < chance) {
+        state = {
+          ...state,
+          unlockedActions: [...state.unlockedActions, next],
+          toutoLastFacilityLv: actionLv,
+        };
+        discovered.push({ type: 'action', id: next });
+      }
+    }
+  }
+
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
   notify();
@@ -816,6 +957,10 @@ function init() {
     ActionLv: saved.ActionLv ?? INITIAL_STATE.ActionLv,
     discoveryStep: saved.discoveryStep ?? INITIAL_STATE.discoveryStep,
     discoveryLatePick: saved.discoveryLatePick ?? INITIAL_STATE.discoveryLatePick,
+    toutoFacilityOrder: saved.toutoFacilityOrder ?? INITIAL_STATE.toutoFacilityOrder,
+    toutoLastFacilityLv: saved.toutoLastFacilityLv ?? INITIAL_STATE.toutoLastFacilityLv,
+    companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
+    lastCompanionTaskResult: saved.lastCompanionTaskResult ?? INITIAL_STATE.lastCompanionTaskResult,
   };
 
   if (state.activeAction) {
@@ -824,6 +969,15 @@ function init() {
       _timer = setTimeout(() => completeAction(state.activeAction.actionId), remaining);
     } else {
       completeAction(state.activeAction.actionId);
+    }
+  }
+
+  for (const [companionId, task] of Object.entries(state.companionTasks ?? {})) {
+    const remaining = task.endsAt - Date.now();
+    if (remaining > 0) {
+      _scheduleCompanionTask(companionId, remaining);
+    } else {
+      _completeCompanionTask(companionId);
     }
   }
 }
@@ -908,6 +1062,7 @@ function levelUpLocation(locationId, prepaid = 0, { silent = false } = {}) {
 }
 
 function setActiveCompanion(id, active) {
+  if (active && state.companionTasks?.[id]) return { ok: false };
   const current = state.activeCompanions;
   const next = active
     ? (current.includes(id) ? current : [...current, id])
@@ -915,6 +1070,7 @@ function setActiveCompanion(id, active) {
   state = { ...state, activeCompanions: next };
   saveToStorage(state);
   notify();
+  return { ok: true };
 }
 
 // ログストーリーnへジャンプするための前提状態を整える(開発用)
@@ -969,4 +1125,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

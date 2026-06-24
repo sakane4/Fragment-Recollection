@@ -173,6 +173,15 @@
       border-left-color: var(--accent);
     }
 
+    .log-entry--right {
+      text-align: right;
+      border-left: none;
+      border-right: 2px solid var(--accent);
+      padding-left: 0;
+      padding-right: 0.6rem;
+      color: var(--text);
+    }
+
     /* ── アクション行 ── */
     #action-bar {
       display: flex;
@@ -254,6 +263,17 @@
     .action-row:hover { background: var(--accent-dim); }
     .action-row.selected { box-shadow: inset 0 0 0 1px var(--accent); }
     .action-row.running { opacity: 0.6; }
+
+    .action-row-icon {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .action-row-icon svg { display: block; }
 
     .action-row-name {
       font-size: 0.88rem;
@@ -959,6 +979,60 @@
       cursor: pointer;
     }
     .equip-popup-item:hover { background: var(--accent-dim); }
+    .convert-box-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+      margin-bottom: 0.6rem;
+    }
+    .convert-box {
+      width: 100%;
+      min-width: 220px;
+      padding: 0.5rem 0.7rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 0.82rem;
+      cursor: pointer;
+      text-align: center;
+    }
+    .convert-box.is-selected { border-color: var(--accent); color: var(--accent); }
+    .convert-box-arrow {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .convert-slider {
+      width: 100%;
+      margin: 0.3rem 0;
+    }
+    .convert-amount-label {
+      font-size: 0.8rem;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    .convert-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.6rem 0;
+    }
+    .convert-fragment-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .convert-fragment-item {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+    }
+    .convert-fragment-item:hover .resource-row { background: var(--accent-dim); }
+    .convert-fragment-item.selected .resource-name,
+    .convert-fragment-item.selected .resource-val { color: var(--accent); }
     .equip-popup-empty {
       font-size: 0.82rem;
       color: var(--muted);
@@ -975,6 +1049,31 @@
       align-self: flex-start;
     }
     .companion-equip-btn:hover { background: var(--accent-dim); }
+    .companion-equip-btn:disabled { opacity: 0.4; cursor: default; }
+    .companion-equip-btn:disabled:hover { background: transparent; }
+    .companion-level-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .companion-skill-convert-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 0.4rem;
+    }
+    .convert-task-bar-wrap {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      overflow: hidden;
+    }
+    .convert-task-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.4s linear;
+    }
     .location-popup-inner {
       position: absolute;
       background: var(--panel);
@@ -1249,14 +1348,44 @@
     }
     .companion-detail {
       margin: -0.3rem 0 0.3rem;
-      padding: 0.6rem 0.7rem;
       border: 1px solid var(--border);
       border-top: none;
       border-radius: 0 0 6px 6px;
       background: var(--panel);
       display: flex;
+      flex-direction: row;
+      min-height: 8rem;
+    }
+    .companion-detail-nav {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      flex-shrink: 0;
+      order: 2;
+    }
+    .companion-detail-content {
+      order: 1;
+    }
+    .companion-detail-nav-btn {
+      width: 2.4rem;
+      height: 2.4rem;
+      padding: 0.5rem;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .companion-detail-nav-btn svg { width: 100%; height: 100%; display: block; }
+    .companion-detail-nav-btn:hover { color: var(--text); background: var(--accent-dim); }
+    .companion-detail-nav-btn.active { color: var(--accent); background: var(--accent-dim); }
+    .companion-detail-content {
+      flex: 1;
+      padding: 0.6rem 0.7rem;
+      display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      min-width: 0;
     }
     .companion-detail-label {
       font-size: 0.72rem;
@@ -1544,6 +1673,23 @@
     <div class="equip-popup-inner">
       <div class="equip-popup-title">持ち物を選択</div>
       <div id="equip-popup-list" class="equip-popup-list"></div>
+    </div>
+  </div>
+
+  <!-- フラグメント変換ポップアップ -->
+  <div id="convert-popup" class="equip-popup">
+    <div class="equip-popup-inner">
+      <div class="equip-popup-title">フラグメント変換</div>
+      <div class="convert-box-wrap">
+        <button class="convert-box" id="convert-box-top"></button>
+        <div class="convert-box-arrow">↓</div>
+        <button class="convert-box" id="convert-box-bottom"></button>
+      </div>
+      <input type="range" id="convert-slider" class="convert-slider" min="0" max="0" value="0" step="1">
+      <div class="convert-amount-label" id="convert-amount-label"></div>
+      <button class="location-popup-lvup-btn" id="convert-confirm-btn">変換する</button>
+      <hr class="convert-divider">
+      <div class="convert-fragment-list" id="convert-fragment-list"></div>
     </div>
   </div>
 
