@@ -1100,6 +1100,7 @@
     }
 
     .tab-btn {
+      position: relative;
       flex: 1;
       padding: 0.6rem 0.5rem;
       background: none;
@@ -1110,6 +1111,37 @@
       transition: color 0.15s, border-top 0.15s;
       border-top: 2px solid transparent;
     }
+
+    /* 通知ドット(共通) */
+    .notify-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      box-shadow: 0 0 4px var(--accent);
+      animation: notify-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes notify-pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.3; }
+    }
+    .story-item-title .notify-dot { margin-right: 0.4rem; vertical-align: middle; }
+
+    .tab-badge {
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      margin-left: 0.55rem;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 4px var(--accent);
+      animation: notify-pulse 1.6s ease-in-out infinite;
+    }
+    .tab-badge[hidden] { display: none; }
 
     .tab-btn:hover { color: var(--text); }
     .tab-btn.active {
@@ -1508,7 +1540,7 @@
 
   <!-- フッター -->
   <div id="footer">
-    <button class="tab-btn" data-view="view-stories">記憶</button>
+    <button class="tab-btn" data-view="view-stories">記憶<span class="tab-badge" id="stories-tab-badge" hidden></span></button>
     <button class="tab-btn" data-view="view-actions">地図</button>
     <button class="tab-btn active" data-view="view-items">持ち物</button>
     <button class="tab-btn" data-view="view-chars">同行</button>

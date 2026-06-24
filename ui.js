@@ -29,6 +29,19 @@ let _viewerScrollMode = (() => {
   catch { return false; }
 })();
 
+// 既読(リストに表示済みとして確認済み)の記憶ID集合。新着通知の判定に使う。
+// null = 未初期化(初回レンダリングで現在の可視記憶を既読としてシードする)
+let _seenStories = (() => {
+  try {
+    const raw = localStorage.getItem('fr_seen_stories');
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {}
+  return null;
+})();
+function _persistSeen() {
+  try { localStorage.setItem('fr_seen_stories', JSON.stringify([...(_seenStories ?? [])])); } catch {}
+}
+
 const RESOURCE_LABELS = {
   fragment:        'フラグメント',
   blue_fragment:   '青のフラグメント',
@@ -58,6 +71,7 @@ const RESOURCE_LABELS = {
   old_armband:        '古びた腕章',
   chipped_insignia:   '欠けた記章',
   polished_sheath:    '美しい細身の剣',
+  guide_earring:      '導きのイヤリング',
 };
 
 const RESOURCE_COLORS = {
@@ -73,18 +87,19 @@ const RESOURCE_COLORS = {
   old_paint:          '#e0a96d',
   torn_page:          '#d8cba0',
   broken_piano_sound: '#b0a8c8',
-  art_room_key:       '#f5c542',
+  art_room_key:       '#d6336c',
   wyvern_claw:        '#c0c4cc',
   wyvern_scale:       '#7fb0c8',
-  melon_keychain:     '#f5c542',
+  melon_keychain:     '#d6336c',
   spellbook_page:     '#b89cd8',
   magic_circle_shard: '#a98cd8',
   astard_fragment:    '#9a8cc8',
-  sky_compass:        '#f5c542',
+  sky_compass:        '#d6336c',
   subjugation_report: '#d8cba0',
   old_armband:        '#b0926a',
   chipped_insignia:   '#c0c4cc',
-  polished_sheath:    '#f5c542',
+  polished_sheath:    '#d6336c',
+  guide_earring:      '#d6336c',
 };
 
 // 持ち物一覧のカテゴリ分類
@@ -113,6 +128,7 @@ const RESOURCE_CATEGORIES = {
   melon_keychain:  'relic',
   sky_compass:     'relic',
   polished_sheath: 'relic',
+  guide_earring:   'relic',
 };
 const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'relic'];
 const RESOURCE_CATEGORY_LABELS = { fragment: 'フラグメント', material: '素材', relic: 'レリック' };
@@ -533,6 +549,62 @@ function storyIsVisible(story, state) {
   return (state.resources[resource] ?? 0) >= amount;
 }
 
+// ── 通知判定 ──
+function _canAfford(cost, state) {
+  return (cost ?? []).every(c => (state.resources[c.resource] ?? 0) >= c.amount);
+}
+
+// 「いま操作できる」記憶か(解放済みで次ページが買える / 未解放だが思い出せる)
+function _storyIsUpdatable(story, state) {
+  if (state.unlockedStories.includes(story.id)) {
+    const progress = state.storyProgress[story.id] ?? 0;
+    const total = _storyPageCounts[story.id] ?? story.pageCount ?? 0;
+    if (total && progress >= total) return false;
+    return _canAfford(getCostForParagraph(story, progress), state);
+  }
+  if (storyIsVisible(story, state)) return _canAfford(story.unlockCost, state);
+  return false;
+}
+
+// 新着(リストに出たがまだ確認していない)記憶か
+function _storyIsNew(story, state) {
+  return !!_seenStories && storyIsVisible(story, state) && !_seenStories.has(story.id);
+}
+
+function _storyIsNotable(story, state) {
+  return _storyIsNew(story, state) || _storyIsUpdatable(story, state);
+}
+
+// 場所のLocationLvを今すぐ上げられるか(worldLv上限・最大Lv・フラグメント所持で判定)
+function _canLevelUpLocation(locationId, state) {
+  const lv = state.LocationLv?.[locationId] ?? 0;
+  if (lv >= LOCATION_LV_MAX) return false;
+  if (lv >= getLocationLvCap()) return false;
+  return (state.resources.fragment ?? 0) >= LOCATION_LV_COSTS[lv];
+}
+
+// 現在見えている記憶をすべて既読にする(記憶タブを開いたときに呼ぶ)
+function _markStoriesSeen(state) {
+  if (!_seenStories) _seenStories = new Set();
+  let changed = false;
+  for (const s of Object.values(STORIES)) {
+    if (storyIsVisible(s, state) && !_seenStories.has(s.id)) { _seenStories.add(s.id); changed = true; }
+  }
+  if (changed) {
+    _persistSeen();
+    renderStoryList(state);
+    _updateStoriesBadge(state);
+  }
+}
+
+// 記憶タブ(フッター)の新着バッジを更新
+function _updateStoriesBadge(state) {
+  const badge = document.getElementById('stories-tab-badge');
+  if (!badge) return;
+  const anyNotable = Object.values(STORIES).some(s => _storyIsNotable(s, state));
+  badge.hidden = !anyNotable;
+}
+
 function _buildStoryItem(story, state) {
   const unlocked = state.unlockedStories.includes(story.id);
     const appeared = !unlocked && (state.appearedStories ?? []).includes(story.id);
@@ -551,6 +623,12 @@ function _buildStoryItem(story, state) {
     } else {
       title.className = 'story-item-title locked';
       title.textContent = story.lockedTitle ?? DEFAULT_LOCKED_TITLE;
+    }
+    // 新着 or 更新可能なら通知ドット
+    if (_storyIsNotable(story, state)) {
+      const dot = document.createElement('span');
+      dot.className = 'notify-dot';
+      title.prepend(dot);
     }
     info.appendChild(title);
 
@@ -601,6 +679,14 @@ function _buildStoryItem(story, state) {
 }
 
 function renderStoryList(state) {
+  // 既存セーブの初回: 現在見えている記憶は「既読」としてシード(過去分を新着扱いしない)
+  if (_seenStories === null) {
+    _seenStories = new Set(
+      Object.values(STORIES).filter(s => storyIsVisible(s, state)).map(s => s.id)
+    );
+    _persistSeen();
+  }
+
   els.storyList.innerHTML = '';
 
   const pending = [];
@@ -749,6 +835,7 @@ function render(state) {
   prevUnlockedActions = [...state.unlockedActions];
 
 renderStoryList(state);
+  _updateStoriesBadge(state);
   renderCharTab(state);
   renderActionList();
 
@@ -821,6 +908,9 @@ function switchTab(viewId) {
   const tabBtn = document.querySelector(`.tab-btn[data-view="${viewId}"]`);
   if (tabBtn) tabBtn.classList.add('active');
   document.getElementById(viewId).classList.add('active');
+
+  // 記憶タブを開いたら新着を既読化
+  if (viewId === 'view-stories') _markStoriesSeen(getState());
 }
 
 function initTabs() {
@@ -1102,6 +1192,13 @@ function renderActionList() {
       section.classList.toggle('open');
     });
 
+    // LocationLvを上げられるなら通知ドット
+    if (_canLevelUpLocation(location.id, state)) {
+      const dot = document.createElement('span');
+      dot.className = 'notify-dot';
+      header.appendChild(dot);
+    }
+
     if (location.description) {
       const infoBtn = document.createElement('button');
       infoBtn.className = 'location-info-btn';
@@ -1338,7 +1435,13 @@ function startLogSt_4() {
   let cleanup = null;
   cleanup = runLogSt_4(els.mainPanel, {
     onComplete: () => {
-      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      _onLogStComplete(
+        () => { if (cleanup) { cleanup(); cleanup = null; } },
+        () => {
+          addResources('guide_earring', 1);
+          addLog(`【！】${resourceSpan('guide_earring', RESOURCE_LABELS['guide_earring'])} を手に入れた`, true, true);
+        }
+      );
     },
   });
 }
