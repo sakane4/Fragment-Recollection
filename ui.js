@@ -50,7 +50,7 @@ const RESOURCE_LABELS = {
   subjugation_report: '討伐報告書',
   old_armband:        '古びた腕章',
   chipped_insignia:   '欠けた記章',
-  polished_sheath:    'よく磨かれた鞘',
+  polished_sheath:    '美しい細身の剣',
 };
 
 const RESOURCE_COLORS = {
