@@ -853,7 +853,7 @@ function renderGuideList(state) {
   const hints = [];
 
   if ((state.worldLv ?? 0) < 5) {
-    hints.push('なにもない世界の探索を進めよう…（Lv5）');
+    hints.push('【再生された世界】の再生Lvを上げよう…（Lv5）');
   } else {
     // 場所発見スケジュールの次のステップに向けて、再生された世界(wherever)のLvを上げるよう促す
     const step = state.discoveryStep ?? 0;
@@ -861,7 +861,7 @@ function renderGuideList(state) {
       const targetLv = DISCOVERY_STEP_LV[step];
       const whereverLv = state.LocationLv?.['wherever'] ?? 0;
       if (whereverLv < targetLv) {
-        hints.push(`なにもない世界をさらに再生しよう…（Lv${targetLv}）`);
+        hints.push(`【再生された世界】をさらに再生しよう…（再生Lv${targetLv}）`);
       }
     }
   }
