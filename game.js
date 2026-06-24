@@ -198,10 +198,13 @@ for (const loc of LOCATION_DEFS) {
   }
 }
 
+// レベル系コスト・閾値の共通計算式（n段目→n+1段目に必要な量。LocationLv/worldLvで共用）
+const _levelCostFormula = (n) => 50 * (n * n + n + 1);
+
 // 場所レベルシステム
 const LOCATION_LV_MAX = 25;
 // Lv n→n+1 のフラグメントコスト（計算式で自動生成・仮。最初の数段は旧値[50,150,350,...]とほぼ一致）
-const LOCATION_LV_COSTS = Array.from({ length: LOCATION_LV_MAX }, (_, n) => 50 * (n * n + n + 1));
+const LOCATION_LV_COSTS = Array.from({ length: LOCATION_LV_MAX }, (_, n) => _levelCostFormula(n));
 
 // ── 場所発見スケジュール ──
 // ログストーリー004以降、再生された世界(wherever)のLocationLvが各ステップの閾値に達すると発見イベントが起きる。
@@ -298,7 +301,7 @@ const COMPANION_RANDOM_REWARDS = {
 // 世界LVの閾値（フラグメント総獲得数）
 // インデックス i → Lv i+1 に上がるのに必要な累計数（25段階・計算式で自動生成・仮）
 // 上限=worldLv のため、wherever を Lv25 まで上げる＝worldLv25 が必要。終盤の場所発見までの長い道のりを形成する
-const WORLD_LV_THRESHOLDS = Array.from({ length: 25 }, (_, n) => 50 * (n * n + n + 1));
+const WORLD_LV_THRESHOLDS = Array.from({ length: 25 }, (_, n) => _levelCostFormula(n));
 
 // 行動レベル(ActionLv)の閾値(仮値)。実行回数の累計でレベルアップ。LocationLvとは別管理。
 const ACTION_LV_THRESHOLDS = [
@@ -501,32 +504,40 @@ let _timer = null;
 let _randomRewardTimers = [];
 let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null };
 
+// ランダム報酬1件を、minMs〜maxMsの間隔で繰り返しactiveAction中に付与し続けるループを仕掛ける
+// applyExtra: 報酬付与時に追加で行う処理(worldLv加算など)。onReward: 付与後の通知コールバック
+function _scheduleRandomRewardLoop(reward, onReward, applyExtra) {
+  const { minMs, maxMs } = reward;
+
+  function schedule() {
+    const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+    const t = setTimeout(() => {
+      if (!state.activeAction) return;
+      const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
+      const newResources = { ...state.resources };
+      newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
+      _markDiscovered(reward.resource);
+      state = { ...state, resources: newResources };
+      applyExtra?.(amount);
+      saveToStorage(state);
+      notify();
+      onReward?.(amount);
+      schedule();
+    }, delay);
+    _randomRewardTimers.push(t);
+  }
+
+  schedule();
+}
+
 function scheduleRandomRewards(action, onReward) {
   const allRandom = [...resolveTable(action.rewardTableRandom, action.locationId, action.id), ...(action.randomRewards ?? [])];
-  if (allRandom.length === 0) return;
-
   for (const reward of allRandom) {
-    const { minMs, maxMs } = reward;
-
-    function schedule() {
-      const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-      const t = setTimeout(() => {
-        if (!state.activeAction) return;
-        const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
-        const newResources = { ...state.resources };
-        newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
-        _markDiscovered(reward.resource);
-        state = { ...state, resources: newResources };
-        if (reward.resource === 'fragment') _addTotalFragments(amount);
-        saveToStorage(state);
-        notify();
-        if (onReward) onReward({ resource: reward.resource, amount });
-        schedule();
-      }, delay);
-      _randomRewardTimers.push(t);
-    }
-
-    schedule();
+    _scheduleRandomRewardLoop(
+      reward,
+      (amount) => onReward?.({ resource: reward.resource, amount }),
+      (amount) => { if (reward.resource === 'fragment') _addTotalFragments(amount); }
+    );
   }
 }
 
@@ -539,28 +550,11 @@ function scheduleCompanionRandomRewards(onReward) {
   for (const companionId of state.activeCompanions) {
     const rewards = COMPANION_RANDOM_REWARDS[companionId];
     if (!rewards) continue;
-
     for (const reward of rewards) {
-      const { minMs, maxMs } = reward;
-
-      function schedule() {
-        const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-        const t = setTimeout(() => {
-          if (!state.activeAction) return;
-          const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
-          const newResources = { ...state.resources };
-          newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
-          _markDiscovered(reward.resource);
-          state = { ...state, resources: newResources };
-          saveToStorage(state);
-          notify();
-          if (onReward) onReward({ companionId, resource: reward.resource, amount });
-          schedule();
-        }, delay);
-        _randomRewardTimers.push(t);
-      }
-
-      schedule();
+      _scheduleRandomRewardLoop(
+        reward,
+        (amount) => onReward?.({ companionId, resource: reward.resource, amount })
+      );
     }
   }
 }

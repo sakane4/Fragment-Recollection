@@ -242,32 +242,25 @@ let _viewerFadeUpTo = 0;
 let _viewerRenderedParas = -1; // 直近レンダリング時の解放段落数(スクロール位置維持の判定用)
 const _storyPageCounts = {}; // storyId → 総段落数キャッシュ
 
-function _saveLastPage(storyId, page) {
+// storyId → 値 のマップをlocalStorageに保存する共通ヘルパー(ページ番号・スクロール位置などで共用)
+function _saveStoryMapValue(key, storyId, value) {
   try {
-    const d = JSON.parse(localStorage.getItem('fr_story_lastpage') || '{}');
-    d[storyId] = page;
-    localStorage.setItem('fr_story_lastpage', JSON.stringify(d));
+    const d = JSON.parse(localStorage.getItem(key) || '{}');
+    d[storyId] = value;
+    localStorage.setItem(key, JSON.stringify(d));
   } catch {}
 }
-function _loadLastPage(storyId) {
+function _loadStoryMapValue(key, storyId, fallback) {
   try {
-    return JSON.parse(localStorage.getItem('fr_story_lastpage') || '{}')[storyId] ?? 0;
-  } catch { return 0; }
+    return JSON.parse(localStorage.getItem(key) || '{}')[storyId] ?? fallback;
+  } catch { return fallback; }
 }
 
-// スクロールモード用: 記憶ごとのスクロール位置(px)を保存。ページモードのfr_story_lastpageと同じ仕組み
-function _saveScrollPos(storyId, top) {
-  try {
-    const d = JSON.parse(localStorage.getItem('fr_story_scrollpos') || '{}');
-    d[storyId] = top;
-    localStorage.setItem('fr_story_scrollpos', JSON.stringify(d));
-  } catch {}
-}
-function _loadScrollPos(storyId) {
-  try {
-    return JSON.parse(localStorage.getItem('fr_story_scrollpos') || '{}')[storyId] ?? 0;
-  } catch { return 0; }
-}
+const _saveLastPage = (storyId, page) => _saveStoryMapValue('fr_story_lastpage', storyId, page);
+const _loadLastPage = (storyId) => _loadStoryMapValue('fr_story_lastpage', storyId, 0);
+// スクロールモード用: 記憶ごとのスクロール位置(px)を保存
+const _saveScrollPos = (storyId, top) => _saveStoryMapValue('fr_story_scrollpos', storyId, top);
+const _loadScrollPos = (storyId) => _loadStoryMapValue('fr_story_scrollpos', storyId, 0);
 
 function openStory(storyId, { prevProgress } = {}) {
   const story = STORIES[storyId];
@@ -737,7 +730,7 @@ let prevUnlocked = [];
 let prevAppearedStories = [];
 let prevUnlockedLocations = [];
 let prevUnlockedActions = [];
-let prevGuideUnlocked = false;
+let prevGuideUnlocked = null; // null = 未初期化(初回renderは現在値に同期するだけにし、セーブ済みのguideUnlockedを誤って「いま解放された」と判定しない)
 let stopFlavor = null;
 let _cancelled = false;
 let _isAutoRestart = false;
@@ -899,7 +892,10 @@ renderStoryList(state);
   const _curState = getState();
   const guidePanelEl = document.getElementById('guide-panel');
   if (guidePanelEl) {
-    if (_curState.guideUnlocked && !prevGuideUnlocked) {
+    if (prevGuideUnlocked === null) {
+      // 初回render: セーブ済みの状態に同期するだけ(「いま解放された」扱いにしない)
+      guidePanelEl.classList.toggle('hidden', !_curState.guideUnlocked);
+    } else if (_curState.guideUnlocked && !prevGuideUnlocked) {
       guidePanelEl.classList.remove('hidden');
       addLog('【導き】が解放された', true);
       addLog('星の導きに任せて、これからは行動が自動でくり返されるようになった', true);
@@ -1092,11 +1088,12 @@ function showLocationPopup(location, btnEl) {
       if (newConsumed > loc.consumed) {
         addResources('fragment', -(newConsumed - loc.consumed));
         loc.consumed = newConsumed;
+        // 所持数が変化したフレームだけテキストを更新(毎フレーム書き換えない)
+        const rEl = btn.querySelector('.lvup-btn-ratio');
+        if (rEl) rEl.textContent = `${loc.consumed} / ${cost}`;
+        const hEl = document.getElementById('location-popup-lvup-have');
+        if (hEl) hEl.textContent = `所持数：${getState().resources.fragment ?? 0}`;
       }
-      const rEl = btn.querySelector('.lvup-btn-ratio');
-      if (rEl) rEl.textContent = `${loc.consumed} / ${cost}`;
-      const hEl = document.getElementById('location-popup-lvup-have');
-      if (hEl) hEl.textContent = `所持数：${getState().resources.fragment ?? 0}`;
       if (loc.progress >= 100) { btn.classList.add('ready'); _raf = null; return; }
       if (loc.progress >= cap) { _raf = null; return; }
       _raf = requestAnimationFrame(tick);
@@ -1174,14 +1171,13 @@ function _handleActionComplete(actionId, result) {
     return;
   }
 
-  const rewardsHtml = (allRewards ?? []).map(r => {
-    const label = RESOURCE_LABELS[r.resource] ?? r.resource;
-    return `${resourceSpan(r.resource, label)} +${r.amount}`;
-  }).join(', ');
-  const companionRewardsHtml = (companionRewards ?? []).map(({ resource, amount }) => {
+  const _rewardHtml = ({ resource, amount }, wrapClass) => {
     const label = RESOURCE_LABELS[resource] ?? resource;
-    return `<span class="log-companion-reward">${resourceSpan(resource, label)} +${amount}</span>`;
-  }).join(', ');
+    const span = `${resourceSpan(resource, label)} +${amount}`;
+    return wrapClass ? `<span class="${wrapClass}">${span}</span>` : span;
+  };
+  const rewardsHtml = (allRewards ?? []).map(r => _rewardHtml(r)).join(', ');
+  const companionRewardsHtml = (companionRewards ?? []).map(r => _rewardHtml(r, 'log-companion-reward')).join(', ');
   const fullRewardsHtml = companionRewardsHtml ? `${rewardsHtml} / ${companionRewardsHtml}` : rewardsHtml;
   addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewardsHtml}`, true, true);
 
