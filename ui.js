@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice } from './scenario.js';
@@ -605,8 +605,8 @@ function render(state) {
         setTimeout(() => startProloguePhase(), 0);
       } else if (state.logSt1Done && !state.logSt2Done && (state.activeCompanions ?? []).length > 0) {
         setTimeout(() => startLogSt_2(state), 0);
-      } else if (_autoRestartEnabled) {
-        // 自動再開(開発メニューでONのときのみ)
+      } else if (state.autoRepeat || _autoRestartEnabled) {
+        // 自動再開（プレイヤー設定 autoRepeat、または開発メニューの強制ON）
         setTimeout(() => {
           if (_storyLogPlaying) return;
           _isAutoRestart = true;
@@ -682,6 +682,8 @@ renderStoryList(state);
     if (_curState.guideUnlocked && !prevGuideUnlocked) {
       guidePanelEl.classList.remove('hidden');
       addLog('【導き】が解放された', true);
+      addLog('星の導きに任せて、これからは行動が自動でくり返されるようになった', true);
+      if (!_curState.autoRepeat) setAutoRepeat(true);
     } else if (!_curState.guideUnlocked) {
       guidePanelEl.classList.add('hidden');
     }
@@ -730,6 +732,38 @@ function switchTab(viewId) {
 function initTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.view));
+  });
+}
+
+// ── worldLv 進捗ポップアップ ──
+function _renderWorldLvPopup() {
+  const state = getState();
+  const lv = state.worldLv ?? 0;
+  const cur = state.totalFragments ?? 0;
+  const prevThresh = lv > 0 ? WORLD_LV_THRESHOLDS[lv - 1] : 0;
+  const nextThresh = WORLD_LV_THRESHOLDS[lv] ?? null;
+  document.getElementById('worldlv-popup-lv').textContent = `worldLv ${lv}`;
+  const fill = document.getElementById('worldlv-popup-bar-fill');
+  const label = document.getElementById('worldlv-popup-label');
+  if (nextThresh == null) {
+    fill.style.width = '100%';
+    label.textContent = '最大';
+  } else {
+    const ratio = Math.min(1, (cur - prevThresh) / (nextThresh - prevThresh));
+    fill.style.width = `${(ratio * 100).toFixed(1)}%`;
+    label.textContent = `${cur - prevThresh} / ${nextThresh - prevThresh}`;
+  }
+}
+
+function initWorldLvPopup() {
+  const display = document.getElementById('world-lv-display');
+  const popup = document.getElementById('worldlv-popup');
+  display.addEventListener('click', () => {
+    _renderWorldLvPopup();
+    popup.classList.add('open');
+  });
+  popup.addEventListener('click', (e) => {
+    if (e.target === popup) popup.classList.remove('open');
   });
 }
 
@@ -864,15 +898,17 @@ function showLocationPopup(location, btnEl) {
     loc.progress = 0;
     loc.consumed = 0;
     progEl.style.width = '0%';
-    const result = levelUpLocation(location.id, prepaid);
+    // notify()(→render→ルール評価)より先にログを出すため、一旦silentで適用してからログ→notify
+    const result = levelUpLocation(location.id, prepaid, { silent: true });
     if (result.ok) {
+      addLog(`【${location.label}】LocationLv が ${result.newLv} になった`, true);
+      notify();
       _renderLocationPopup(location);
       // _renderLocationPopup が innerHTML を書き換えるので progEl を再追加
       progEl = document.createElement('span');
       progEl.className = 'lvup-progress';
       progEl.style.width = '0%';
       btn.prepend(progEl);
-      addLog(`【${location.label}】LocationLv が ${result.newLv} になった`, true);
     }
   };
 
@@ -884,6 +920,7 @@ function showLocationPopup(location, btnEl) {
 // ── 行動選択 ──
 let selectedActionId = 'explore';
 const _openSections = new Set(); // 開いている場所ID
+const _seenSections = new Set(); // 初回デフォルトオープン済みの場所ID
 
 function _startActionById(actionId) {
   const action = ACTIONS[actionId];
@@ -952,8 +989,11 @@ function renderActionList() {
     );
     if (actions.length === 0) continue;
 
-    // 初回は開いておく
-    if (!_openSections.has(location.id)) _openSections.add(location.id);
+    // 初回のみ開いておく（以降はユーザーの開閉状態を維持）
+    if (!_seenSections.has(location.id)) {
+      _seenSections.add(location.id);
+      _openSections.add(location.id);
+    }
 
     const section = document.createElement('div');
     section.className = 'action-section' + (_openSections.has(location.id) ? ' open' : '');
@@ -1424,7 +1464,7 @@ function renderCharTab(state) {
   }
 
   if (active.length > 0) {
-    const bonusLines = ['探索報酬 ×2'];
+    const bonusLines = [`探索報酬 ×${1 + active.length}`];
     for (const id of active) {
       const rewards = COMPANION_REWARDS[id];
       if (!rewards) continue;
@@ -1550,6 +1590,7 @@ export function init() {
   initTabs();
   initStoryViewer();
   initDevTools();
+  initWorldLvPopup();
 
   if (!initialState.tutorialDone) {
     launchTutorial();

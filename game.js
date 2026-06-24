@@ -462,6 +462,12 @@ function unlockGuide() {
   notify();
 }
 
+function setAutoRepeat(v) {
+  state = { ...state, autoRepeat: !!v };
+  saveToStorage(state);
+  notify();
+}
+
 function unlockAllActions() {
   state = { ...state, unlockedLocations: Object.keys(LOCATIONS), unlockedActions: Object.keys(ACTIONS) };
   saveToStorage(state);
@@ -625,7 +631,7 @@ function completeAction(actionId, onComplete) {
   if (!action) return;
 
   const newResources = { ...state.resources };
-  const multiplier = state.activeCompanions.length > 0 ? 2 : 1;
+  const multiplier = 1 + state.activeCompanions.length;
   const allRewards = [...resolveTable(action.rewardTable, action.locationId, action.id), ...(action.rewards ?? [])];
   let fragmentsGained = 0;
   for (const reward of allRewards) {
@@ -798,6 +804,7 @@ function init() {
     logSt3Done: saved.logSt3Done ?? INITIAL_STATE.logSt3Done,
     logSt4Done: saved.logSt4Done ?? INITIAL_STATE.logSt4Done,
     guideUnlocked: saved.guideUnlocked ?? INITIAL_STATE.guideUnlocked,
+    autoRepeat: saved.autoRepeat ?? INITIAL_STATE.autoRepeat,
     worldLv: saved.worldLv ?? INITIAL_STATE.worldLv,
     totalFragments: saved.totalFragments ?? INITIAL_STATE.totalFragments,
     LocationLv: saved.LocationLv ?? INITIAL_STATE.LocationLv,
@@ -881,7 +888,7 @@ function getLocationLvCap() {
   return Math.min(LOCATION_LV_MAX, state.worldLv);
 }
 
-function levelUpLocation(locationId, prepaid = 0) {
+function levelUpLocation(locationId, prepaid = 0, { silent = false } = {}) {
   const currentLv = state.LocationLv?.[locationId] ?? 0;
   if (currentLv >= LOCATION_LV_MAX) return { ok: false, reason: 'max_level' };
   if (currentLv >= getLocationLvCap()) return { ok: false, reason: 'world_lv_cap' };
@@ -892,7 +899,7 @@ function levelUpLocation(locationId, prepaid = 0) {
   const newLv = currentLv + 1;
   state = { ...state, resources: newResources, LocationLv: { ...state.LocationLv, [locationId]: newLv } };
   saveToStorage(state);
-  notify();
+  if (!silent) notify();
   return { ok: true, newLv };
 }
 
@@ -958,4 +965,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

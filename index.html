@@ -315,6 +315,29 @@
     #action-btn:hover:not(:disabled) { background: var(--accent-hover); }
     #action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+    #world-lv-display { cursor: pointer; }
+    #worldlv-popup .location-popup-inner {
+      position: fixed;
+      left: 50%;
+      top: 70px;
+      transform: translateX(-50%);
+    }
+    .worldlv-popup-bar-wrap {
+      width: 220px;
+      height: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .worldlv-popup-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
     /* プログレスバーはメインパネルの下端 */
     #progress-wrap {
       height: 3px;
@@ -1419,6 +1442,17 @@
       <div class="location-popup-desc" id="location-popup-desc"></div>
       <div class="lvup-have-label" id="location-popup-lvup-have"></div>
       <button class="location-popup-lvup-btn" id="location-popup-lvup-btn"></button>
+    </div>
+  </div>
+
+  <!-- worldLv 進捗ポップアップ -->
+  <div id="worldlv-popup" class="location-popup">
+    <div class="location-popup-inner">
+      <div class="location-popup-header">
+        <div class="location-popup-name" id="worldlv-popup-lv"></div>
+      </div>
+      <div class="worldlv-popup-bar-wrap"><div class="worldlv-popup-bar-fill" id="worldlv-popup-bar-fill"></div></div>
+      <div class="lvup-have-label" id="worldlv-popup-label"></div>
     </div>
   </div>
 
