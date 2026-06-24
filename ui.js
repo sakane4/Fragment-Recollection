@@ -87,6 +87,36 @@ const RESOURCE_COLORS = {
   polished_sheath:    '#f5c542',
 };
 
+// 持ち物一覧のカテゴリ分類
+const RESOURCE_CATEGORIES = {
+  fragment:        'fragment',
+  blue_fragment:   'fragment',
+  red_fragment:    'fragment',
+  clear_fragment:  'fragment',
+  bubble_fragment: 'fragment',
+  sky_fragment:    'fragment',
+  herb:            'material',
+  forest_voice:    'material',
+  branch:          'material',
+  old_paint:          'material',
+  torn_page:          'material',
+  broken_piano_sound: 'material',
+  wyvern_claw:        'material',
+  wyvern_scale:       'material',
+  spellbook_page:     'material',
+  magic_circle_shard: 'material',
+  astard_fragment:    'material',
+  subjugation_report: 'material',
+  old_armband:        'material',
+  chipped_insignia:   'material',
+  art_room_key:    'relic',
+  melon_keychain:  'relic',
+  sky_compass:     'relic',
+  polished_sheath: 'relic',
+};
+const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'relic'];
+const RESOURCE_CATEGORY_LABELS = { fragment: 'フラグメント', material: '素材', relic: 'レリック' };
+
 const RESOURCE_UNITS = {
   fragment:        '片',
   blue_fragment:   '片',
@@ -610,12 +640,27 @@ let _autoRestartEnabled = false; // 開発メニューからのみON可
 
 function renderResources(resources) {
   els.resourceList.innerHTML = '';
-  for (const [key, amount] of Object.entries(resources)) {
-    if (amount === 0) continue;
-    const row = document.createElement('div');
-    row.className = 'resource-row';
-    row.innerHTML = `<span class="resource-name">${RESOURCE_LABELS[key] ?? key}</span><span class="resource-val">${amount}</span>`;
-    els.resourceList.appendChild(row);
+  for (const cat of RESOURCE_CATEGORY_ORDER) {
+    const entries = Object.entries(resources).filter(
+      ([key, amount]) => amount !== 0 && (RESOURCE_CATEGORIES[key] ?? 'material') === cat
+    );
+    if (entries.length === 0) continue;
+
+    const section = document.createElement('div');
+    section.className = 'resource-section';
+
+    const title = document.createElement('div');
+    title.className = 'resource-section-title';
+    title.textContent = RESOURCE_CATEGORY_LABELS[cat] ?? cat;
+    section.appendChild(title);
+
+    for (const [key, amount] of entries) {
+      const row = document.createElement('div');
+      row.className = 'resource-row';
+      row.innerHTML = `<span class="resource-name">${RESOURCE_LABELS[key] ?? key}</span><span class="resource-val">${amount}</span>`;
+      section.appendChild(row);
+    }
+    els.resourceList.appendChild(section);
   }
 }
 
