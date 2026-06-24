@@ -23,7 +23,22 @@ const REWARD_TABLES = {
     { resource: 'fragment', minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
     ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 20000 }] : []),
   ],
+  // 塔都 — 花屋（マグコインを得る）
+  magcoin_fixed: (_state, _locationLv, actionLv) => [
+    { resource: 'magcoin', amount: 3 + actionLv },
+  ],
+  magcoin_random: (_state, _locationLv, actionLv) => [
+    { resource: 'magcoin', minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
+  ],
+  // 塔都 — 図書館（調査）
+  library_random: (_state, _locationLv, actionLv) => [
+    { resource: 'old_text', minAmount: 1, maxAmount: 1 + Math.floor(actionLv / 2), minMs: 6000, maxMs: 14000 },
+  ],
 };
+
+// 塔都 — 骨董屋。マグコインを払って、出会った同行者の固有レリックを買う(レアドロップとは別の確定ルート)
+const ANTIQUE_RELIC_PRICE = 30;
+const ANTIQUE_RELIC_COMPANIONS = ['rabi', 'shizuku', 'kaoru', 'yukika'];
 
 // テーブル名 → 展開済み配列を返すヘルパー
 function resolveTable(tableNameOrArray, locationId, actionId) {
@@ -179,7 +194,8 @@ const LOCATION_DEFS = [
     label: '塔都',
     description: 'どこまでも空へ伸びる、白亜の塔をとりまく街。さまざまな施設がある。',
     // 拠点エリア。探索を進める(ActionLvが上がる)ごとに施設をランダムな順で発見する。
-    // 以下4施設は現状スタブ（中身は今後実装：金貨経済・レリック・調査・宿屋休息）
+    // 4施設(宿屋/花屋/図書館/骨董屋)は通常の行動ではなく「施設」(FACILITIES参照)。
+    // 入店するとメインパネルに専用メニューが開き、そこから個別の行動(下記)や買い物を選ぶ
     actions: [
       {
         id: 'touto_explore',
@@ -192,10 +208,42 @@ const LOCATION_DEFS = [
         randomRewards: [],
         discoveries: [],
       },
-      { id: 'touto_inn',     label: '宿屋 尻尾亭',   description: '料理がおいしい旅の宿で休む。（準備中）', duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
-      { id: 'touto_flower',  label: '花屋 竜の鱗',   description: '花屋を手伝い、金貨を得る。（準備中）',   duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
-      { id: 'touto_library', label: '塔都図書館',     description: '調査を行う。（準備中）',                 duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
-      { id: 'touto_antique', label: '骨董屋 リーリエ', description: '金貨でレリック（装備品）を買う。（準備中）', duration: 15000, stub: true, rewards: [], randomRewards: [], discoveries: [] },
+      // 宿屋(touto_inn)のメニューから選べる行動
+      {
+        id: 'touto_inn_rest',
+        label: '休む',
+        description: '旅の宿でゆっくり休む。',
+        duration: 15000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'fragment_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
+      // 花屋(touto_flower)のメニューから選べる行動
+      {
+        id: 'touto_flower_help',
+        label: '手伝う',
+        description: '花屋を手伝い、マグコインを得る。',
+        duration: 15000,
+        rewardTable: 'magcoin_fixed',
+        rewardTableRandom: 'magcoin_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
+      // 図書館(touto_library)のメニューから選べる行動
+      {
+        id: 'touto_library_research',
+        label: '調査',
+        description: '図書館で調査を行う。',
+        duration: 15000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'library_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
     ],
   },
 ];
@@ -323,6 +371,95 @@ const COMPANION_RELICS = {
 };
 const EQUIP_BONUS = 5;
 
+// ── 施設(FACILITIES) ──
+// 通常の行動(時間経過)とは別の概念。入店すると専用メニューが開き、そこから個別の行動を選んだり、
+// 買い物(SHOP)をしたりする。FACILITIES自体のidはLOCATION_DEFSの行動解放(unlockedActions)と
+// 同じ仕組みで解放される(TOUTO_FACILITIES参照)が、ACTIONSには登録しない
+const FACILITIES = {
+  touto_inn: {
+    id: 'touto_inn',
+    label: '宿屋 尻尾亭',
+    locationId: 'touto',
+    description: '料理がおいしい旅の宿。',
+    enterText: '宿屋 尻尾亭に入った。',
+    options: [
+      { id: 'rest', label: '休む', type: 'action', actionId: 'touto_inn_rest' },
+    ],
+  },
+  touto_flower: {
+    id: 'touto_flower',
+    label: '花屋 竜の鱗',
+    locationId: 'touto',
+    description: '花や雑貨を扱う店。',
+    enterText: '花屋 竜の鱗に入った。',
+    options: [
+      { id: 'help', label: '手伝う', type: 'action', actionId: 'touto_flower_help' },
+      { id: 'shop', label: '買い物', type: 'shop', shopId: 'flower' },
+    ],
+  },
+  touto_library: {
+    id: 'touto_library',
+    label: '塔都図書館',
+    locationId: 'touto',
+    description: '本に埋もれた静かな図書館。',
+    enterText: '塔都図書館に入った。',
+    options: [
+      { id: 'research', label: '調査', type: 'action', actionId: 'touto_library_research' },
+    ],
+  },
+  touto_antique: {
+    id: 'touto_antique',
+    label: '骨董屋 リーリエ',
+    locationId: 'touto',
+    description: '怪しい品が並ぶ骨董屋。',
+    enterText: '骨董屋 リーリエに入った。',
+    options: [
+      { id: 'shop', label: '買い物', type: 'shop', shopId: 'antique' },
+    ],
+  },
+};
+
+// 花屋で買える品(マグコイン消費・在庫無限・効果は今のところ無し、収集アイテム)
+const FLOWER_SHOP_ITEMS = [
+  { id: 'pressed_flower_red',  price: 5 },
+  { id: 'pressed_flower_blue', price: 5 },
+];
+
+// shopId → 現在購入可能なアイテム一覧を返す
+function getShopItems(shopId) {
+  if (shopId === 'antique') {
+    return ANTIQUE_RELIC_COMPANIONS
+      .filter(cid => state.unlockedCompanions.includes(cid) && (state.resources[COMPANION_RELICS[cid]] ?? 0) <= 0)
+      .map(cid => ({ id: COMPANION_RELICS[cid], companionId: cid, price: ANTIQUE_RELIC_PRICE }));
+  }
+  if (shopId === 'flower') {
+    return FLOWER_SHOP_ITEMS.map(it => ({ ...it }));
+  }
+  return [];
+}
+
+// 指定アイテムを購入する。マグコインを消費し、リソースを1個増やす
+function buyShopItem(shopId, itemId) {
+  const item = getShopItems(shopId).find(it => it.id === itemId);
+  if (!item) return { ok: false, reason: 'unavailable' };
+  if ((state.resources.magcoin ?? 0) < item.price) return { ok: false, reason: 'magcoin', price: item.price };
+  const newDiscovered = state.discoveredResources.includes(itemId)
+    ? state.discoveredResources
+    : [...state.discoveredResources, itemId];
+  state = {
+    ...state,
+    resources: {
+      ...state.resources,
+      magcoin: state.resources.magcoin - item.price,
+      [itemId]: (state.resources[itemId] ?? 0) + 1,
+    },
+    discoveredResources: newDiscovered,
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true, itemId, price: item.price, companionId: item.companionId };
+}
+
 // 同行者レベル(ELv)。固有フラグメントを消費して上げる。上限・コストは仮値
 const ELV_MAX = 10;
 const ELV_COSTS = Array.from({ length: ELV_MAX }, (_, n) => 10 * (n + 1));
@@ -440,6 +577,8 @@ const INITIAL_STATE = {
     sky_fragment: 0,
     forest_voice: 0,
     branch: 0,
+    magcoin: 0,
+    old_text: 0,
   },
   activeAction: null,
   unlockedStories: [],
@@ -1125,4 +1264,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

@@ -2,7 +2,7 @@
 
 // ── タイプライター ──
 // 指定要素にテキストを1文字ずつ表示。skip()で即時完了
-function typewriter(el, text, { speed = 45, onDone } = {}) {
+function typewriter(el, text, { speed = 45, onDone, onStep } = {}) {
   el.textContent = '';
   let i = 0;
   let stopped = false;
@@ -16,6 +16,7 @@ function typewriter(el, text, { speed = 45, onDone } = {}) {
       return;
     }
     el.textContent += text[i++];
+    onStep?.();
     setTimeout(step, speed);
   }
 
@@ -27,6 +28,7 @@ function typewriter(el, text, { speed = 45, onDone } = {}) {
       stopped = true;
       el.textContent = text;
       isDone = true;
+      onStep?.();
       onDone?.();
     },
     get done() { return isDone; },
@@ -217,6 +219,7 @@ function runLogSt(steps, mainPanel, { onNameDecided, onComplete, initialName = '
       const el = addEntry();
       currentTw = typewriter(el, text, {
         speed: 55,
+        onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
         onDone: () => { waitingForTap = true; showTapIndicator(); },
       });
       stepIndex++;
@@ -466,6 +469,7 @@ function runLocationChoice(mainPanel, { prompt = '新しい場所が見つかり
   const promptEl = addEntry('log-entry story-log center');
   tw = typewriter(promptEl, prompt, {
     speed: 55,
+    onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
     onDone: () => {
       const wrap = addEntry('story-choice-wrap');
       for (const opt of options) {
@@ -487,4 +491,109 @@ function runLocationChoice(mainPanel, { prompt = '新しい場所が見つかり
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin };
+// ── 施設メニュー ──
+// メインパネルに入店演出＋メニュー(行動を選ぶ/買い物する/出る)を表示する。
+// options: [{ id, label, type: 'action'|'shop', actionId?, shopId? }]（「出る」は自動で追加）
+// 戻り値: cleanup()（リスナー解除）
+function runFacilityMenu(mainPanel, {
+  label,
+  enterText,
+  options = [],
+  getShopItems,
+  formatShopItem,
+  onBuy,
+  onSelectAction,
+  onLeave,
+} = {}) {
+  let tw = null;
+
+  function addEntry(cls) {
+    const el = document.createElement('div');
+    el.className = cls;
+    mainPanel.appendChild(el);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+    return el;
+  }
+
+  function handleClick() {
+    if (tw && !tw.done) tw.skip();
+  }
+  mainPanel.addEventListener('click', handleClick);
+
+  function cleanup() {
+    mainPanel.removeEventListener('click', handleClick);
+  }
+
+  function renderMenu() {
+    const wrap = addEntry('story-choice-wrap');
+    for (const opt of options) {
+      const btn = document.createElement('button');
+      btn.className = 'story-choice-btn';
+      btn.textContent = opt.label;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+        if (opt.type === 'shop') {
+          renderShop(opt.shopId);
+        } else {
+          cleanup();
+          onSelectAction?.(opt.actionId);
+        }
+      });
+      wrap.appendChild(btn);
+    }
+    const leaveBtn = document.createElement('button');
+    leaveBtn.className = 'story-choice-btn';
+    leaveBtn.textContent = '出る';
+    leaveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+      cleanup();
+      onLeave?.();
+    });
+    wrap.appendChild(leaveBtn);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+  }
+
+  function renderShop(shopId) {
+    const items = getShopItems?.(shopId) ?? [];
+    const wrap = addEntry('story-choice-wrap');
+    if (items.length === 0) {
+      addEntry('log-entry story-log center').textContent = '今は買えそうな品がない…';
+    }
+    for (const item of items) {
+      const btn = document.createElement('button');
+      btn.className = 'story-choice-btn';
+      btn.textContent = formatShopItem ? formatShopItem(item) : item.id;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+        const result = onBuy?.(shopId, item.id);
+        addEntry('log-entry story-log center').textContent = result?.message ?? '';
+        renderMenu();
+      });
+      wrap.appendChild(btn);
+    }
+    const backBtn = document.createElement('button');
+    backBtn.className = 'story-choice-btn';
+    backBtn.textContent = '戻る';
+    backBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+      renderMenu();
+    });
+    wrap.appendChild(backBtn);
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+  }
+
+  const promptEl = addEntry('log-entry story-log center');
+  tw = typewriter(promptEl, enterText ?? `${label}に入った。`, {
+    speed: 55,
+    onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
+    onDone: renderMenu,
+  });
+
+  return cleanup;
+}
+
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu };

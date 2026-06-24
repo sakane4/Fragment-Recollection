@@ -1,9 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
@@ -54,6 +54,11 @@ const RESOURCES = {
   herb:            { label: '薬草',     color: '#a6e3a1', unit: '束' },
   forest_voice:    { label: '木々の声', color: '#a8d8a8', unit: 'かけら' },
   branch:          { label: '木の枝',   color: '#c8a97e', unit: '本' },
+  // 塔都
+  magcoin:         { label: 'マグコイン', color: '#e6c200', unit: '枚' },
+  old_text:        { label: '古文書',   color: '#bba16a', unit: '冊' },
+  pressed_flower_red:  { label: '赤い押し花', color: '#e06a8c' },
+  pressed_flower_blue: { label: '青い押し花', color: '#6a9ee0' },
   // 黄昏の旧校舎
   old_paint:          { label: '古びた絵具',         color: '#e0a96d' },
   torn_page:          { label: '破れたページ',       color: '#d8cba0' },
@@ -725,7 +730,7 @@ function render(state) {
     const wasCancelled = _cancelled;
     _cancelled = false;
     els.actionBtn.textContent = '開始';
-    const selAction = ACTIONS[selectedActionId];
+    const selAction = ACTIONS[selectedActionId] ?? FACILITIES[selectedActionId];
     els.actionPickerBtn.textContent = selAction ? actionDisplayLabel(selAction, ' — ') : '探索';
 
     const willAutoRestart = !wasCancelled && !_logStPending &&
@@ -789,9 +794,10 @@ function render(state) {
   }
   for (const id of state.unlockedActions) {
     if (!prevUnlockedActions.includes(id)) {
-      const action = ACTIONS[id];
+      const action = ACTIONS[id] ?? FACILITIES[id];
+      if (!action) continue;
       const location = LOCATIONS[action.locationId];
-      const msg = action.stub
+      const msg = (action.stub || FACILITIES[id])
         ? `【発見】${location?.label ? `${location.label}で` : ''}「${action.label}」を見つけた`
         : (location?.label
           ? `${location.label} で「${action.label}」ができるようになった`
@@ -1195,6 +1201,8 @@ const _openSections = new Set(); // 開いている場所ID
 const _seenSections = new Set(); // 初回デフォルトオープン済みの場所ID
 
 function _startActionById(actionId) {
+  const facility = FACILITIES[actionId];
+  if (facility) { _enterFacility(facility); return; }
   const action = ACTIONS[actionId];
   if (!action) return;
   const running = getState().activeAction;
@@ -1211,6 +1219,47 @@ function _startActionById(actionId) {
     onRandomReward: makeRandomRewardHandler(),
     onCompanionRandomReward: makeCompanionRandomRewardHandler(),
     onComplete: (result) => _handleActionComplete(actionId, result),
+  });
+}
+
+// 施設に入店する。メインパネルに専用メニュー(行動を選ぶ/買い物する/出る)を表示する
+function _formatShopItemLabel(item) {
+  const base = `${resLabel(item.id)} ${item.price}${resUnit('magcoin') || 'マグコイン'}`;
+  if (!item.companionId) return base;
+  const name = COMPANION_DATA[item.companionId]?.name ?? item.companionId;
+  return `${base}（${name}の品）`;
+}
+
+function _enterFacility(facility) {
+  selectedActionId = facility.id;
+  els.actionPickerBtn.textContent = actionDisplayLabel(facility, ' — ');
+  _pauseForStory();
+  _storyLogPlaying = true;
+  let cleanup = null;
+  cleanup = runFacilityMenu(els.mainPanel, {
+    label: facility.label,
+    enterText: facility.enterText,
+    options: facility.options,
+    getShopItems,
+    formatShopItem: _formatShopItemLabel,
+    onBuy: (shopId, itemId) => {
+      const result = buyShopItem(shopId, itemId);
+      if (result.ok) {
+        const label = resLabel(result.itemId);
+        const extra = result.companionId ? `（${COMPANION_DATA[result.companionId]?.name ?? result.companionId}の品）` : '';
+        return { message: `${label}${extra}を ${result.price}マグコインで買った` };
+      }
+      if (result.reason === 'magcoin') return { message: 'マグコインが足りない…' };
+      return { message: '今は買えそうな品がない…' };
+    },
+    onSelectAction: (subActionId) => {
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      _startActionById(subActionId);
+    },
+    onLeave: () => {
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      _revertActionSelection();
+    },
   });
 }
 
@@ -1294,8 +1343,12 @@ function renderActionList() {
     if (!state.unlockedLocations.includes(location.id)) continue;
     const actions = Object.values(ACTIONS).filter(a =>
       a.locationId === location.id && state.unlockedActions.includes(a.id)
-    );
-    if (actions.length === 0) continue;
+    ).map(a => ({ ...a, _kind: 'action' }));
+    const facilities = Object.values(FACILITIES).filter(f =>
+      f.locationId === location.id && state.unlockedActions.includes(f.id)
+    ).map(f => ({ ...f, _kind: 'facility' }));
+    const items = [...actions, ...facilities];
+    if (items.length === 0) continue;
 
     // 初回のみ開いておく（以降はユーザーの開閉状態を維持）
     if (!_seenSections.has(location.id)) {
@@ -1340,7 +1393,7 @@ function renderActionList() {
     const rows = document.createElement('div');
     rows.className = 'action-rows';
 
-    for (const action of actions) {
+    for (const action of items) {
       const row = document.createElement('div');
       const isRunning = runningId === action.id;
       const isSelected = selectedActionId === action.id;
@@ -1352,12 +1405,14 @@ function renderActionList() {
 
       const name = document.createElement('span');
       name.className = 'action-row-name';
-      const actionLv = state.ActionLv?.[action.id] ?? 0;
       name.textContent = action.label;
-      const lvTag = document.createElement('span');
-      lvTag.className = 'action-row-lv';
-      lvTag.textContent = ` Lv${actionLv}`;
-      name.appendChild(lvTag);
+      if (action._kind === 'action') {
+        const actionLv = state.ActionLv?.[action.id] ?? 0;
+        const lvTag = document.createElement('span');
+        lvTag.className = 'action-row-lv';
+        lvTag.textContent = ` Lv${actionLv}`;
+        name.appendChild(lvTag);
+      }
 
       const desc = document.createElement('span');
       desc.className = 'action-row-desc';
@@ -1365,7 +1420,7 @@ function renderActionList() {
 
       const time = document.createElement('span');
       time.className = 'action-row-time';
-      time.textContent = `${action.duration / 1000}秒`;
+      time.textContent = action._kind === 'facility' ? '入店' : `${action.duration / 1000}秒`;
 
       row.addEventListener('click', (e) => {
         e.stopPropagation();
