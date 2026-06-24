@@ -255,6 +255,20 @@ function _loadLastPage(storyId) {
   } catch { return 0; }
 }
 
+// スクロールモード用: 記憶ごとのスクロール位置(px)を保存。ページモードのfr_story_lastpageと同じ仕組み
+function _saveScrollPos(storyId, top) {
+  try {
+    const d = JSON.parse(localStorage.getItem('fr_story_scrollpos') || '{}');
+    d[storyId] = top;
+    localStorage.setItem('fr_story_scrollpos', JSON.stringify(d));
+  } catch {}
+}
+function _loadScrollPos(storyId) {
+  try {
+    return JSON.parse(localStorage.getItem('fr_story_scrollpos') || '{}')[storyId] ?? 0;
+  } catch { return 0; }
+}
+
 function openStory(storyId, { prevProgress } = {}) {
   const story = STORIES[storyId];
   if (!story) return;
@@ -280,7 +294,10 @@ function openStory(storyId, { prevProgress } = {}) {
   _setViewerTitle(_titleRevealed ? story.title : (story.lockedTitle ?? DEFAULT_LOCKED_TITLE));
   els.storyOverlay.classList.add('open');
   pauseLog();
-  renderViewerBody(getState(), { scrollToTop: true });
+  // スクロールモードでは前回閉じた位置を復元(0なら先頭でよいのでscrollToTopで十分)
+  const savedScrollTop = _viewerScrollMode ? _loadScrollPos(storyId) : 0;
+  if (savedScrollTop > 0) renderViewerBody(getState(), { scrollTopOverride: savedScrollTop });
+  else renderViewerBody(getState(), { scrollToTop: true });
 }
 
 function _checkPageLevelUp(storyId, prevProgress) {
@@ -356,7 +373,7 @@ function _buildTitleRevealBtn(story) {
   return revealBtn;
 }
 
-function renderViewerBody(state, { scrollToTop = false } = {}) {
+function renderViewerBody(state, { scrollToTop = false, scrollTopOverride = null } = {}) {
   if (!_viewerStoryId) return;
   const story = STORIES[_viewerStoryId];
   const unlockedParas = state.storyProgress[_viewerStoryId] ?? 0;
@@ -503,10 +520,11 @@ function renderViewerBody(state, { scrollToTop = false } = {}) {
     _setViewerTitle(_tr ? _sv.title : (_sv.lockedTitle ?? DEFAULT_LOCKED_TITLE));
   }
 
-  // スクロール位置: 明示指定時は先頭、新たに段落が解放されたときのみ最下部、
-  // それ以外(ログ更新などによる再描画)は元の位置を維持する
+  // スクロール位置: 復元指定があればそこへ、明示的な先頭指定なら先頭、
+  // 新たに段落が解放されたときは最下部、それ以外(ログ更新などによる再描画)は元の位置を維持する
   const _grew = unlockedParas > _viewerRenderedParas;
-  if (scrollToTop) els.storyBody.scrollTop = 0;
+  if (scrollTopOverride != null) els.storyBody.scrollTop = scrollTopOverride;
+  else if (scrollToTop) els.storyBody.scrollTop = 0;
   else if (_grew) els.storyBody.scrollTop = els.storyBody.scrollHeight;
   else els.storyBody.scrollTop = _prevScrollTop;
   _viewerRenderedParas = unlockedParas;
@@ -530,6 +548,7 @@ function showViewerToast(text) {
 }
 
 function closeStory() {
+  if (_viewerScrollMode && _viewerStoryId) _saveScrollPos(_viewerStoryId, els.storyBody.scrollTop);
   els.storyOverlay.classList.remove('open');
   _viewerPages = [];
   _viewerStoryId = null;
