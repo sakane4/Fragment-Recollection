@@ -330,7 +330,7 @@ const ELV_COSTS = Array.from({ length: ELV_MAX }, (_, n) => 10 * (n + 1));
 // 同行者ごとの異能。ELvが指定Lvに達すると解放される
 const COMPANION_SKILLS = {
   yuya: [
-    { id: 'fragment_convert', label: 'フラグメント変換', lv: 5, desc: 'ノーマルなフラグメントと、いずれかの固有フラグメント(赤・無色・泡・青・空)を互いに変換できる。' },
+    { id: 'fragment_convert', label: 'フラグメント変換', lv: 5, desc: 'フラグメントを互いに変換できる。' },
   ],
 };
 

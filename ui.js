@@ -848,7 +848,7 @@ renderStoryList(state);
     } else if (_curState.guideUnlocked && !prevGuideUnlocked) {
       guidePanelEl.classList.remove('hidden');
       addLog('【導き】が解放された', true);
-      addLog('星の導きに任せて、これからは行動が自動でくり返されるようになった', true);
+      addLog('星の導きに任せて、これからは行動をくり返せるようになった', true);
       if (!_curState.autoRepeat) setAutoRepeat(true);
     } else if (!_curState.guideUnlocked) {
       guidePanelEl.classList.add('hidden');
@@ -884,7 +884,7 @@ function renderGuideList(state) {
   if (state.unlockedLocations?.includes('forest') && !state.unlockedActions?.includes('forest_gather')) {
     const forestLv = state.LocationLv?.['forest'] ?? 0;
     if (forestLv < 2) {
-      hints.push('【はじまりの森】の再生Lvを上げよう…（Lv2で採集ができるようになる）');
+      hints.push('【はじまりの森】の再生Lvを上げよう…（新しいことができるようになる）');
     }
   }
 
