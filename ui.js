@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin } from './scenario.js';
@@ -1535,9 +1535,6 @@ const COMPANION_DATA = {
   yukika: { name: '雪架',   desc: 'なにか秘密を知っているようだ。' },
 };
 
-// 持ち物ポップアップの選択候補(ダミー。本実装の装備アイテムに置き換える予定)
-const DUMMY_EQUIP_ITEMS = ['branch', 'herb', 'forest_voice'];
-
 function openEquipPopup(companionId) {
   const popup = document.getElementById('equip-popup');
   const list = document.getElementById('equip-popup-list');
@@ -1552,15 +1549,23 @@ function openEquipPopup(companionId) {
   });
   list.appendChild(noneBtn);
 
-  for (const itemId of DUMMY_EQUIP_ITEMS) {
+  // 装備できるのは、その同行者の固有レリック(所持している場合のみ)
+  const relicId = COMPANION_RELICS[companionId];
+  const owned = relicId && (getState().resources[relicId] ?? 0) > 0;
+  if (owned) {
     const btn = document.createElement('button');
     btn.className = 'equip-popup-item';
-    btn.textContent = resLabel(itemId);
+    btn.textContent = `${resLabel(relicId)}（固有報酬 +${EQUIP_BONUS}）`;
     btn.addEventListener('click', () => {
-      setCompanionEquipment(companionId, itemId);
+      setCompanionEquipment(companionId, relicId);
       popup.classList.remove('open');
     });
     list.appendChild(btn);
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'equip-popup-empty';
+    empty.textContent = 'まだ装備できるものを持っていない…';
+    list.appendChild(empty);
   }
 
   popup.classList.add('open');
@@ -1594,7 +1599,10 @@ function _buildCompanionDetail(id, state) {
   const equip = document.createElement('div');
   equip.className = 'companion-detail-section';
   const equippedItem = state.companionEquipment?.[id] ?? null;
-  const equipLabel = equippedItem ? resLabel(equippedItem) : 'なにも持っていない…';
+  const isEquippedRelic = equippedItem && equippedItem === COMPANION_RELICS[id];
+  const equipLabel = equippedItem
+    ? `${resLabel(equippedItem)}${isEquippedRelic ? `（固有報酬 +${EQUIP_BONUS}）` : ''}`
+    : 'なにも持っていない…';
   equip.innerHTML = `<div class="companion-detail-label">持ち物</div>`;
   const equipBtn = document.createElement('button');
   equipBtn.className = 'companion-equip-btn';

@@ -298,6 +298,16 @@ const COMPANION_RANDOM_REWARDS = {
   yukika: [{ resource: 'sky_fragment',    minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 14000 }],
 };
 
+// 同行者ごとの装備品(固有レリック)。装備すると固有報酬量が EQUIP_BONUS 分アップする
+const COMPANION_RELICS = {
+  yuya:    'guide_earring',
+  rabi:    'polished_sheath',
+  shizuku: 'art_room_key',
+  kaoru:   'melon_keychain',
+  yukika:  'sky_compass',
+};
+const EQUIP_BONUS = 5;
+
 // 世界LVの閾値（フラグメント総獲得数）
 // インデックス i → Lv i+1 に上がるのに必要な累計数（25段階・計算式で自動生成・仮）
 // 上限=worldLv のため、wherever を Lv25 まで上げる＝worldLv25 が必要。終盤の場所発見までの長い道のりを形成する
@@ -641,8 +651,10 @@ function completeAction(actionId, onComplete) {
     const rewards = COMPANION_REWARDS[companionId];
     if (!rewards) continue;
     const level = state.ELv[companionId] ?? 0;
+    const isEquipped = state.companionEquipment?.[companionId] === COMPANION_RELICS[companionId];
+    const bonus = level + (isEquipped ? EQUIP_BONUS : 0);
     for (const reward of rewards) {
-      const total = reward.amount + level;
+      const total = reward.amount + bonus;
       newResources[reward.resource] = (newResources[reward.resource] ?? 0) + total;
       companionRewardsList.push({ companionId, resource: reward.resource, amount: total });
     }
@@ -957,4 +969,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
