@@ -14,6 +14,18 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* 全体的にテキスト選択を無効化(長押し操作やタップ時に文字選択が邪魔になるため)。入力欄は除外 */
+    html, body, #app {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
+    }
+
     /* ── スクロールバー ── */
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -37,6 +49,7 @@
 
     html, body {
       height: 100%;
+      overscroll-behavior-y: none;
     }
 
     body {
@@ -1202,6 +1215,20 @@
       letter-spacing: 0.03em;
     }
 
+    #refresh-btn {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      padding: 5px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    #refresh-btn svg { width: 100%; height: 100%; display: block; }
+    #refresh-btn:hover { color: var(--text); }
+    #refresh-btn:active { transform: rotate(60deg); transition: transform 0.2s; }
+
     #world-lv-display span {
       color: var(--text);
       font-weight: bold;
@@ -1342,6 +1369,20 @@
       background: var(--panel);
       cursor: pointer;
     }
+    .party-drag-handle {
+      flex-shrink: 0;
+      width: 1.4rem;
+      height: 1.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1;
+      touch-action: none;
+      cursor: grab;
+    }
+    .party-drag-handle:hover { color: var(--text); }
     .companion-card--fixed {
       opacity: 0.6;
       cursor: default;
@@ -1446,6 +1487,32 @@
       color: #c08080;
     }
     .companion-btn--remove:hover { background: #3a1a1a; }
+    .companion-btn--skill {
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+    .companion-btn--skill:hover { background: var(--accent-dim); }
+    .companion-card.dragging {
+      opacity: 0.4;
+    }
+    .party-section.drop-target {
+      outline: 2px dashed var(--accent);
+      outline-offset: 4px;
+      border-radius: 8px;
+    }
+    .party-drag-ghost {
+      position: fixed;
+      z-index: 300;
+      transform: translate(-50%, -50%);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      border: 1px solid var(--accent-border);
+      background: var(--panel);
+      color: var(--accent);
+      font-size: 0.85rem;
+      pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
 
     /* ── ログ内アイテム名 ── */
     .log-resource {
@@ -1511,6 +1578,13 @@
   <div id="header">
     <span id="header-title">Fragment Recollection</span>
     <div id="world-lv-display">worldLv <span id="world-lv-value">0</span></div>
+    <button id="refresh-btn" title="更新">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 15.3-6.3M21 12a9 9 0 0 1-15.3 6.3" />
+        <polyline points="3 4 3 9 8 9" />
+        <polyline points="21 20 21 15 16 15" />
+      </svg>
+    </button>
   </div>
 
   <!-- メインパネル(ログ) -->

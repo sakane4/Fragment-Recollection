@@ -981,6 +981,11 @@ function _renderWorldLvPopup() {
   }
 }
 
+function initRefreshButton() {
+  const btn = document.getElementById('refresh-btn');
+  btn.addEventListener('click', () => window.location.reload());
+}
+
 function initWorldLvPopup() {
   const display = document.getElementById('world-lv-display');
   const popup = document.getElementById('worldlv-popup');
@@ -1995,6 +2000,98 @@ function _buildCompanionDetail(id, state) {
   return detail;
 }
 
+// 同行カードのドラッグハンドルによる長押しドラッグ&ドロップ(同行中⇔別行動の移動)
+// ハンドル以外はタッチでの通常スクロールを邪魔しない(カード本体はtouch-action:auto)
+const _PARTY_DRAG_LONGPRESS_MS = 350;
+const _PARTY_DRAG_MOVE_THRESHOLD = 8;
+
+function _attachPartyDragHandlers(handle, card, companionId) {
+  let pressTimer = null;
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let ghost = null;
+  let originZone = null;
+
+  function cleanup() {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+    if (ghost) { ghost.remove(); ghost = null; }
+    card.classList.remove('dragging');
+    document.querySelectorAll('.party-section.drop-target').forEach(el => el.classList.remove('drop-target'));
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
+  }
+
+  function zoneAt(x, y) {
+    let zone = null;
+    document.querySelectorAll('.party-section').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) zone = el.dataset.partyZone;
+    });
+    return zone;
+  }
+
+  function onMove(e) {
+    const x = e.clientX, y = e.clientY;
+    if (!dragging) {
+      if (Math.abs(x - startX) > _PARTY_DRAG_MOVE_THRESHOLD || Math.abs(y - startY) > _PARTY_DRAG_MOVE_THRESHOLD) {
+        clearTimeout(pressTimer);
+      }
+      return;
+    }
+    ghost.style.left = `${x}px`;
+    ghost.style.top = `${y}px`;
+    const zone = zoneAt(x, y);
+    document.querySelectorAll('.party-section').forEach(el => {
+      el.classList.toggle('drop-target', el.dataset.partyZone === zone);
+    });
+  }
+
+  function onUp(e) {
+    if (dragging) {
+      const targetZone = zoneAt(e.clientX, e.clientY);
+      if (targetZone && targetZone !== originZone) {
+        if (targetZone === 'active') {
+          if (getState().activeAction) addLog('行動を中断してください', true);
+          else if (getState().companionTasks?.[companionId]) addLog('作業中は同行させられません', true);
+          else setActiveCompanion(companionId, true);
+        } else {
+          if (getState().activeAction) addLog('行動を中断してください', true);
+          else setActiveCompanion(companionId, false);
+        }
+      }
+      renderCharTab(getState());
+    }
+    cleanup();
+  }
+
+  function onCancel() {
+    cleanup();
+  }
+
+  handle.addEventListener('click', (e) => e.stopPropagation());
+  handle.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    startX = e.clientX;
+    startY = e.clientY;
+    originZone = card.closest('.party-section')?.dataset.partyZone;
+    pressTimer = setTimeout(() => {
+      dragging = true;
+      card.classList.add('dragging');
+      ghost = document.createElement('div');
+      ghost.className = 'party-drag-ghost';
+      ghost.textContent = card.querySelector('.companion-name')?.textContent ?? '';
+      ghost.style.left = `${startX}px`;
+      ghost.style.top = `${startY}px`;
+      document.body.appendChild(ghost);
+    }, _PARTY_DRAG_LONGPRESS_MS);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  });
+}
+
 function renderCharTab(state) {
   const view = document.getElementById('view-chars');
   view.innerHTML = '<div class="sub-title">同行</div>';
@@ -2006,6 +2103,7 @@ function renderCharTab(state) {
   // ── 同行中エリア ──
   const activeSection = document.createElement('div');
   activeSection.className = 'party-section';
+  activeSection.dataset.partyZone = 'active';
   const activeLabel = document.createElement('div');
   activeLabel.className = 'party-label';
   activeLabel.textContent = '同行中';
@@ -2026,15 +2124,11 @@ function renderCharTab(state) {
     const lv = state.ELv?.[id] ?? 0;
     const lvTag = companionLvTagHtml(lv);
     card.innerHTML = `<div class="companion-name">${data.name}${lvTag}</div><div class="companion-desc">${data.desc}</div>`;
-    const btn = document.createElement('button');
-    btn.className = 'companion-btn companion-btn--remove';
-    btn.textContent = '別行動';
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (getState().activeAction) { addLog('行動を中断してください', true); return; }
-      setActiveCompanion(id, false);
-    });
-    card.appendChild(btn);
+    const handle = document.createElement('div');
+    handle.className = 'party-drag-handle';
+    handle.textContent = '⠿';
+    card.appendChild(handle);
+    _attachPartyDragHandlers(handle, card, id);
     card.addEventListener('click', () => {
       if (_expandedCompanionIds.has(id)) _expandedCompanionIds.delete(id);
       else _expandedCompanionIds.add(id);
@@ -2068,6 +2162,7 @@ function renderCharTab(state) {
   // ── 控えエリア ──
   const benchSection = document.createElement('div');
   benchSection.className = 'party-section';
+  benchSection.dataset.partyZone = 'bench';
   const benchLabel = document.createElement('div');
   benchLabel.className = 'party-label';
   benchLabel.textContent = '別行動';
@@ -2093,16 +2188,21 @@ function renderCharTab(state) {
     const lv2 = state.ELv?.[id] ?? 0;
     const lvTag2 = companionLvTagHtml(lv2);
     card.innerHTML = `<div class="companion-name">${data.name}${lvTag2}</div><div class="companion-desc">${data.desc}</div>`;
-    const btn = document.createElement('button');
-    btn.className = 'companion-btn companion-btn--add';
-    btn.textContent = '同行する';
-    btn.addEventListener('click', (e) => {
+    const skillBtn = document.createElement('button');
+    skillBtn.className = 'companion-btn companion-btn--skill';
+    skillBtn.textContent = '異能';
+    skillBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (getState().activeAction) { addLog('行動を中断してください', true); return; }
-      if (getState().companionTasks?.[id]) { addLog('作業中は同行させられません', true); return; }
-      setActiveCompanion(id, true);
+      _expandedCompanionIds.add(id);
+      _companionDetailTab.set(id, 'level');
+      renderCharTab(getState());
     });
-    card.appendChild(btn);
+    card.appendChild(skillBtn);
+    const handle2 = document.createElement('div');
+    handle2.className = 'party-drag-handle';
+    handle2.textContent = '⠿';
+    card.appendChild(handle2);
+    _attachPartyDragHandlers(handle2, card, id);
     card.addEventListener('click', () => {
       if (_expandedCompanionIds.has(id)) _expandedCompanionIds.delete(id);
       else _expandedCompanionIds.add(id);
@@ -2177,6 +2277,7 @@ export function init() {
   initStoryViewer();
   initDevTools();
   initWorldLvPopup();
+  initRefreshButton();
 
   if (!initialState.tutorialDone) {
     launchTutorial();
