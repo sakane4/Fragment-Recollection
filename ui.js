@@ -42,122 +42,58 @@ function _persistSeen() {
   try { localStorage.setItem('fr_seen_stories', JSON.stringify([...(_seenStories ?? [])])); } catch {}
 }
 
-const RESOURCE_LABELS = {
-  fragment:        'フラグメント',
-  blue_fragment:   '青のフラグメント',
-  red_fragment:    '赤のフラグメント',
-  clear_fragment:  '無色のフラグメント',
-  bubble_fragment: '泡のフラグメント',
-  sky_fragment:    '空のフラグメント',
-  herb:            '薬草',
-  forest_voice:    '木々の声',
-  branch:          '木の枝',
+// リソース定義を1か所に集約(label/color/category/unit)。新アイテム追加時はここに1行追加するだけ。
+// category省略時は'material'、unit省略時は''がデフォルト
+const RESOURCES = {
+  fragment:        { label: 'フラグメント',     color: '#7ec8d8', category: 'fragment', unit: '片' },
+  blue_fragment:   { label: '青のフラグメント',   color: '#89b4fa', category: 'fragment', unit: '片' },
+  red_fragment:    { label: '赤のフラグメント',   color: '#f38ba8', category: 'fragment', unit: '片' },
+  clear_fragment:  { label: '無色のフラグメント', color: '#cdd6f4', category: 'fragment', unit: '片' },
+  bubble_fragment: { label: '泡のフラグメント',   color: '#cba6f7', category: 'fragment', unit: '片' },
+  sky_fragment:    { label: '空のフラグメント',   color: '#89dceb', category: 'fragment', unit: '片' },
+  herb:            { label: '薬草',     color: '#a6e3a1', unit: '束' },
+  forest_voice:    { label: '木々の声', color: '#a8d8a8', unit: 'かけら' },
+  branch:          { label: '木の枝',   color: '#c8a97e', unit: '本' },
   // 黄昏の旧校舎
-  old_paint:          '古びた絵具',
-  torn_page:          '破れたページ',
-  broken_piano_sound: '少し狂ったピアノの音',
-  art_room_key:       '旧美術室の鍵',
+  old_paint:          { label: '古びた絵具',         color: '#e0a96d' },
+  torn_page:          { label: '破れたページ',       color: '#d8cba0' },
+  broken_piano_sound: { label: '少し狂ったピアノの音', color: '#b0a8c8' },
+  art_room_key:       { label: '旧美術室の鍵',       color: '#d6336c', category: 'relic' },
   // 翼竜の都 レンリル
-  wyvern_claw:        '翼竜の爪',
-  wyvern_scale:       '翼竜の鱗',
-  melon_keychain:     'メロンパンのキーホルダー',
+  wyvern_claw:        { label: '翼竜の爪', color: '#c0c4cc' },
+  wyvern_scale:       { label: '翼竜の鱗', color: '#7fb0c8' },
+  melon_keychain:     { label: 'もっふりん', color: '#d6336c', category: 'relic' },
   // 魔界王都 メフィスト
-  spellbook_page:     '魔術書のページ',
-  magic_circle_shard: '魔法陣の欠片',
-  astard_fragment:    'アスタード文字の破片',
-  sky_compass:        '天空の羅針盤',
+  spellbook_page:     { label: '魔術書のページ',       color: '#b89cd8' },
+  magic_circle_shard: { label: '魔法陣の欠片',         color: '#a98cd8' },
+  astard_fragment:    { label: 'アスタード文字の破片', color: '#9a8cc8' },
+  sky_compass:        { label: '天空の羅針盤',         color: '#d6336c', category: 'relic' },
   // 王立騎士団本部
-  subjugation_report: '討伐報告書',
-  old_armband:        '古びた腕章',
-  chipped_insignia:   '欠けた記章',
-  polished_sheath:    '美しい細身の剣',
-  guide_earring:      '導きのイヤリング',
+  subjugation_report: { label: '討伐報告書',       color: '#d8cba0' },
+  old_armband:        { label: '古びた腕章',       color: '#b0926a' },
+  chipped_insignia:   { label: '欠けた記章',       color: '#c0c4cc' },
+  polished_sheath:    { label: '美しい細身の剣',   color: '#d6336c', category: 'relic' },
+  guide_earring:      { label: '導きのイヤリング', color: '#d6336c', category: 'relic' },
 };
 
-const RESOURCE_COLORS = {
-  fragment:        '#7ec8d8',
-  blue_fragment:   '#89b4fa',
-  red_fragment:    '#f38ba8',
-  clear_fragment:  '#cdd6f4',
-  bubble_fragment: '#cba6f7',
-  sky_fragment:    '#89dceb',
-  herb:            '#a6e3a1',
-  forest_voice:    '#a8d8a8',
-  branch:          '#c8a97e',
-  old_paint:          '#e0a96d',
-  torn_page:          '#d8cba0',
-  broken_piano_sound: '#b0a8c8',
-  art_room_key:       '#d6336c',
-  wyvern_claw:        '#c0c4cc',
-  wyvern_scale:       '#7fb0c8',
-  melon_keychain:     '#d6336c',
-  spellbook_page:     '#b89cd8',
-  magic_circle_shard: '#a98cd8',
-  astard_fragment:    '#9a8cc8',
-  sky_compass:        '#d6336c',
-  subjugation_report: '#d8cba0',
-  old_armband:        '#b0926a',
-  chipped_insignia:   '#c0c4cc',
-  polished_sheath:    '#d6336c',
-  guide_earring:      '#d6336c',
-};
-
-// 持ち物一覧のカテゴリ分類
-const RESOURCE_CATEGORIES = {
-  fragment:        'fragment',
-  blue_fragment:   'fragment',
-  red_fragment:    'fragment',
-  clear_fragment:  'fragment',
-  bubble_fragment: 'fragment',
-  sky_fragment:    'fragment',
-  herb:            'material',
-  forest_voice:    'material',
-  branch:          'material',
-  old_paint:          'material',
-  torn_page:          'material',
-  broken_piano_sound: 'material',
-  wyvern_claw:        'material',
-  wyvern_scale:       'material',
-  spellbook_page:     'material',
-  magic_circle_shard: 'material',
-  astard_fragment:    'material',
-  subjugation_report: 'material',
-  old_armband:        'material',
-  chipped_insignia:   'material',
-  art_room_key:    'relic',
-  melon_keychain:  'relic',
-  sky_compass:     'relic',
-  polished_sheath: 'relic',
-  guide_earring:   'relic',
-};
 const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'relic'];
 const RESOURCE_CATEGORY_LABELS = { fragment: 'フラグメント', material: '素材', relic: 'レリック' };
 
-const RESOURCE_UNITS = {
-  fragment:        '片',
-  blue_fragment:   '片',
-  red_fragment:    '片',
-  clear_fragment:  '片',
-  bubble_fragment: '片',
-  sky_fragment:    '片',
-  herb:            '束',
-  forest_voice:    'かけら',
-  branch:          '本',
-};
+function resLabel(resource) { return RESOURCES[resource]?.label ?? resource; }
+function resColor(resource) { return RESOURCES[resource]?.color ?? 'var(--text)'; }
+function resCategory(resource) { return RESOURCES[resource]?.category ?? 'material'; }
+function resUnit(resource) { return RESOURCES[resource]?.unit ?? ''; }
 
 function resourceSpan(resource, text) {
-  const color = RESOURCE_COLORS[resource] ?? 'var(--text)';
-  return `<span style="color:${color};font-weight:bold">${text}</span>`;
+  return `<span style="color:${resColor(resource)};font-weight:bold">${text}</span>`;
 }
 
 function resourceLog(resource, amount) {
-  const label = RESOURCE_LABELS[resource] ?? resource;
-  const unit = RESOURCE_UNITS[resource] ?? '';
-  return `${resourceSpan(resource, label)} を ${amount}${unit} 見つけた`;
+  return `${resourceSpan(resource, resLabel(resource))} を ${amount}${resUnit(resource)} 見つけた`;
 }
 
 function formatCostLabel(costs) {
-  return costs.map(c => `${RESOURCE_LABELS[c.resource] ?? c.resource} ×${c.amount}`).join(', ');
+  return costs.map(c => `${resLabel(c.resource)} ×${c.amount}`).join(', ');
 }
 
 // 解放済み段落数(unlockedParas)から「表示可能なページ数」を算出
@@ -325,7 +261,7 @@ function _buildUnlockButton(currentCost, state) {
     const offset = CIRC * (1 - ratio);
     const enough = have >= need;
     const ringColor = enough ? 'var(--accent)' : 'var(--muted)';
-    const label = RESOURCE_LABELS[c.resource] ?? c.resource;
+    const label = resLabel(c.resource);
     return `
       <span class="memory-cost-item${enough ? ' enough' : ''}">
         <svg class="memory-ring" viewBox="0 0 36 36">
@@ -740,7 +676,7 @@ function renderResources(resources) {
   els.resourceList.innerHTML = '';
   for (const cat of RESOURCE_CATEGORY_ORDER) {
     const entries = Object.entries(resources).filter(
-      ([key, amount]) => amount !== 0 && (RESOURCE_CATEGORIES[key] ?? 'material') === cat
+      ([key, amount]) => amount !== 0 && resCategory(key) === cat
     );
     if (entries.length === 0) continue;
 
@@ -755,7 +691,7 @@ function renderResources(resources) {
     for (const [key, amount] of entries) {
       const row = document.createElement('div');
       row.className = 'resource-row';
-      row.innerHTML = `<span class="resource-name">${RESOURCE_LABELS[key] ?? key}</span><span class="resource-val">${amount}</span>`;
+      row.innerHTML = `<span class="resource-name">${resLabel(key)}</span><span class="resource-val">${amount}</span>`;
       section.appendChild(row);
     }
     els.resourceList.appendChild(section);
@@ -1019,7 +955,7 @@ function _renderLocationPopup(location) {
   } else {
     btn.hidden = false;
     btn.disabled = false;
-    const label = RESOURCE_LABELS['fragment'] ?? 'フラグメント';
+    const label = resLabel('fragment');
     haveEl.textContent = `所持数：${have}`;
     btn.innerHTML =
       `<span class="lvup-btn-label">Lv${lv + 1} </span>` +
@@ -1172,8 +1108,7 @@ function _handleActionComplete(actionId, result) {
   }
 
   const _rewardHtml = ({ resource, amount }, wrapClass) => {
-    const label = RESOURCE_LABELS[resource] ?? resource;
-    const span = `${resourceSpan(resource, label)} +${amount}`;
+    const span = `${resourceSpan(resource, resLabel(resource))} +${amount}`;
     return wrapClass ? `<span class="${wrapClass}">${span}</span>` : span;
   };
   const rewardsHtml = (allRewards ?? []).map(r => _rewardHtml(r)).join(', ');
@@ -1189,7 +1124,7 @@ function _handleActionComplete(actionId, result) {
 
   // レアドロップ → 同行者解放（加入イベント本文は今後実装）
   if (rareDrop) {
-    const itemLabel = RESOURCE_LABELS[rareDrop.resource] ?? rareDrop.resource;
+    const itemLabel = resLabel(rareDrop.resource);
     const compName = COMPANION_DATA[rareDrop.companionId]?.name ?? rareDrop.companionId;
     addLog(`【！】${resourceSpan(rareDrop.resource, itemLabel)} を見つけた`, true, true);
     addLog(`【同行】${compName} が仲間になった`, true);
@@ -1488,7 +1423,7 @@ function startLogSt_4() {
         () => { if (cleanup) { cleanup(); cleanup = null; } },
         () => {
           addResources('guide_earring', 1);
-          addLog(`【！】${resourceSpan('guide_earring', RESOURCE_LABELS['guide_earring'])} を手に入れた`, true, true);
+          addLog(`【！】${resourceSpan('guide_earring', resLabel('guide_earring'))} を手に入れた`, true, true);
         }
       );
     },
@@ -1604,7 +1539,7 @@ function openEquipPopup(companionId) {
   for (const itemId of DUMMY_EQUIP_ITEMS) {
     const btn = document.createElement('button');
     btn.className = 'equip-popup-item';
-    btn.textContent = RESOURCE_LABELS[itemId] ?? itemId;
+    btn.textContent = resLabel(itemId);
     btn.addEventListener('click', () => {
       setCompanionEquipment(companionId, itemId);
       popup.classList.remove('open');
@@ -1636,14 +1571,14 @@ function _buildCompanionDetail(id, state) {
   drop.className = 'companion-detail-section';
   const dropResource = COMPANION_REWARDS[id]?.[0]?.resource;
   const dropDiscovered = dropResource && (state.discoveredResources ?? []).includes(dropResource);
-  const dropLabel = !dropResource ? '—' : dropDiscovered ? (RESOURCE_LABELS[dropResource] ?? dropResource) : '???';
+  const dropLabel = !dropResource ? '—' : dropDiscovered ? resLabel(dropResource) : '???';
   drop.innerHTML = `<div class="companion-detail-label">見つけられるもの</div><div class="companion-detail-body">${dropLabel}</div>`;
   detail.appendChild(drop);
 
   const equip = document.createElement('div');
   equip.className = 'companion-detail-section';
   const equippedItem = state.companionEquipment?.[id] ?? null;
-  const equipLabel = equippedItem ? (RESOURCE_LABELS[equippedItem] ?? equippedItem) : 'なにも持っていない…';
+  const equipLabel = equippedItem ? resLabel(equippedItem) : 'なにも持っていない…';
   equip.innerHTML = `<div class="companion-detail-label">持ち物</div>`;
   const equipBtn = document.createElement('button');
   equipBtn.className = 'companion-equip-btn';
@@ -1746,7 +1681,7 @@ function renderCharTab(state) {
       if (!rewards) continue;
       for (const r of rewards) {
         const discovered = (state.discoveredResources ?? []).includes(r.resource);
-        const label = discovered ? `${RESOURCE_LABELS[r.resource] ?? r.resource} ` : '???';
+        const label = discovered ? `${resLabel(r.resource)} ` : '???';
         bonusLines.push(label);
       }
     }
