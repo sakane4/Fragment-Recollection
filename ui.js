@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin } from './scenario.js';
@@ -844,15 +844,59 @@ renderStoryList(state);
   renderGuideList(_curState);
 }
 
-// 【暫定】導きパネルの中身。表現はあとで詰める。
+// 導きパネルの中身。状況に応じたヒントを優先度順に積む
 function renderGuideList(state) {
   const list = document.getElementById('guide-list');
   if (!list) return;
   list.innerHTML = '';
 
   const hints = [];
+
   if ((state.worldLv ?? 0) < 5) {
     hints.push('なにもない世界の探索を進めよう…（Lv5）');
+  } else {
+    // 場所発見スケジュールの次のステップに向けて、再生された世界(wherever)のLvを上げるよう促す
+    const step = state.discoveryStep ?? 0;
+    if (state.logSt4Done && step < DISCOVERY_STEP_LV.length) {
+      const targetLv = DISCOVERY_STEP_LV[step];
+      const whereverLv = state.LocationLv?.['wherever'] ?? 0;
+      if (whereverLv < targetLv) {
+        hints.push(`なにもない世界をさらに再生しよう…（Lv${targetLv}）`);
+      }
+    }
+  }
+
+  // 解放済みの場所に、まだ見つけていない同行者がいれば探索を促す(レアドロップの示唆)
+  for (const action of Object.values(ACTIONS)) {
+    if (!action.rareDrop) continue;
+    if (state.unlockedCompanions?.includes(action.rareDrop.companionId)) continue;
+    if (!state.unlockedLocations?.includes(action.locationId)) continue;
+    const locLabel = LOCATIONS[action.locationId]?.label ?? 'どこか';
+    hints.push(`${locLabel}を探索してみよう…なにかが見つかるかもしれない`);
+    break;
+  }
+
+  // 解放済みだが同行していない仲間がいれば誘う
+  const bench = (state.unlockedCompanions ?? []).filter(id => !(state.activeCompanions ?? []).includes(id));
+  if (bench.length > 0) {
+    const name = COMPANION_DATA[bench[0]]?.name ?? bench[0];
+    hints.push(`${name}を同行させてみよう`);
+  }
+
+  // 同行中なのに、持っているはずの固有レリックを装備していない仲間がいれば教える
+  for (const id of (state.activeCompanions ?? [])) {
+    const relic = COMPANION_RELICS[id];
+    const owned = relic && (state.resources[relic] ?? 0) > 0;
+    const equipped = state.companionEquipment?.[id] === relic;
+    if (owned && !equipped) {
+      const name = COMPANION_DATA[id]?.name ?? id;
+      hints.push(`${name}に持ち物を持たせてみよう`);
+      break;
+    }
+  }
+
+  if (hints.length === 0) {
+    hints.push('星の導きは、いまは静かだ…');
   }
 
   for (const hint of hints) {
