@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu, runEncounterScene } from './scenario.js';
@@ -937,7 +937,7 @@ function render(state) {
   if (storySig !== _prevStorySig) { renderStoryList(state); _prevStorySig = storySig; }
   _updateStoriesBadge(state);
 
-  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.ELv, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources]);
+  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.ELv, state.companionTraits, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources]);
   if (charSig !== _prevCharSig) { renderCharTab(state); _prevCharSig = charSig; }
 
   const actionSig = JSON.stringify([state.unlockedLocations, state.unlockedActions, state.activeAction?.actionId ?? null, state.ActionLv, state.LocationLv, state.resources.fragment, state.worldLv]);
@@ -2099,6 +2099,16 @@ function _buildCompanionDetailProfile(id, state) {
   const dropLabel = !dropResource ? '—' : dropDiscovered ? resLabel(dropResource) : '???';
   drop.innerHTML = `<div class="companion-detail-label">見つけられるもの</div><div class="companion-detail-body">${dropLabel}</div>`;
   wrap.appendChild(drop);
+
+  // 特性(成長型パラメータ。COMPANION_TRAITS参照。今は「育つ・表示される」のみで効果は未定)
+  const trait = COMPANION_TRAITS[id];
+  if (trait) {
+    const traitVal = state.companionTraits?.[id]?.[trait.id] ?? 0;
+    const traitSection = document.createElement('div');
+    traitSection.className = 'companion-detail-section';
+    traitSection.innerHTML = `<div class="companion-detail-label">特性</div><div class="companion-detail-body">${trait.label} ${traitVal}</div>`;
+    wrap.appendChild(traitSection);
+  }
 
   return wrap;
 }

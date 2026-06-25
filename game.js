@@ -507,6 +507,31 @@ const COMPANION_SKILLS = {
 // フラグメント変換で対象になり得る固有フラグメント一覧(同行者の固有報酬リソースをすべて集める)
 const UNIQUE_FRAGMENTS = Object.values(COMPANION_REWARDS).map(r => r[0].resource);
 
+// ── 同行者の特性(成長型パラメータ) ──
+// COMPANION_SKILLS(ELvで解放するアクティブ異能)とは別物。同行者ごとに専用の行動を完了するたびに
+// 育っていく数値。現状は「育つ・表示される」までが範囲(効果は未定、後で肉付けする)
+// growBy: この行動IDが完了したとき、その同行者が同行中(activeCompanions)なら+1される
+const COMPANION_TRAITS = {
+  shizuku: { id: 'knowledge',     label: '知識', growBy: 'touto_library_research' },
+  rabi:    { id: 'swordsmanship', label: '剣術', growBy: 'knights_explore' },
+};
+
+// 完了した行動(actionId)に対応する特性を持つ同行者が同行中なら、その特性を+1する
+function _growCompanionTraits(actionId) {
+  for (const [companionId, trait] of Object.entries(COMPANION_TRAITS)) {
+    if (trait.growBy !== actionId) continue;
+    if (!state.activeCompanions.includes(companionId)) continue;
+    const current = state.companionTraits?.[companionId]?.[trait.id] ?? 0;
+    state = {
+      ...state,
+      companionTraits: {
+        ...state.companionTraits,
+        [companionId]: { ...(state.companionTraits?.[companionId] ?? {}), [trait.id]: current + 1 },
+      },
+    };
+  }
+}
+
 // 同行者レベルを1上げる。固有フラグメントをコスト分消費する
 function levelUpCompanion(companionId) {
   const lv = state.ELv[companionId] ?? 0;
@@ -632,6 +657,7 @@ const INITIAL_STATE = {
   unlockedCompanions: [],
   activeCompanions: [],
   ELv: {},
+  companionTraits: {},
   companionEquipment: {},
   titleRevealed: {},
   discoveredResources: ['fragment'],
@@ -1083,6 +1109,7 @@ function completeAction(actionId, onComplete) {
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
   const lvedUp = state.worldLv > prevLv;
   _addActionCount(actionId);
+  _growCompanionTraits(actionId);
 
   // エンカウント対象の行動: 中断なく完了するたびにストリークを+1(遭遇確率の上昇に使う)
   if (ENCOUNTERS[actionId]) {
@@ -1212,6 +1239,7 @@ function init() {
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
     activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
     ELv:  saved.ELv  ?? INITIAL_STATE.ELv,
+    companionTraits: saved.companionTraits ?? INITIAL_STATE.companionTraits,
     companionEquipment: saved.companionEquipment ?? INITIAL_STATE.companionEquipment,
     titleRevealed: saved.titleRevealed ?? INITIAL_STATE.titleRevealed,
     discoveredResources: saved.discoveredResources ?? INITIAL_STATE.discoveredResources,
@@ -1397,4 +1425,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
