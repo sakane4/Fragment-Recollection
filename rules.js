@@ -51,6 +51,15 @@ export const UNLOCK_RULES = [
     action: (ctx) => ctx.unlockAction('forest_gather'),
   },
   {
+    // 道具屋で斧を買う(resources.axe>0)と、はじまりの森で木こりが解放される
+    id: 'unlock_forest_woodcut',
+    condition: (state) =>
+      (state.resources?.axe ?? 0) > 0 &&
+      state.unlockedLocations.includes('forest') &&
+      !(state.unlockedActions ?? []).includes('forest_woodcut'),
+    action: (ctx) => ctx.unlockAction('forest_woodcut'),
+  },
+  {
     id: 'unlock_guide',
     condition: (state) =>
       state.logSt4Done &&

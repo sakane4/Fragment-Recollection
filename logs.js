@@ -10,16 +10,34 @@ const ACTION_LOGS = {
     '森の中を歩いています...',
     '木の葉が揺れています...',
     '鳥の声が聞こえます...',
+    '[lv:2] 下草が深くなってきた...',
+    '[lv:2] 木々がより密になっている気がする...',
   ],
   forest_gather: [
     '資源を収集しています...',
     '持ちきれなくなってきました...',
     'はやくかえりたいです...',
   ],
-  tower_explore: [
+  touto_explore: [
     '石畳の街路を歩いています...',
     '人々の声が聞こえます...',
     '塔の影が長く伸びています...',
+    '露店の呼び込みが響いています...',
+  ],
+  touto_inn_rest: [
+    '暖炉のそばで一息ついた...',
+    '料理のいい匂いがする...',
+    'まどろみに身をあずける...',
+  ],
+  touto_flower_help: [
+    '花の水やりを手伝った...',
+    '店先の花を並べ替えた...',
+    '客の相手をしている...',
+  ],
+  touto_library_research: [
+    '古い書架をめくっている...',
+    'インクと紙の匂いがする...',
+    '気になる一節を書き写した...',
   ],
   kyusha_explore: [
     '誰もいない廊下を歩いていく…',
@@ -75,13 +93,24 @@ function randomInterval(minMs, maxMs) {
   return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 }
 
+// 行頭の [lv:n] タグを取り除き、{ text, minLv } を返す(タグなしは minLv:0)
+// pagecost([pagecost: ...])と同じ「本文にタグを直接書く」方式
+const _LV_TAG_RE = /^\[lv:(\d+)\]\s*/;
+function _parseLvTag(raw) {
+  const m = raw.match(_LV_TAG_RE);
+  return m ? { text: raw.slice(m[0].length), minLv: Number(m[1]) } : { text: raw, minLv: 0 };
+}
+
 // アクション中にランダムなタイミングでコールバックを呼び続けるスケジューラー
 // 直前に出たテキストは次の抽選から除外する(連続重複排除)
 // companions: { id, name }の配列。指定時、約1/3の確率で同行者ログを混ぜる
+// locationLv: 指定すると、本文に[lv:n]タグが付いたテキストはLv n 以上でのみ出現する
 // stop() を呼ぶまで繰り返す
-function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000, companions = [] } = {}) {
-  const texts = ACTION_LOGS[actionId];
-  if (!texts || texts.length === 0) return () => {};
+function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000, companions = [], locationLv = 0 } = {}) {
+  const allTexts = ACTION_LOGS[actionId];
+  if (!allTexts || allTexts.length === 0) return () => {};
+  const texts = allTexts.map(_parseLvTag).filter(t => t.minLv <= locationLv).map(t => t.text);
+  if (texts.length === 0) return () => {};
 
   let timer = null;
   let stopped = false;
@@ -100,9 +129,11 @@ function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000, com
         // 固有テキストがあれば70%で固有、30%で汎用を選ぶ
         const useSpecific = specific && specific.length > 0 && Math.random() < 0.7;
         const source = useSpecific ? specific : COMPANION_LOGS;
-        const pool = source.length > 1 ? source.filter(t => t !== lastText) : source;
-        const template = pool[Math.floor(Math.random() * pool.length)];
-        text = template.replace('{name}', companion.name);
+        // 置換後の最終テキストで連続重複を判定する({name}を含むテンプレートとlastTextを
+        // そのまま比較すると一致せず、連続排除が効かない不具合があったため)
+        const rendered = source.map(t => t.replace('{name}', companion.name));
+        const pool = rendered.length > 1 ? rendered.filter(t => t !== lastText) : rendered;
+        text = pool[Math.floor(Math.random() * pool.length)];
       } else {
         const pool = texts.length > 1 ? texts.filter(t => t !== lastText) : texts;
         text = pool[Math.floor(Math.random() * pool.length)];

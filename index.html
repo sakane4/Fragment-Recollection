@@ -129,6 +129,16 @@
       font-size: 0.78rem;
       cursor: pointer;
     }
+    /* 導きの内容が更新されたとき、タブを発光させて気づかせる */
+    #guide-tab-btn.glow {
+      animation: guide-glow 1.4s ease-in-out infinite;
+      background: var(--accent);
+      color: var(--panel);
+    }
+    @keyframes guide-glow {
+      0%, 100% { box-shadow: -2px 0 4px rgba(126,200,216,0.3); }
+      50%      { box-shadow: -2px 0 16px 4px var(--accent); }
+    }
     #guide-panel-header {
       font-size: 0.85rem;
       font-weight: 600;
@@ -1052,6 +1062,21 @@
       color: var(--muted);
       padding: 0.4rem 0.2rem;
     }
+    .confirm-popup-message {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.5;
+      padding: 0.2rem 0.2rem 0.6rem;
+    }
+    .confirm-popup-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .confirm-popup-buttons .equip-popup-item {
+      flex: 1;
+      text-align: center;
+    }
+    #confirm-popup-yes { color: var(--accent); }
     .companion-equip-btn {
       font-size: 0.78rem;
       padding: 0.3rem 0.6rem;
@@ -1766,6 +1791,18 @@
       <button class="location-popup-lvup-btn" id="convert-confirm-btn">変換する</button>
       <hr class="convert-divider">
       <div class="convert-fragment-list" id="convert-fragment-list"></div>
+    </div>
+  </div>
+
+  <!-- 汎用確認ポップアップ -->
+  <div id="confirm-popup" class="equip-popup">
+    <div class="equip-popup-inner">
+      <div class="equip-popup-title" id="confirm-popup-title">確認</div>
+      <div class="confirm-popup-message" id="confirm-popup-message"></div>
+      <div class="confirm-popup-buttons">
+        <button class="equip-popup-item" id="confirm-popup-yes">はい</button>
+        <button class="equip-popup-item" id="confirm-popup-no">いいえ</button>
+      </div>
     </div>
   </div>
 

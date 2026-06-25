@@ -94,6 +94,8 @@ const RESOURCES = {
   herb:            { label: '薬草',     color: '#a6e3a1', unit: '束' },
   forest_voice:    { label: '木々の声', color: '#a8d8a8', unit: 'かけら' },
   branch:          { label: '木の枝',   color: '#c8a97e', unit: '本' },
+  wood:            { label: '木材',     color: '#a47d4e', unit: '本' },
+  axe:             { label: '鉄の斧',   color: '#9aa0a6', category: 'relic', unit: '振' },
   // 塔都
   magcoin:         { label: 'マグコイン', color: '#e6c200', unit: '枚' },
   old_text:        { label: '古文書',   color: '#bba16a', unit: '冊' },
@@ -137,8 +139,15 @@ function resourceLog(resource, amount) {
   return `${resourceSpan(resource, resLabel(resource))} を ${amount}${resUnit(resource)} 見つけた`;
 }
 
-function formatCostLabel(costs) {
-  return costs.map(c => `${resLabel(c.resource)} ×${c.amount}`).join(', ');
+// まだ一度も入手していない(discoveredResourcesに無い)素材は名前を伏せて「???」で表示する。
+// 解放条件にしか出てこない未知の素材のネタバレを防ぐ
+function _maskedResLabel(resource, state) {
+  if (state && !(state.discoveredResources ?? []).includes(resource)) return '???';
+  return resLabel(resource);
+}
+
+function formatCostLabel(costs, state) {
+  return costs.map(c => `${_maskedResLabel(c.resource, state)} ×${c.amount}`).join(', ');
 }
 
 // 解放済み段落数(unlockedParas)から「表示可能なページ数」を算出
@@ -306,7 +315,7 @@ function _buildUnlockButton(currentCost, state) {
     const offset = CIRC * (1 - ratio);
     const enough = have >= need;
     const ringColor = enough ? 'var(--accent)' : 'var(--muted)';
-    const label = resLabel(c.resource);
+    const label = _maskedResLabel(c.resource, state);
     return `
       <span class="memory-cost-item${enough ? ' enough' : ''}">
         <svg class="memory-ring" viewBox="0 0 36 36">
@@ -601,7 +610,7 @@ function _updateStoriesBadge(state) {
 function _buildStoryItem(story, state) {
   const unlocked = state.unlockedStories.includes(story.id);
     const appeared = !unlocked && (state.appearedStories ?? []).includes(story.id);
-    const costLabel = formatCostLabel(story.unlockCost);
+    const costLabel = formatCostLabel(story.unlockCost, state);
 
     const item = document.createElement('div');
     item.className = 'story-item';
@@ -764,7 +773,8 @@ function render(state) {
     const companions = (state.activeCompanions ?? [])
       .map(id => COMPANION_DATA[id] ? { id, name: COMPANION_DATA[id].name } : null)
       .filter(Boolean);
-    stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text), { companions });
+    const locationLv = state.LocationLv?.[action?.locationId] ?? 0;
+    stopFlavor = startFlavorScheduler(active.actionId, text => addLog(text), { companions, locationLv });
   }
 
   if (!active && prevActive) {
@@ -911,9 +921,13 @@ renderStoryList(state);
       // 初回render: セーブ済みの状態に同期するだけ(「いま解放された」扱いにしない)
       guidePanelEl.classList.toggle('hidden', !_curState.guideUnlocked);
     } else if (_curState.guideUnlocked && !prevGuideUnlocked) {
+      // 先にガードを立てる。setAutoRepeat()がnotify()→render()を同期再入させるため、
+      // ここで更新しておかないと解放ログが二重に出てしまう(重複バグの原因)
+      prevGuideUnlocked = true;
       guidePanelEl.classList.remove('hidden');
       addLog('【導き】が解放された', true);
       addLog('星の導きに任せて、これからは行動をくり返せるようになった', true);
+      _flashGuideTab();
       if (!_curState.autoRepeat) setAutoRepeat(true);
     } else if (!_curState.guideUnlocked) {
       guidePanelEl.classList.add('hidden');
@@ -968,13 +982,6 @@ function renderGuideList(state) {
     break;
   }
 
-  // 解放済みだが同行していない仲間がいれば誘う
-  const bench = (state.unlockedCompanions ?? []).filter(id => !(state.activeCompanions ?? []).includes(id));
-  if (bench.length > 0) {
-    const name = COMPANION_DATA[bench[0]]?.name ?? bench[0];
-    hints.push(`${name}を同行させてみよう`);
-  }
-
   // 同行中なのに、持っているはずの固有レリックを装備していない仲間がいれば教える
   for (const id of (state.activeCompanions ?? [])) {
     const relic = COMPANION_RELICS[id];
@@ -997,6 +1004,65 @@ function renderGuideList(state) {
     item.textContent = hint;
     list.appendChild(item);
   }
+
+  // ヒント内容が前回から変わっていたら、導きタブを光らせて気づかせる
+  // (「静かだ…」だけの状態や初回同期では光らせない)
+  const signature = hints.join('|');
+  const meaningful = !(hints.length === 1 && hints[0] === '星の導きは、いまは静かだ…');
+  if (_prevGuideSignature !== null && signature !== _prevGuideSignature && meaningful && state.guideUnlocked) {
+    _flashGuideTab();
+  }
+  _prevGuideSignature = signature;
+}
+
+// 導きタブ(#guide-tab-btn)を発光させる。導きパネルを開くと消える
+let _prevGuideSignature = null;
+function _flashGuideTab() {
+  const btn = document.getElementById('guide-tab-btn');
+  const panel = document.getElementById('guide-panel');
+  if (!btn || !panel || panel.classList.contains('open')) return;
+  btn.classList.add('glow');
+  if (!btn._glowClearBound) {
+    btn._glowClearBound = true;
+    document.getElementById('guide-tab-btn').addEventListener('click', () => btn.classList.remove('glow'));
+  }
+}
+
+// ── 汎用確認ポップアップ ──
+// message を表示し、「はい」で onYes() を実行する。「いいえ」「枠外タップ」は何もしない
+function showConfirm(message, onYes) {
+  const popup = document.getElementById('confirm-popup');
+  if (!popup) { onYes?.(); return; }
+  document.getElementById('confirm-popup-message').textContent = message;
+  const yes = document.getElementById('confirm-popup-yes');
+  const no = document.getElementById('confirm-popup-no');
+  function cleanup() {
+    yes.removeEventListener('click', onYesClick);
+    no.removeEventListener('click', onNoClick);
+    popup.onclick = null;
+  }
+  function close() { popup.classList.remove('open'); cleanup(); }
+  function onYesClick() { close(); onYes?.(); }
+  function onNoClick() { close(); }
+  yes.addEventListener('click', onYesClick);
+  no.addEventListener('click', onNoClick);
+  popup.onclick = (e) => { if (e.target === popup) close(); };
+  popup.classList.add('open');
+}
+
+// 行動中に編成を変更する: 現在の行動を中断してから同行/別行動を適用する。
+// オート再開が誤発火しないよう、_startActionByIdと同じく_cancelledを立ててからcancelする
+function _interruptForPartyChange(companionId, makeActive) {
+  const running = getState().activeAction;
+  if (running) {
+    const curAction = ACTIONS[running.actionId];
+    if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+    _cancelled = true;
+    cancelAction();
+    addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
+  }
+  setActiveCompanion(companionId, makeActive);
+  renderCharTab(getState());
 }
 
 // ── プログレスバー ──
@@ -1399,13 +1465,16 @@ const _ICON_BOOK     = `<svg viewBox="0 0 24 24" width="16" height="16" fill="no
 const _ICON_GEM      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/><path d="M9 3l3 6-3 12"/><path d="M15 3l-3 6 3 12"/></svg>`;
 const _ICON_DEFAULT  = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>`;
 
+const _ICON_AXE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l7 7-3 3-7-7z"/><path d="M11 6L4 13l3 3 7-7"/><line x1="6" y1="15" x2="3" y2="21"/></svg>`;
+
 const ACTION_ICONS = {
   '探索':          _ICON_SEARCH,
   '採集':          _ICON_GATHER,
+  '木こり':        _ICON_AXE,
   '宿屋 尻尾亭':    _ICON_BED,
   '花屋 竜の鱗':    _ICON_FLOWER,
   '塔都図書館':     _ICON_BOOK,
-  '骨董屋 リーリエ': _ICON_GEM,
+  '道具屋 リーリエ': _ICON_GEM,
 };
 
 function actionIconSvg(label) {
@@ -1656,7 +1725,9 @@ function _onLogStComplete(cleanup, extraFn) {
     const companions = (resumedState.activeCompanions ?? [])
       .map(id => COMPANION_DATA[id] ? { id, name: COMPANION_DATA[id].name } : null)
       .filter(Boolean);
-    stopFlavor = startFlavorScheduler(resumedState.activeAction.actionId, text => addLog(text), { companions });
+    const resumedAction = ACTIONS[resumedState.activeAction.actionId];
+    const locationLv = resumedState.LocationLv?.[resumedAction?.locationId] ?? 0;
+    stopFlavor = startFlavorScheduler(resumedState.activeAction.actionId, text => addLog(text), { companions, locationLv });
   }
 }
 
@@ -1838,7 +1909,9 @@ function openEquipPopup(companionId) {
   if (owned) {
     const btn = document.createElement('button');
     btn.className = 'equip-popup-item';
-    btn.textContent = `${resLabel(relicId)}（固有報酬 +${EQUIP_BONUS}）`;
+    const dropRes = COMPANION_REWARDS[companionId]?.[0]?.resource;
+    const effect = dropRes ? `絆が深まる：${resLabel(dropRes)} +${EQUIP_BONUS}` : `絆が深まる +${EQUIP_BONUS}`;
+    btn.textContent = `${resLabel(relicId)}（${effect}）`;
     btn.addEventListener('click', () => {
       setCompanionEquipment(companionId, relicId);
       popup.classList.remove('open');
@@ -1988,8 +2061,10 @@ function _buildCompanionDetailItems(id, state) {
   equip.className = 'companion-detail-section';
   const equippedItem = state.companionEquipment?.[id] ?? null;
   const isEquippedRelic = equippedItem && equippedItem === COMPANION_RELICS[id];
+  const dropRes = COMPANION_REWARDS[id]?.[0]?.resource;
+  const relicEffect = dropRes ? `絆が深まる：${resLabel(dropRes)} +${EQUIP_BONUS}` : `絆が深まる +${EQUIP_BONUS}`;
   const equipLabel = equippedItem
-    ? `${resLabel(equippedItem)}${isEquippedRelic ? `（固有報酬 +${EQUIP_BONUS}）` : ''}`
+    ? `${resLabel(equippedItem)}${isEquippedRelic ? `（${relicEffect}）` : ''}`
     : 'なにも持っていない…';
   equip.innerHTML = `<div class="companion-detail-label">持ち物</div>`;
   const equipBtn = document.createElement('button');
@@ -2271,13 +2346,18 @@ function _attachPartyDragHandlers(handle, card, companionId) {
     if (dragging) {
       const targetZone = zoneAt(e.clientX, e.clientY);
       if (targetZone && targetZone !== originZone) {
-        if (targetZone === 'active') {
-          if (getState().activeAction) addLog('行動を中断してください', true);
-          else if (getState().companionTasks?.[companionId]) addLog('作業中は同行させられません', true);
-          else setActiveCompanion(companionId, true);
+        const makeActive = targetZone === 'active';
+        const name = COMPANION_DATA[companionId]?.name ?? '';
+        if (makeActive && getState().companionTasks?.[companionId]) {
+          addLog('作業中は同行させられません', true);
+        } else if (getState().activeAction) {
+          // 行動中はいきなり中断せず、確認をとってから中断＆編成変更する
+          const verb = makeActive ? '同行させ' : '別行動にし';
+          showConfirm(`現在の行動を中断して、${name}を${verb}ますか？`, () => {
+            _interruptForPartyChange(companionId, makeActive);
+          });
         } else {
-          if (getState().activeAction) addLog('行動を中断してください', true);
-          else setActiveCompanion(companionId, false);
+          setActiveCompanion(companionId, makeActive);
         }
       }
       renderCharTab(getState());

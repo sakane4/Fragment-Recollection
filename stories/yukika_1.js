@@ -4,7 +4,7 @@ export default {
   lockedTitle: '旧校舎の屋上の記憶',
   companionId: 'yukika',
   pageCount: 12,
-  showCondition: { resource: 'sky_fragment', amount: 9 },
+  showCondition: { resource: 'old_paint', amount: 3 },
   unlockCost: [{ resource: 'sky_fragment', amount: 10 }],
   pageCost: [{ resource: 'sky_fragment', amount: 3 }],
   body: `わたしはぼんやり、空を見上げていた。

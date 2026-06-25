@@ -23,6 +23,14 @@ const REWARD_TABLES = {
     { resource: 'fragment', minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
     ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 20000 }] : []),
   ],
+  // はじまりの森 — 木こり(道具屋で斧を買うと解放)
+  wood_fixed: (_state, locationLv, actionLv) => [
+    { resource: 'wood', amount: 3 + locationLv + actionLv },
+  ],
+  wood_random: (_state, _locationLv, actionLv) => [
+    { resource: 'wood',   minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
+    { resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 9000, maxMs: 20000 },
+  ],
   // 塔都 — 花屋（マグコインを得る）
   magcoin_fixed: (_state, _locationLv, actionLv) => [
     { resource: 'magcoin', amount: 3 + actionLv },
@@ -97,6 +105,17 @@ const LOCATION_DEFS = [
           { resource: 'herb', amount: 10 },
         ],
         rewardTableRandom: ['forest_common_random', 'forest_gather_random'],
+        randomRewards: [],
+        discoveries: [],
+      },
+      {
+        id: 'forest_woodcut',
+        label: '木こり',
+        description: '斧をふるい、木を伐って木材を集める。',
+        duration: 20000,
+        rewardTable: 'wood_fixed',
+        rewardTableRandom: ['forest_common_random', 'wood_random'],
+        rewards: [],
         randomRewards: [],
         discoveries: [],
       },
@@ -409,10 +428,10 @@ const FACILITIES = {
   },
   touto_antique: {
     id: 'touto_antique',
-    label: '骨董屋 リーリエ',
+    label: '道具屋 リーリエ',
     locationId: 'touto',
-    description: '怪しい品が並ぶ骨董屋。',
-    enterText: '骨董屋 リーリエに入った。',
+    description: '道具や掘り出し物が並ぶ店。',
+    enterText: '道具屋 リーリエに入った。',
     options: [
       { id: 'shop', label: '買い物', type: 'shop', shopId: 'antique' },
     ],
@@ -425,12 +444,23 @@ const FLOWER_SHOP_ITEMS = [
   { id: 'pressed_flower_blue', price: 5 },
 ];
 
+// 道具屋で買える道具(マグコイン消費・1個だけ所持できる)。斧を買うと、はじまりの森で
+// 木こり(forest_woodcut)が解放される(条件判定はrules.js)
+const TOOL_SHOP_ITEMS = [
+  { id: 'axe', price: 20 },
+];
+
 // shopId → 現在購入可能なアイテム一覧を返す
 function getShopItems(shopId) {
   if (shopId === 'antique') {
-    return ANTIQUE_RELIC_COMPANIONS
+    // すでに持っている道具は出さない(斧など1個きりの道具)
+    const tools = TOOL_SHOP_ITEMS
+      .filter(it => (state.resources[it.id] ?? 0) <= 0)
+      .map(it => ({ ...it }));
+    const relics = ANTIQUE_RELIC_COMPANIONS
       .filter(cid => state.unlockedCompanions.includes(cid) && (state.resources[COMPANION_RELICS[cid]] ?? 0) <= 0)
       .map(cid => ({ id: COMPANION_RELICS[cid], companionId: cid, price: ANTIQUE_RELIC_PRICE }));
+    return [...tools, ...relics];
   }
   if (shopId === 'flower') {
     return FLOWER_SHOP_ITEMS.map(it => ({ ...it }));
@@ -559,7 +589,9 @@ function _completeCompanionTask(companionId) {
 // 世界LVの閾値（フラグメント総獲得数）
 // インデックス i → Lv i+1 に上がるのに必要な累計数（25段階・計算式で自動生成・仮）
 // 上限=worldLv のため、wherever を Lv25 まで上げる＝worldLv25 が必要。終盤の場所発見までの長い道のりを形成する
-const WORLD_LV_THRESHOLDS = Array.from({ length: 25 }, (_, n) => _levelCostFormula(n));
+// LocationLvより上がるペースを大きくゆっくりにするため、専用の(より急な)計算式を使う
+const _worldLvCostFormula = (n) => 200 * (n * n + n + 1) + 40 * n * n * n;
+const WORLD_LV_THRESHOLDS = Array.from({ length: 25 }, (_, n) => _worldLvCostFormula(n));
 
 // 行動レベル(ActionLv)の閾値(仮値)。実行回数の累計でレベルアップ。LocationLvとは別管理。
 const ACTION_LV_THRESHOLDS = [
@@ -580,6 +612,8 @@ const INITIAL_STATE = {
     sky_fragment: 0,
     forest_voice: 0,
     branch: 0,
+    wood: 0,
+    axe: 0,
     magcoin: 0,
     old_text: 0,
   },
@@ -812,6 +846,10 @@ function _canEvadeEncounter(cfg) {
 // 行動開始時に1回だけ判定。当たれば、durationの30%〜80%地点でエンカウントが発生するよう予約する
 function _scheduleEncounterIfNeeded(actionId, duration, onEncounter) {
   if (!ENCOUNTERS[actionId]) return;
+  // 1回目の探索では発生させない。オート(autoRepeat)で連続している2回目以降のみ抽選する。
+  // (オートが解放されていない序盤に突然発生するとノイズになるため。streakは中断なく完了するたび+1)
+  if (!state.autoRepeat) return;
+  if ((state.encounterStreak?.[actionId] ?? 0) < 1) return;
   if (Math.random() >= _encounterChance(actionId)) return;
   const delay = Math.floor(duration * 0.3 + Math.random() * duration * 0.5);
   const encounterAt = Date.now() + delay;
