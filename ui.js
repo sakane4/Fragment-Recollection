@@ -252,13 +252,22 @@ const _loadLastPage = (storyId) => _loadStoryMapValue('fr_story_lastpage', story
 const _saveScrollPos = (storyId, top) => _saveStoryMapValue('fr_story_scrollpos', storyId, top);
 const _loadScrollPos = (storyId) => _loadStoryMapValue('fr_story_scrollpos', storyId, 0);
 
+// 記憶本文(story.body)は静的データなので、storyIdごとに一度パースした結果を再利用する
+// (同じ記憶を開き直すたびに本文全体を正規表現で再分割していたのを防ぐ)
+const _parsedStoryCache = new Map(); // storyId -> { pages, costMap }
+
 function openStory(storyId, { prevProgress } = {}) {
   const story = STORIES[storyId];
   if (!story) return;
 
-  const text = story.body ?? '';
-  const pages = parseStoryPages(text);
-  setStoryCostMap(storyId, parseStoryCostOverrides(text));
+  let parsed = _parsedStoryCache.get(storyId);
+  if (!parsed) {
+    const text = story.body ?? '';
+    parsed = { pages: parseStoryPages(text), costMap: parseStoryCostOverrides(text) };
+    _parsedStoryCache.set(storyId, parsed);
+  }
+  const pages = parsed.pages;
+  setStoryCostMap(storyId, parsed.costMap);
 
   if (pages.length === 0) {
     addLog('【エラー】この記憶にはまだ本文がありません');
@@ -724,35 +733,66 @@ let prevUnlockedLocations = null;
 let prevUnlockedActions = null;
 let prevGuideUnlocked = null;
 let prevCompanionTaskDoneAt = null; // null = 未初期化(初回renderでは現在値に同期するだけ)
+// 各タブの直前の再構築シグネチャ(JSON文字列)。nullなら必ず初回構築する
+let _prevStorySig = null;
+let _prevCharSig = null;
+let _prevActionSig = null;
 let stopFlavor = null;
 let _cancelled = false;
 let _isAutoRestart = false;
 let _autoRestartEnabled = false; // 開発メニューからのみON可
 
+// 表示中のリソース行の値要素(key→.resource-val span)。数量だけの更新ならDOMを作り直さない
+const _resourceValueEls = new Map();
+let _prevResourceStructureKey = null;
+
 function renderResources(resources) {
-  els.resourceList.innerHTML = '';
+  const visible = [];
   for (const cat of RESOURCE_CATEGORY_ORDER) {
-    const entries = Object.entries(resources).filter(
-      ([key, amount]) => amount !== 0 && resCategory(key) === cat
-    );
-    if (entries.length === 0) continue;
-
-    const section = document.createElement('div');
-    section.className = 'resource-section';
-
-    const title = document.createElement('div');
-    title.className = 'resource-section-title';
-    title.textContent = RESOURCE_CATEGORY_LABELS[cat] ?? cat;
-    section.appendChild(title);
-
-    for (const [key, amount] of entries) {
-      const row = document.createElement('div');
-      row.className = 'resource-row';
-      row.innerHTML = `<span class="resource-name">${resLabel(key)}</span><span class="resource-val">${amount}</span>`;
-      section.appendChild(row);
+    for (const [key, amount] of Object.entries(resources)) {
+      if (amount !== 0 && resCategory(key) === cat) visible.push([cat, key, amount]);
     }
-    els.resourceList.appendChild(section);
   }
+  // どのリソースが見えているか(種類・並び順)が前回と同じなら、数量の差し替えだけで済ませる
+  const structureKey = visible.map(([cat, key]) => `${cat}:${key}`).join(',');
+
+  if (structureKey === _prevResourceStructureKey) {
+    for (const [, key, amount] of visible) {
+      const span = _resourceValueEls.get(key);
+      if (span) span.textContent = amount;
+    }
+    return;
+  }
+
+  els.resourceList.innerHTML = '';
+  _resourceValueEls.clear();
+  let currentCat = null;
+  let section = null;
+  for (const [cat, key, amount] of visible) {
+    if (cat !== currentCat) {
+      section = document.createElement('div');
+      section.className = 'resource-section';
+      const title = document.createElement('div');
+      title.className = 'resource-section-title';
+      title.textContent = RESOURCE_CATEGORY_LABELS[cat] ?? cat;
+      section.appendChild(title);
+      els.resourceList.appendChild(section);
+      currentCat = cat;
+    }
+    const row = document.createElement('div');
+    row.className = 'resource-row';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'resource-name';
+    nameSpan.textContent = resLabel(key);
+    const valSpan = document.createElement('span');
+    valSpan.className = 'resource-val';
+    valSpan.textContent = amount;
+    row.appendChild(nameSpan);
+    row.appendChild(valSpan);
+    section.appendChild(row);
+    _resourceValueEls.set(key, valSpan);
+  }
+  _prevResourceStructureKey = structureKey;
 }
 
 function render(state) {
@@ -890,10 +930,18 @@ function render(state) {
   prevUnlockedLocations = [...state.unlockedLocations];
   prevUnlockedActions = [...state.unlockedActions];
 
-renderStoryList(state);
+// 各タブの再構築は、その内容に関わるstate部分が前回から変わっていないときはスキップする
+  // (探索中のランダム報酬tickなどで毎回render()が走るため、無関係な変化でも記憶/地図/同行タブを
+  //  毎回まるごと作り直していた。見た目・挙動は変えず、無駄な再構築だけを省く)
+  const storySig = JSON.stringify([state.unlockedStories, state.storyProgress, state.appearedStories, state.titleRevealed, state.resources, state.discoveredResources]);
+  if (storySig !== _prevStorySig) { renderStoryList(state); _prevStorySig = storySig; }
   _updateStoriesBadge(state);
-  renderCharTab(state);
-  renderActionList();
+
+  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.ELv, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources]);
+  if (charSig !== _prevCharSig) { renderCharTab(state); _prevCharSig = charSig; }
+
+  const actionSig = JSON.stringify([state.unlockedLocations, state.unlockedActions, state.activeAction?.actionId ?? null, state.ActionLv, state.LocationLv, state.resources.fragment, state.worldLv]);
+  if (actionSig !== _prevActionSig) { renderActionList(); _prevActionSig = actionSig; }
   _updateActionsBadge(state);
 
   // ビューアが開いていればページ表示を更新
@@ -2149,15 +2197,24 @@ function _buildCompanionDetailLevel(id, state) {
           barFill.style.width = `${Math.round(progress * 100)}%`;
           barWrap.appendChild(barFill);
           convertRow.appendChild(barWrap);
-          if (!_companionTaskTickers.has(id)) {
-            _companionTaskTickers.set(id, setInterval(() => {
-              if (!getState().companionTasks?.[id]) {
-                clearInterval(_companionTaskTickers.get(id));
-                _companionTaskTickers.delete(id);
-              }
-              renderCharTab(getState());
-            }, 500));
-          }
+          // この変換中ブロックが再構築されるたびに(他の理由でのrenderCharTab呼び出しも含め)
+          // 古いインターバルを破棄して、いま作ったmsg/barFill要素に対して張り直す。
+          // (以前は500msごとにrenderCharTab()で同行タブ全体を再構築していたが、進捗バー1本の
+          //  更新のためだけに全カードを作り直すのは無駄だったため、直接DOM更新に変更)
+          if (_companionTaskTickers.has(id)) clearInterval(_companionTaskTickers.get(id));
+          _companionTaskTickers.set(id, setInterval(() => {
+            const curTask = getState().companionTasks?.[id];
+            if (!curTask) {
+              clearInterval(_companionTaskTickers.get(id));
+              _companionTaskTickers.delete(id);
+              renderCharTab(getState()); // 完了時のみ全体を再構築(ボタン表示等が変わるため)
+              return;
+            }
+            const curProgress = getCompanionTaskProgress(id) ?? 0;
+            const curRemainingSec = Math.max(0, Math.ceil((curTask.endsAt - Date.now()) / 1000));
+            msg.textContent = `変換作業中…残り${curRemainingSec}秒`;
+            barFill.style.width = `${Math.round(curProgress * 100)}%`;
+          }, 500));
         } else {
           const openBtn = document.createElement('button');
           openBtn.className = 'companion-equip-btn';
