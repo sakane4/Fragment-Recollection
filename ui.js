@@ -42,6 +42,46 @@ function _persistSeen() {
   try { localStorage.setItem('fr_seen_stories', JSON.stringify([...(_seenStories ?? [])])); } catch {}
 }
 
+// 既読(地図タブで確認済み)の場所・行動(施設含む)ID集合。新着通知の判定に使う。
+// null = 未初期化(初回レンダリングで現在の解放済み一覧を既読としてシードする)
+let _seenDiscoveries = (() => {
+  try {
+    const raw = localStorage.getItem('fr_seen_discoveries');
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {}
+  return null;
+})();
+function _persistSeenDiscoveries() {
+  try { localStorage.setItem('fr_seen_discoveries', JSON.stringify([...(_seenDiscoveries ?? [])])); } catch {}
+}
+
+// 場所/行動(施設含む)に新着(未確認)の解放があるか
+function _hasNewDiscovery(state) {
+  if (!_seenDiscoveries) return false;
+  return state.unlockedLocations.some(id => !_seenDiscoveries.has(id))
+    || state.unlockedActions.some(id => !_seenDiscoveries.has(id));
+}
+
+// 地図タブ(フッター)の新着バッジを更新
+function _updateActionsBadge(state) {
+  const badge = document.getElementById('actions-tab-badge');
+  if (!badge) return;
+  badge.hidden = !_hasNewDiscovery(state);
+}
+
+// 現在解放済みの場所/行動をすべて既読にする(地図タブを開いたときに呼ぶ)
+function _markDiscoveriesSeen(state) {
+  if (!_seenDiscoveries) _seenDiscoveries = new Set();
+  let changed = false;
+  for (const id of [...state.unlockedLocations, ...state.unlockedActions]) {
+    if (!_seenDiscoveries.has(id)) { _seenDiscoveries.add(id); changed = true; }
+  }
+  if (changed) {
+    _persistSeenDiscoveries();
+    _updateActionsBadge(state);
+  }
+}
+
 // リソース定義を1か所に集約(label/color/category/unit)。新アイテム追加時はここに1行追加するだけ。
 // category省略時は'material'、unit省略時は''がデフォルト
 const RESOURCES = {
@@ -844,6 +884,7 @@ renderStoryList(state);
   _updateStoriesBadge(state);
   renderCharTab(state);
   renderActionList();
+  _updateActionsBadge(state);
 
   // ビューアが開いていればページ表示を更新
   if (_viewerStoryId) renderViewerBody(state);
@@ -975,8 +1016,9 @@ function switchTab(viewId) {
   if (tabBtn) tabBtn.classList.add('active');
   document.getElementById(viewId).classList.add('active');
 
-  // 記憶タブを開いたら新着を既読化
+  // 記憶タブ/地図タブを開いたら新着を既読化
   if (viewId === 'view-stories') _markStoriesSeen(getState());
+  if (viewId === 'view-actions') _markDiscoveriesSeen(getState());
 }
 
 function initTabs() {
@@ -1371,8 +1413,15 @@ function actionIconSvg(label) {
 }
 
 function renderActionList() {
-  els.actionList.innerHTML = '';
   const state = getState();
+
+  // 既存セーブの初回: 現在解放済みの場所/行動は「既読」としてシード(過去分を新着扱いしない)
+  if (_seenDiscoveries === null) {
+    _seenDiscoveries = new Set([...state.unlockedLocations, ...state.unlockedActions]);
+    _persistSeenDiscoveries();
+  }
+
+  els.actionList.innerHTML = '';
   const runningId = state.activeAction?.actionId ?? null;
 
   for (const location of Object.values(LOCATIONS)) {

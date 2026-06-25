@@ -1,5 +1,15 @@
 Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-06-25）
 ============================================
+2026-06-25(続き4): 放置していると場所/行動の新規解放を見逃す問題への対応として、フッター「地図」タブに
+  新着バッジを追加(既存の記憶タブの未読バッジと同じ仕組みを横展開)。
+  - _seenDiscoveries(localStorage: fr_seen_discoveries)で確認済みの場所/行動(施設含む)IDを管理。
+    null=未初期化時はrenderActionList初回呼び出しで現在の解放済み一覧を既読としてシード(既存セーブで
+    過去分が新着扱いされないように)
+  - _updateActionsBadge(state)でunlockedLocations/unlockedActionsに未読IDがあればバッジ表示、
+    render()内で記憶タブと同様に毎回更新
+  - 地図タブを開く(switchTabでview-actionsに切り替え)と_markDiscoveriesSeenで既読化、バッジが消える
+  - レアドロップ(同行者加入)は専用カットシーンで既に見逃しにくいため対象外。確認ボタンで固定する案は
+    オート進行と相性が悪いため採用せず、バッジ方式のみ実装
 2026-06-25(続き3): バグ修正: ページ再読み込みのたびに「【発見】〜を見つけた」「〜ができるようになった」
 「〜を解放しました」「思い出せそうだ」のログが、セーブ済みの解放済み一覧すべてに対して再表示されていた。
   - 原因: render()内の差分検知用変数(prevUnlocked/prevAppearedStories/prevUnlockedLocations/
