@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu, runEncounterScene } from './scenario.js';
@@ -229,6 +229,9 @@ function _setViewerTitle(text) {
 let _viewerCurrentPage = 0;
 let _viewerPrevUnlockedPages = 0;
 let _viewerFadeUpTo = 0;
+// ビューアの開閉・記憶切り替えのたびに+1する。_viewerFadeUpToの遅延更新(setTimeout)が、
+// 発火する前に別の記憶に切り替わっていた場合に古い値で上書きしてしまうのを防ぐため
+let _viewerSession = 0;
 let _viewerRenderedParas = -1; // 直近レンダリング時の解放段落数(スクロール位置維持の判定用)
 const _storyPageCounts = {}; // storyId → 総段落数キャッシュ
 
@@ -274,6 +277,7 @@ function openStory(storyId, { prevProgress } = {}) {
     return;
   }
 
+  _viewerSession++;
   _viewerPages = pages;
   _viewerStoryId = storyId;
   _viewerCurrentPage = Math.min(_loadLastPage(storyId), pages.length - 1);
@@ -503,7 +507,12 @@ function renderViewerBody(state, { scrollToTop = false, scrollTopOverride = null
   // 新規解放ブロックのフェード判定がブレないよう、更新を次フレームへ遅延させる
   const _fadeTarget = Math.max(_viewerFadeUpTo, unlockedParas);
   if (_fadeTarget !== _viewerFadeUpTo) {
-    setTimeout(() => { _viewerFadeUpTo = Math.max(_viewerFadeUpTo, _fadeTarget); }, 0);
+    const _fadeSession = _viewerSession;
+    setTimeout(() => {
+      // 発火するまでにビューアが閉じられた/別の記憶に切り替わっていたら適用しない
+      if (_viewerSession !== _fadeSession) return;
+      _viewerFadeUpTo = Math.max(_viewerFadeUpTo, _fadeTarget);
+    }, 0);
   }
   const _st = getState();
   const _sv = STORIES[_viewerStoryId];
@@ -541,6 +550,7 @@ function showViewerToast(text) {
 
 function closeStory() {
   if (_viewerScrollMode && _viewerStoryId) _saveScrollPos(_viewerStoryId, els.storyBody.scrollTop);
+  _viewerSession++;
   els.storyOverlay.classList.remove('open');
   _viewerPages = [];
   _viewerStoryId = null;
@@ -591,7 +601,7 @@ function _canLevelUpLocation(locationId, state) {
   const lv = state.LocationLv?.[locationId] ?? 0;
   if (lv >= LOCATION_LV_MAX) return false;
   if (lv >= getLocationLvCap()) return false;
-  return (state.resources.fragment ?? 0) >= LOCATION_LV_COSTS[lv];
+  return (state.resources.fragment ?? 0) >= getLocationLvCost(locationId, lv);
 }
 
 // 現在見えている記憶をすべて既読にする(記憶タブを開いたときに呼ぶ)
@@ -1227,7 +1237,7 @@ function _renderLocationPopup(location) {
   const cap = getLocationLvCap();
   const isMax = lv >= LOCATION_LV_MAX;
   const atWorldCap = !isMax && lv >= cap;
-  const cost = (isMax || atWorldCap) ? null : LOCATION_LV_COSTS[lv];
+  const cost = (isMax || atWorldCap) ? null : getLocationLvCost(location.id, lv);
   const have = state.resources.fragment ?? 0;
 
   document.getElementById('location-popup-name').textContent = location.label;
@@ -1294,7 +1304,7 @@ function showLocationPopup(location, btnEl) {
 
   const ratioEl = btn.querySelector('.lvup-btn-ratio');
   if (ratioEl && loc.consumed > 0) {
-    const cost0 = LOCATION_LV_COSTS[getState().LocationLv?.[location.id] ?? 0];
+    const cost0 = getLocationLvCost(location.id, getState().LocationLv?.[location.id] ?? 0);
     ratioEl.textContent = `${loc.consumed} / ${cost0}`;
   }
 
@@ -1311,7 +1321,7 @@ function showLocationPopup(location, btnEl) {
       const dt = now - _lastTime;
       _lastTime = now;
       const st = getState();
-      const cost = LOCATION_LV_COSTS[st.LocationLv?.[location.id] ?? 0];
+      const cost = getLocationLvCost(location.id, st.LocationLv?.[location.id] ?? 0);
       const have = st.resources.fragment ?? 0;
       const cap = cost ? Math.min(100, ((have + loc.consumed) / cost) * 100) : 100;
       loc.progress = Math.min(cap, loc.progress + (dt / FILL_DURATION) * 100);

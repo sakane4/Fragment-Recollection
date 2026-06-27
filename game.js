@@ -281,9 +281,22 @@ for (const loc of LOCATION_DEFS) {
 const _levelCostFormula = (n) => 50 * (n * n + n + 1);
 
 // 場所レベルシステム
+// LOCATION_LV_MAX=25は仮の上限(将来伸ばす可能性がある)。コスト自体は配列で区切らず、
+// 計算式から直接いくらでも求められるようにしてある(後述のオフセットが25を超えても安全)
 const LOCATION_LV_MAX = 25;
-// Lv n→n+1 のフラグメントコスト（計算式で自動生成・仮。最初の数段は旧値[50,150,350,...]とほぼ一致）
-const LOCATION_LV_COSTS = Array.from({ length: LOCATION_LV_MAX }, (_, n) => _levelCostFormula(n));
+
+// 場所ごとの「コスト換算オフセット」。各ロケーションが解放された時点の再生Lv(wherever基準)を
+// resolveDiscovery()で記録しておき、そのロケーション自身のLv0からこの分だけ進んだ位置のコストを使う。
+// (解放が遅いロケーションほど、その時点のフラグメント収入に合わせて初手から相応に重くする狙い。
+//  wherever/forestのように序盤に解放されるものはオフセット0=今までと同じコストのまま)
+function _locationLvCostOffset(locationId) {
+  return state.locationDiscoveryLv?.[locationId] ?? 0;
+}
+
+// 場所Lv lv→lv+1 に必要なフラグメント数(そのロケーションのコスト換算オフセットを加味)
+function getLocationLvCost(locationId, lv) {
+  return _levelCostFormula(lv + _locationLvCostOffset(locationId));
+}
 
 // ── 場所発見スケジュール ──
 // ログストーリー004以降、再生された世界(wherever)のLocationLvが各ステップの閾値に達すると発見イベントが起きる。
@@ -350,12 +363,17 @@ function resolveDiscovery(chosenLocationId) {
   // 塔都(step1)を解決した時点で、step2に出す終盤の場所を1/2で抽選・固定
   let latePick = state.discoveryLatePick;
   if (step === 1 && !latePick) latePick = DISCOVERY_LATE[Math.random() < 0.5 ? 0 : 1];
+  // このロケーションが解放された時点の再生Lv(=このステップの閾値)を、LocationLvコスト換算の
+  // オフセットとして記録する(_locationLvCostOffset参照)
+  const newDiscoveryLv = { ...state.locationDiscoveryLv };
+  if (newDiscoveryLv[chosenLocationId] == null) newDiscoveryLv[chosenLocationId] = DISCOVERY_STEP_LV[step] ?? 0;
   state = {
     ...state,
     unlockedLocations: newLocations,
     unlockedActions: newActions,
     discoveryStep: step + 1,
     discoveryLatePick: latePick,
+    locationDiscoveryLv: newDiscoveryLv,
   };
   saveToStorage(state);
   notify();
@@ -669,6 +687,7 @@ const INITIAL_STATE = {
   ActionLv: {},
   discoveryStep: 0,
   discoveryLatePick: null,
+  locationDiscoveryLv: {},
   toutoFacilityOrder: null,
   toutoLastFacilityLv: 0,
   companionTasks: {},
@@ -1256,6 +1275,7 @@ function init() {
     ActionLv: saved.ActionLv ?? INITIAL_STATE.ActionLv,
     discoveryStep: saved.discoveryStep ?? INITIAL_STATE.discoveryStep,
     discoveryLatePick: saved.discoveryLatePick ?? INITIAL_STATE.discoveryLatePick,
+    locationDiscoveryLv: saved.locationDiscoveryLv ?? INITIAL_STATE.locationDiscoveryLv,
     toutoFacilityOrder: saved.toutoFacilityOrder ?? INITIAL_STATE.toutoFacilityOrder,
     toutoLastFacilityLv: saved.toutoLastFacilityLv ?? INITIAL_STATE.toutoLastFacilityLv,
     companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
@@ -1350,7 +1370,7 @@ function levelUpLocation(locationId, prepaid = 0, { silent = false } = {}) {
   const currentLv = state.LocationLv?.[locationId] ?? 0;
   if (currentLv >= LOCATION_LV_MAX) return { ok: false, reason: 'max_level' };
   if (currentLv >= getLocationLvCap()) return { ok: false, reason: 'world_lv_cap' };
-  const cost = LOCATION_LV_COSTS[currentLv];
+  const cost = getLocationLvCost(locationId, currentLv);
   const remaining = cost - prepaid;
   if ((state.resources.fragment ?? 0) < remaining) return { ok: false, reason: 'insufficient_resources' };
   const newResources = { ...state.resources, fragment: state.resources.fragment - remaining };
@@ -1425,4 +1445,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, LOCATION_LV_COSTS, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
