@@ -737,7 +737,6 @@ function renderStoryList(state) {
 let prevActive = null;
 // null = 未初期化。初回renderは現在値に同期するだけにし、セーブ済みの解放済み一覧を
 // 誤って「いま解放された」と判定して再読み込みごとにログが再表示される不具合を防ぐ
-let prevUnlocked = null;
 let prevAppearedStories = null;
 let prevUnlockedLocations = null;
 let prevUnlockedActions = null;
@@ -886,17 +885,6 @@ function render(state) {
   }
   prevAppearedStories = [...(state.appearedStories ?? [])];
 
-  if (prevUnlocked === null) {
-    // 初回render: セーブ済みの状態に同期するだけ(「いま解放した」扱いにしない)
-  } else {
-    for (const id of state.unlockedStories) {
-      if (!prevUnlocked.includes(id)) {
-        if (!STORIES[id]) continue;
-        addLog(`【記憶】「${STORIES[id].title}」を解放しました`, true);
-      }
-    }
-  }
-
   if (prevUnlockedLocations === null) {
     // 初回render: セーブ済みの状態に同期するだけ(「いま見つけた」扱いにしない)
   } else {
@@ -936,7 +924,6 @@ function render(state) {
   }
 
   prevActive = active;
-  prevUnlocked = [...state.unlockedStories];
   prevUnlockedLocations = [...state.unlockedLocations];
   prevUnlockedActions = [...state.unlockedActions];
 

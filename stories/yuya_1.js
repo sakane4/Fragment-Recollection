@@ -1,6 +1,6 @@
 export default {
   id: 'yuya_1',
-  title: 'もう一度、出会う',
+  title: 'また君に出逢う',
   lockedTitle: '青く光る記憶',
   companionId: 'yuya',
   showCondition: { resource: 'blue_fragment', amount: 9 },

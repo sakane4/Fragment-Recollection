@@ -1,7 +1,7 @@
 export default {
   id: 'kaoru_1',
-  title: 'もっふりんと、知らない街',
-  lockedTitle: 'あいまいに泡立つ記憶',
+  title: 'はじめまして、あたしの大切な人',
+  lockedTitle: '曖昧に泡立つ記憶',
   companionId: 'kaoru',
   showCondition: { resource: 'bubble_fragment', amount: 9 },
   unlockCost: [{ resource: 'bubble_fragment', amount: 10 }],

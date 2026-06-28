@@ -1,7 +1,7 @@
 export default {
   id: 'prologue',
-  title: '再生の書',
-  lockedTitle: 'あいまいな記憶',
+  title: '「終わりの始まり」',
+  lockedTitle: '曖昧な記憶',
   showCondition: { resource: 'fragment', amount: 10 },
   unlockCost: [{ resource: 'fragment', amount: 10 }],
   pageCost: [{ resource: 'fragment', amount: 5 }],

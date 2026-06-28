@@ -1,7 +1,7 @@
 export default {
   id: 'rabi_2',
   title: '赤く滲む記憶',                  // 仮置き（命名規則に倣う）
-  lockedTitle: 'あいまいに赤く滲む記憶',  // 仮置き
+  lockedTitle: '赤く滲む記憶',  // 仮置き
   companionId: 'rabi',
   showCondition: { resource: 'red_fragment', amount: 30 },
   unlockCost: [{ resource: 'red_fragment', amount: 20 }],
