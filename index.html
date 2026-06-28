@@ -1597,9 +1597,53 @@
       opacity: 1;
       transform: translateY(0);
     }
+    /* ── スプラッシュ(起動画面) ── */
+    #splash-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      cursor: pointer;
+      transition: opacity 0.5s ease;
+    }
+    #splash-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #splash-title {
+      font-size: 1.3rem;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+    }
+    #splash-tap {
+      font-size: 0.85rem;
+      letter-spacing: 0.3em;
+      color: var(--muted);
+      animation: blink 1s step-start infinite;
+    }
   </style>
 </head>
 <body>
+<div id="splash-screen">
+  <div id="splash-title">Fragment Recollection</div>
+  <div id="splash-tap">TAP</div>
+</div>
+<script>
+  (function () {
+    var splash = document.getElementById('splash-screen');
+    function dismiss() {
+      splash.classList.add('hidden');
+      splash.removeEventListener('click', dismiss);
+      setTimeout(function () { splash.remove(); }, 500);
+    }
+    splash.addEventListener('click', dismiss);
+  })();
+</script>
 <div id="app">
   <!-- ヘッダー -->
   <div id="header">
