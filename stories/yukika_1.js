@@ -3,7 +3,6 @@ export default {
   title: '空を夢見る少女',
   lockedTitle: '旧校舎の屋上の記憶',
   companionId: 'yukika',
-  pageCount: 12,
   showCondition: { resource: 'old_paint', amount: 3 },
   unlockCost: [{ resource: 'sky_fragment', amount: 10 }],
   pageCost: [{ resource: 'sky_fragment', amount: 3 }],

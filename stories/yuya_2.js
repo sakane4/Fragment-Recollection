@@ -3,7 +3,6 @@ export default {
   title: '忘れられない音',
   lockedTitle: '旧音楽室の記憶',
   companionId: 'yuya',
-  pageCount: 24,
   showCondition: { resource: 'broken_piano_sound', amount: 1 },
   unlockCost: [{ resource: 'broken_piano_sound', amount: 10 }],
   pageCost: [{ resource: 'blue_fragment', amount: 20 }],

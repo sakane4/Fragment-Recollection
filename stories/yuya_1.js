@@ -3,7 +3,6 @@ export default {
   title: 'もう一度、出会う',
   lockedTitle: '青く光る記憶',
   companionId: 'yuya',
-  pageCount: 29,
   showCondition: { resource: 'blue_fragment', amount: 9 },
   unlockCost: [{ resource: 'blue_fragment', amount: 10 }],
   pageCost: [{ resource: 'blue_fragment', amount: 3 }],

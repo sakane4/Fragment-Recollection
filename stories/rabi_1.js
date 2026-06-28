@@ -3,7 +3,6 @@ export default {
   title: '赤く光る記憶',                  // 仮置き（命名規則に倣う）
   lockedTitle: 'あいまいに赤く光る記憶',  // 仮置き
   companionId: 'rabi',
-  pageCount: 4,                           // TODO: body を書いたら総段落数（`---` 区切りの数）に合わせて更新
   showCondition: { resource: 'red_fragment', amount: 9 },
   unlockCost: [{ resource: 'red_fragment', amount: 10 }],
   pageCost: [{ resource: 'red_fragment', amount: 3 }],

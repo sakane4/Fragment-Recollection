@@ -351,36 +351,6 @@ const LOG_STORY_4_STEPS =parseScript(`
 
 function runLogSt_4(mainPanel, opts) { return runLogSt(LOG_STORY_4_STEPS, mainPanel, opts); }
 
-// ── エンカウントシーン ──
-// actionIdごとに評価/失敗それぞれのシーン台本を持つ汎用辞書。新しい場所のエンカウントを
-// 追加するときはここに1エントリ足すだけでよい(game.js側のENCOUNTERSと対になる)
-const ENCOUNTER_SCENES = {
-  forest_explore: {
-    evaded: parseScript(`
-ふと、木々の合間から無数の気配が押し寄せてくる。
-「亡者の群れ」だ。
-「――下がってろ」
-ラビが前に出て、迷いのない動きで群れを退ける。
-気がつくと、気配はもう遠ざかっていた。
-[end: 探索を続ける]
-`),
-    fail: parseScript(`
-ふと、木々の合間から無数の気配が押し寄せてくる。
-「亡者の群れ」だ。
-抗う間もなく、気配に飲み込まれる。
-我に返ったときには、群れは消え去り、探索は中断されていた。
-[end: 拠点に戻る]
-`),
-  },
-};
-
-function runEncounterScene(actionId, mainPanel, { evaded, ...opts } = {}) {
-  const scenes = ENCOUNTER_SCENES[actionId];
-  if (!scenes) return null;
-  const steps = evaded ? scenes.evaded : scenes.fail;
-  return runLogSt(steps, mainPanel, opts);
-}
-
 // ── 同行者加入イベント ──
 const JOIN_KAORU_STEPS = parseScript(`
 あなたは不思議な生き物を拾った。
@@ -397,7 +367,9 @@ const JOIN_KAORU_STEPS = parseScript(`
 「何か、だいじなことを忘れてる気がするんだ」
 [button: 自分も同じだと伝える]
 「そうなの！？　じゃあ……一緒に行こうよ！」
-[end: 頷く]
+「あたしはカオル！　キミは？」
+\${name}と名乗る。
+[end: 再生を続ける]
 `);
 
 const JOIN_SHIZUKU_STEPS = parseScript(`
@@ -415,7 +387,7 @@ const JOIN_SHIZUKU_STEPS = parseScript(`
 彼はしばらく考えてから、そう答えた。
 「オレはシズク……君は？」
 \${name}と名乗った。
-[end: 頷く]
+[end: 再生を続ける]
 `);
 
 const JOIN_YUKIKA_STEPS = parseScript(`
@@ -434,7 +406,7 @@ const JOIN_YUKIKA_STEPS = parseScript(`
 「何か夢を見ていた気がするんだ、長い夢を……」
 羅針盤を手にとって少女はつぶやいた。
 「そう……雪架。私の名前は、雪架」
-「あなたといたら、なにか思い出せるかもしれないね」
+「あなたといたら、なにか思い出せるような気がする」
 「ついていってもいい？」
 [end: うなずく]
 `);
@@ -442,19 +414,29 @@ const JOIN_YUKIKA_STEPS = parseScript(`
 const JOIN_RABI_STEPS = parseScript(`
 騎士団の本部はとても広い建物で、どこまで歩いても終わりがない。
 赤い絨毯の敷かれた廊下に、一振りの剣が落ちていた。
-鞘まで丁寧に磨き抜かれ、抜いてみると刀身は澄んだ銀色だ。しかし、光を反射すると赤く光っているように見える。
+鞘まで丁寧に磨き抜かれ、抜いてみると刀身は澄んだ銀色だ。
+しかし、光を反射すると赤く光っているように見える。
 「その剣は……」
 不意に声が聞こえ、あなたは顔を上げる。
 「悪い。何か、思い出せそうな気がしたんだ」
-そこには目元を布で覆った一人の少年がいた。着ている服には、周囲で見かけるのと同じ、騎士団の記章が描かれている。
+そこには目元を布で覆った一人の少年がいた。
+着ている服には、周囲で見かけるのと同じ、騎士団の記章が描かれている。
 [button: 剣を渡す]
 感触を確かめるように、彼は剣を抜き、その音に耳を澄ませている。
 「オレの剣だ。そうだ……ずっとこの剣とともに戦ってきた」
 「でもそれ以外は……思い出せない」
-[button: 自分も同じ。一緒に行こう]
-彼は少し驚いた様子だったが、すぐに気を取り直して、慎重に頷いた。
-「ああ。オレは……ラビ」
-「なにか思い出せるといいんだが……」
+「この剣をオレに返してもらえないか？」
+[button: うなずく]
+彼は礼を言うと、剣を腰に差し、立ち去ろうとした。
+「――待って！」
+その時、ユウヤが呼び止めた。
+「僕たちも同じなんだ」
+「気づいたらここにいて、何も思い出せない」
+「よかったら、何か思い出すまで……僕たちと一緒に来ない？」
+少年は少し考えるように首を傾ける。
+「……わかった。それなら、この剣で力になろう」
+「――！　ありがとう！　僕は、ユウヤ。キミは？」
+「オレは……ラビ、そう……ラビだ」
 [end: ラビと一緒に行く]
 `);
 
@@ -626,4 +608,4 @@ function runFacilityMenu(mainPanel, {
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu, runEncounterScene };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu };

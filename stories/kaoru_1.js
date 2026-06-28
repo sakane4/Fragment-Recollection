@@ -3,7 +3,6 @@ export default {
   title: 'もっふりんと、知らない街',
   lockedTitle: 'あいまいに泡立つ記憶',
   companionId: 'kaoru',
-  pageCount: 29,
   showCondition: { resource: 'bubble_fragment', amount: 9 },
   unlockCost: [{ resource: 'bubble_fragment', amount: 10 }],
   pageCost: [{ resource: 'bubble_fragment', amount: 3 }],

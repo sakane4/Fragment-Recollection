@@ -3,7 +3,6 @@ export default {
   title: 'モノクロの夢',
   lockedTitle: '旧美術室の記憶',
   companionId: 'shizuku',
-  pageCount: 10,
   showCondition: { resource: 'clear_fragment', amount: 9 },
   unlockCost: [{ resource: 'clear_fragment', amount: 10 }],
   pageCost: [{ resource: 'clear_fragment', amount: 3 }],
