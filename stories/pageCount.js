@@ -1,4 +1,4 @@
-// stories/_pageCount.js — body本文から総段落数(pageCount)を数える共通ヘルパー
+// stories/pageCount.js — body本文から総段落数(pageCount)を数える共通ヘルパー
 // stories.js の parseStoryPages と同じ区切りルール(-----=ページ、---=段落、[pagecost:]除外)を
 // 使って、単純に「全段落の総数」だけを返す。循環import回避のため stories.js とは独立させている
 

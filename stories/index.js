@@ -6,7 +6,7 @@ import rabi_2 from './rabi_2.js';
 import shizuku_1 from './shizuku_1.js';
 import yukika_1 from './yukika_1.js';
 import kaoru_1 from './kaoru_1.js';
-import { countStoryParagraphs } from './_pageCount.js';
+import { countStoryParagraphs } from './pageCount.js';
 
 const _rawStories = {
   prologue,
