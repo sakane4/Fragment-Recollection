@@ -2652,7 +2652,12 @@ export function init() {
   initRefreshButton();
 
   if (!initialState.tutorialDone) {
-    launchTutorial();
+    // スプラッシュ(TAP画面)が無い場合は即時、ある場合はタップで消えるのを待ってから開始
+    if (document.getElementById('splash-screen')) {
+      window.addEventListener('splash-dismissed', launchTutorial, { once: true });
+    } else {
+      launchTutorial();
+    }
   }
 
   initActionPicker();

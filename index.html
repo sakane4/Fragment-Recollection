@@ -1639,6 +1639,7 @@
     function dismiss() {
       splash.classList.add('hidden');
       splash.removeEventListener('click', dismiss);
+      window.dispatchEvent(new Event('splash-dismissed'));
       setTimeout(function () { splash.remove(); }, 500);
     }
     splash.addEventListener('click', dismiss);
