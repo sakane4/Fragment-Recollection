@@ -1304,6 +1304,14 @@
     }
     .location-info-btn:hover { opacity: 1; }
     .location-info-btn img { width: 14px; height: 14px; display: block; }
+    /* LocationLvを今すぐ上げられる時、アイコン自体を点滅させる */
+    .location-info-btn.glow {
+      animation: location-info-glow 1s ease-in-out infinite;
+    }
+    @keyframes location-info-glow {
+      0%, 100% { opacity: 1; filter: brightness(0) invert(1) sepia(1) saturate(2) hue-rotate(190deg) brightness(1.4); }
+      50%      { opacity: 0.25; filter: brightness(0) invert(1) sepia(1) saturate(4) hue-rotate(190deg) brightness(2.2); }
+    }
 
     #world-lv-display {
       margin-left: auto;

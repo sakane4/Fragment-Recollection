@@ -998,7 +998,7 @@ function render(state) {
   if (storySig !== _prevStorySig) { renderStoryList(state); _prevStorySig = storySig; }
   _updateStoriesBadge(state);
 
-  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.ELv, state.bondLv, state.companionTraits, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources]);
+  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.ELv, state.bondLv, state.companionTraits, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources, state.appearedStories, state.unlockedStories, state.storyProgress, state.titleRevealed]);
   if (charSig !== _prevCharSig) { renderCharTab(state); _prevCharSig = charSig; }
 
   const actionSig = JSON.stringify([state.unlockedLocations, state.unlockedActions, state.activeAction?.actionId ?? null, state.ActionLv, state.LocationLv, state.resources.fragment, state.worldLv]);
@@ -1223,7 +1223,7 @@ function switchTab(viewId) {
 
   // 記憶タブ/地図タブを開いたら新着を既読化
   if (viewId === 'view-stories') _markStoriesSeen(getState());
-  if (viewId === 'view-actions') _markDiscoveriesSeen(getState());
+  if (viewId === 'view-actions') { _markDiscoveriesSeen(getState()); renderActionList(); }
 }
 
 function initTabs() {
@@ -1345,7 +1345,7 @@ function _renderLocationPopup(location) {
     const label = resLabel('fragment');
     haveEl.textContent = `所持数：${have}`;
     btn.innerHTML =
-      `<span class="lvup-btn-label">Lv${lv + 1} </span>` +
+      `<span class="lvup-btn-label">Lv${lv} </span>` +
       `<span class="lvup-btn-cost">${label}<span class="lvup-btn-ratio">${have} / ${cost}</span></span>`;
   }
 }
@@ -1649,8 +1649,8 @@ function renderActionList() {
       section.classList.toggle('open');
     });
 
-    // LocationLvを上げられるなら通知ドット
-    if (_canLevelUpLocation(location.id, state)) {
+    // 新しく追加された場所なら通知ドット(地図タブを開くまで既読化されない)
+    if (_seenDiscoveries && !_seenDiscoveries.has(location.id)) {
       const dot = document.createElement('span');
       dot.className = 'notify-dot';
       header.appendChild(dot);
@@ -1659,6 +1659,8 @@ function renderActionList() {
     if (location.description) {
       const infoBtn = document.createElement('button');
       infoBtn.className = 'location-info-btn';
+      // LocationLvを今すぐ上げられる時は、アイコン自体を点滅させる(レベルアップ画面を開けるボタン)
+      if (_canLevelUpLocation(location.id, state)) infoBtn.classList.add('glow');
       infoBtn.innerHTML = `<img src="resource/icon/icon_area.svg" width="14" height="14" style="display:block;">`;
       infoBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2365,9 +2367,9 @@ function _buildCompanionDetailMemory(id, state) {
   memories.innerHTML = `<div class="companion-detail-label">関連する記憶</div>`;
   const memoryBody = document.createElement('div');
   memoryBody.className = 'companion-detail-body';
-  const relatedStories = Object.values(STORIES).filter(s => s.companionId === id);
+  const relatedStories = Object.values(STORIES).filter(s => s.companionId === id && (state.appearedStories ?? []).includes(s.id));
   if (relatedStories.length === 0) {
-    memoryBody.textContent = 'なし';
+    memoryBody.textContent = 'まだ何も思い出せない…';
   } else {
     for (const s of relatedStories) {
       const progress = state.storyProgress[s.id] ?? 0;
