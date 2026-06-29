@@ -227,15 +227,16 @@ const LOCATION_DEFS = [
         randomRewards: [],
         discoveries: [],
       },
-      // 宿屋(touto_inn)のメニューから選べる行動
+      // 宿屋(touto_inn)のメニューから選べる行動。30分かかる代わりに、完了後REST_BUFF_STACKS回分の
+      // 「報酬2倍」バフ(restBuffStacks)を付与する(他の行動の完了時に1スタックずつ消費・2倍)
       {
         id: 'touto_inn_rest',
         label: '休む',
-        description: '旅の宿でゆっくり休む。',
-        duration: 15000,
+        description: '旅の宿でゆっくり休む。(30分かかるが、完了後しばらく報酬が2倍になる)',
+        duration: 1800000,
         rewardTable: 'fragment_fixed',
         rewardTableRandom: 'fragment_random',
-        rewards: [],
+        rewards: [{ resource: 'dream_fragment', amount: 1 }],
         randomRewards: [],
         discoveries: [],
       },
@@ -408,6 +409,9 @@ const COMPANION_RELICS = {
 };
 const EQUIP_BONUS = 5;
 
+// 宿屋「休む」完了で付与される、報酬2倍バフのスタック数(他の行動の完了ごとに1消費)
+const REST_BUFF_STACKS = 20;
+
 // ── 施設(FACILITIES) ──
 // 通常の行動(時間経過)とは別の概念。入店すると専用メニューが開き、そこから個別の行動を選んだり、
 // 買い物(SHOP)をしたりする。FACILITIES自体のidはLOCATION_DEFSの行動解放(unlockedActions)と
@@ -511,6 +515,29 @@ function buyShopItem(shopId, itemId) {
 // 同行者レベル(ELv)。固有フラグメントを消費して上げる。上限・コストは仮値
 const ELV_MAX = 10;
 const ELV_COSTS = Array.from({ length: ELV_MAX }, (_, n) => 10 * (n + 1));
+
+// 絆Lv。花屋で買ったプレゼントを渡して上げる(同行者専用フラグメントではなく、誰にでも渡せる
+// 汎用アイテム)。上限・コスト曲線はELvと同じ仕様を流用。今は「育つ・表示される」のみで効果は未定
+const BOND_LV_MAX = 10;
+const BOND_LV_COSTS = ELV_COSTS;
+const GIFT_ITEMS = ['pressed_flower_red', 'pressed_flower_blue'];
+
+// 同行者にプレゼントを渡して絆Lvを1上げる。itemIdはGIFT_ITEMSのいずれか
+function giveGift(companionId, itemId) {
+  if (!GIFT_ITEMS.includes(itemId)) return { ok: false };
+  const lv = state.bondLv?.[companionId] ?? 0;
+  if (lv >= BOND_LV_MAX) return { ok: false };
+  const cost = BOND_LV_COSTS[lv];
+  if ((state.resources[itemId] ?? 0) < cost) return { ok: false };
+  state = {
+    ...state,
+    resources: { ...state.resources, [itemId]: state.resources[itemId] - cost },
+    bondLv: { ...state.bondLv, [companionId]: lv + 1 },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
 
 // 同行者ごとの異能。ELvが指定Lvに達すると解放される
 const COMPANION_SKILLS = {
@@ -659,6 +686,7 @@ const INITIAL_STATE = {
     axe: 0,
     magcoin: 0,
     old_text: 0,
+    dream_fragment: 0,
   },
   activeAction: null,
   unlockedStories: [],
@@ -671,10 +699,12 @@ const INITIAL_STATE = {
   logSt3Done: false,
   logSt4Done: false,
   guideUnlocked: false,
+  effectsUnlocked: false,
   playerName: '',
   unlockedCompanions: [],
   activeCompanions: [],
   ELv: {},
+  bondLv: {},
   companionTraits: {},
   companionEquipment: {},
   titleRevealed: {},
@@ -693,6 +723,7 @@ const INITIAL_STATE = {
   companionTasks: {},
   lastCompanionTaskResult: null,
   encounterStreak: {},
+  restBuffStacks: 0,
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -817,7 +848,13 @@ function setAutoRepeat(v) {
 }
 
 function unlockAllActions() {
-  state = { ...state, unlockedLocations: Object.keys(LOCATIONS), unlockedActions: Object.keys(ACTIONS) };
+  // 施設メニューの中からしか実行されない行動(休む/手伝う/調査など)は、施設自体(FACILITIES)が
+  // 解放されていれば十分なので、行動リストに別行として漏れ出さないよう除外する
+  const facilitySubActionIds = new Set(
+    Object.values(FACILITIES).flatMap(f => f.options.filter(o => o.type === 'action').map(o => o.actionId))
+  );
+  const topLevelActionIds = Object.keys(ACTIONS).filter(id => !facilitySubActionIds.has(id));
+  state = { ...state, unlockedLocations: Object.keys(LOCATIONS), unlockedActions: [...topLevelActionIds, ...Object.keys(FACILITIES)] };
   saveToStorage(state);
   notify();
 }
@@ -1056,7 +1093,9 @@ function completeAction(actionId, onComplete) {
   if (!action) return;
 
   const newResources = { ...state.resources };
-  const multiplier = 1 + state.activeCompanions.length;
+  // 宿屋の休息バフ: 残っていれば1スタック消費して報酬2倍(このactionId自身が休息で新たに付与する分は対象外)
+  const hadRestBuff = (state.restBuffStacks ?? 0) > 0;
+  const multiplier = (1 + state.activeCompanions.length) * (hadRestBuff ? 2 : 1);
   const allRewards = [...resolveTable(action.rewardTable, action.locationId, action.id), ...(action.rewards ?? [])];
   let fragmentsGained = 0;
   for (const reward of allRewards) {
@@ -1064,6 +1103,8 @@ function completeAction(actionId, onComplete) {
     newResources[reward.resource] = (newResources[reward.resource] ?? 0) + gained;
     if (reward.resource === 'fragment') fragmentsGained += gained;
   }
+  let newRestBuffStacks = (state.restBuffStacks ?? 0) - (hadRestBuff ? 1 : 0);
+  if (actionId === 'touto_inn_rest') newRestBuffStacks += REST_BUFF_STACKS;
 
   // 同行者固有報酬
   const companionRewardsList = [];
@@ -1123,6 +1164,8 @@ function completeAction(actionId, onComplete) {
     unlockedLocations: newLocations,
     unlockedActions: newActions,
     discoveredResources: newDiscovered,
+    restBuffStacks: newRestBuffStacks,
+    effectsUnlocked: state.effectsUnlocked || actionId === 'touto_inn_rest',
   };
   const prevLv = state.worldLv;
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
@@ -1445,4 +1488,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
