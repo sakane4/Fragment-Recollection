@@ -67,6 +67,14 @@ export const UNLOCK_RULES = [
     action: (ctx) => ctx.unlockGuide(),
   },
   {
+    id: 'unlock_world_chronicle',
+    requireViewerClosed: true,
+    condition: (state) =>
+      (state.actionCount?.touto_library_research ?? 0) >= 3 &&
+      !state.worldChronicleUnlocked,
+    action: (ctx) => ctx.startWorldChronicleIntro(),
+  },
+  {
     // ログストーリー004以降 ＆ 再生された世界(wherever)のLvが各ステップの閾値に達したら発見イベントを提示
     // repeatable: ステップが進むたびに次の閾値で再提示される（詳細スケジュールは game.js）
     id: 'discover_location_choice',

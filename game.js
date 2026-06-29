@@ -719,11 +719,12 @@ const INITIAL_STATE = {
   discoveryLatePick: null,
   locationDiscoveryLv: {},
   toutoFacilityOrder: null,
-  toutoLastFacilityLv: 0,
   companionTasks: {},
   lastCompanionTaskResult: null,
   encounterStreak: {},
   restBuffStacks: 0,
+  worldChronicleUnlocked: false,
+  restoredWorldChronicleEntries: [],
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -1217,8 +1218,7 @@ function completeAction(actionId, onComplete) {
     };
   }
 
-  // 塔都の探索: 探索ごとに抽選で施設を発見する。見つからないままActionLvが上がるほど確率が上昇し、
-  // 1つ見つかると確率はベースに戻る（ランダムな順）
+  // 塔都の探索: 現在のActionLvに応じた確率で、ランダムな順に施設を発見する
   if (actionId === 'touto_explore') {
     let order = state.toutoFacilityOrder;
     if (!order) {
@@ -1232,13 +1232,11 @@ function completeAction(actionId, onComplete) {
     const next = order.find(id => !state.unlockedActions.includes(id));
     if (next) {
       const actionLv = state.ActionLv['touto_explore'] ?? 0;
-      const diff = actionLv - (state.toutoLastFacilityLv ?? 0);
-      const chance = Math.min(0.05 + diff * 0.1, 0.5);
+      const chance = Math.min(0.05 + actionLv * 0.1, 0.5);
       if (Math.random() < chance) {
         state = {
           ...state,
           unlockedActions: [...state.unlockedActions, next],
-          toutoLastFacilityLv: actionLv,
         };
         discovered.push({ type: 'action', id: next });
       }
@@ -1356,10 +1354,11 @@ function init() {
     discoveryLatePick: saved.discoveryLatePick ?? INITIAL_STATE.discoveryLatePick,
     locationDiscoveryLv: saved.locationDiscoveryLv ?? INITIAL_STATE.locationDiscoveryLv,
     toutoFacilityOrder: saved.toutoFacilityOrder ?? INITIAL_STATE.toutoFacilityOrder,
-    toutoLastFacilityLv: saved.toutoLastFacilityLv ?? INITIAL_STATE.toutoLastFacilityLv,
     companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
     lastCompanionTaskResult: saved.lastCompanionTaskResult ?? INITIAL_STATE.lastCompanionTaskResult,
     encounterStreak: saved.encounterStreak ?? INITIAL_STATE.encounterStreak,
+    worldChronicleUnlocked: saved.worldChronicleUnlocked ?? INITIAL_STATE.worldChronicleUnlocked,
+    restoredWorldChronicleEntries: saved.restoredWorldChronicleEntries ?? INITIAL_STATE.restoredWorldChronicleEntries,
   };
 
   for (const [companionId, task] of Object.entries(state.companionTasks ?? {})) {
@@ -1387,6 +1386,30 @@ function setLogSt1Done() {
 function setLogSt2Done() {
   state = { ...state, logSt2Done: true };
   saveToStorage(state);
+}
+
+function unlockWorldChronicle() {
+  if (state.worldChronicleUnlocked) return;
+  state = { ...state, worldChronicleUnlocked: true };
+  saveToStorage(state);
+  notify();
+}
+
+function restoreWorldChronicleEntry(locationId) {
+  if (!state.worldChronicleUnlocked) return { ok: false, reason: 'locked' };
+  if (!LOCATIONS[locationId]) return { ok: false, reason: 'unknown_entry' };
+  if (!state.unlockedLocations.includes(locationId)) return { ok: false, reason: 'undiscovered' };
+  if (state.restoredWorldChronicleEntries.includes(locationId)) return { ok: false, reason: 'already_restored' };
+  if ((state.resources.old_text ?? 0) < 1) return { ok: false, reason: 'old_text' };
+
+  state = {
+    ...state,
+    resources: { ...state.resources, old_text: state.resources.old_text - 1 },
+    restoredWorldChronicleEntries: [...state.restoredWorldChronicleEntries, locationId],
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
 }
 
 function setLogSt3Done() {
@@ -1515,4 +1538,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, restoreWorldChronicleEntry, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

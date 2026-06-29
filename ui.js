@@ -1,9 +1,9 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, restoreWorldChronicleEntry, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
@@ -1023,6 +1023,7 @@ function render(state) {
     startLogSt_2: () => startLogSt_2(state),
     startLogSt_3,
     startLogSt_4,
+    startWorldChronicleIntro,
     unlockLocation,
     unlockAction,
     unlockGuide,
@@ -1151,18 +1152,17 @@ function renderGuideList(state) {
     list.appendChild(item);
   }
 
-  // ヒント内容が前回から変わっていたら、導きタブを光らせて気づかせる
-  // (「静かだ…」だけの状態や初回同期では光らせない)
-  const signature = hints.join('|');
-  const meaningful = !(hints.length === 1 && hints[0] === '星の導きは、いまは静かだ…');
-  if (_prevGuideSignature !== null && signature !== _prevGuideSignature && meaningful && state.guideUnlocked) {
+  // 新しいヒントが追加された時だけ、導きタブを光らせて気づかせる
+  // (達成してヒントが消えただけの時や、初回同期では光らせない)
+  const hasNewHint = hints.some(h => !(_prevGuideHints?.includes(h)));
+  if (_prevGuideHints !== null && hasNewHint && state.guideUnlocked) {
     _flashGuideTab();
   }
-  _prevGuideSignature = signature;
+  _prevGuideHints = hints;
 }
 
 // 導きタブ(#guide-tab-btn)を発光させる。導きパネルを開くと消える
-let _prevGuideSignature = null;
+let _prevGuideHints = null;
 function _flashGuideTab() {
   const btn = document.getElementById('guide-tab-btn');
   const panel = document.getElementById('guide-panel');
@@ -1503,11 +1503,15 @@ function _enterFacility(facility) {
   els.actionPickerBtn.textContent = actionDisplayLabel(facility, ' — ');
   _pauseForStory();
   _storyLogPlaying = true;
+  const options = [...facility.options];
+  if (facility.id === 'touto_library' && getState().worldChronicleUnlocked) {
+    options.push({ id: 'world_chronicle', label: '世界誌', type: 'world_chronicle' });
+  }
   let cleanup = null;
   cleanup = runFacilityMenu(els.mainPanel, {
     label: facility.label,
     enterText: facility.enterText,
-    options: facility.options,
+    options,
     getShopItems,
     formatShopItem: _formatShopItemLabel,
     onBuy: (shopId, itemId) => {
@@ -1524,11 +1528,58 @@ function _enterFacility(facility) {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
       _startActionById(subActionId);
     },
+    onSelectOption: (option) => {
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      if (option.type === 'world_chronicle') openWorldChronicle();
+    },
     onLeave: () => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
       _revertActionSelection();
     },
   });
+}
+
+function openWorldChronicle() {
+  const overlay = document.getElementById('world-chronicle-overlay');
+  const list = document.getElementById('world-chronicle-list');
+  const state = getState();
+  list.innerHTML = '';
+
+  for (const location of Object.values(LOCATIONS)) {
+    const discovered = state.unlockedLocations.includes(location.id);
+    const restored = state.restoredWorldChronicleEntries.includes(location.id);
+    const item = document.createElement('div');
+    item.className = `chronicle-entry${restored ? ' restored' : ''}`;
+
+    const title = document.createElement('div');
+    title.className = 'chronicle-entry-title';
+    title.textContent = discovered ? location.label : '判読できない頁';
+    item.appendChild(title);
+
+    const body = document.createElement('div');
+    body.className = 'chronicle-entry-body';
+    body.textContent = restored
+      ? location.description
+      : discovered
+        ? '文字は擦り切れ、ほとんど読むことができない。'
+        : '頁全体が曖昧にぼやけている。';
+    item.appendChild(body);
+
+    if (discovered && !restored) {
+      const btn = document.createElement('button');
+      btn.className = 'chronicle-restore-btn';
+      btn.textContent = '古い文献 1 で復元';
+      btn.disabled = (state.resources.old_text ?? 0) < 1;
+      btn.addEventListener('click', () => {
+        if (restoreWorldChronicleEntry(location.id).ok) openWorldChronicle();
+      });
+      item.appendChild(btn);
+    }
+    list.appendChild(item);
+  }
+
+  document.getElementById('world-chronicle-old-text').textContent = state.resources.old_text ?? 0;
+  overlay.classList.add('open');
 }
 
 function _handleActionComplete(actionId, result) {
@@ -1709,7 +1760,7 @@ function renderActionList() {
 
       const time = document.createElement('span');
       time.className = 'action-row-time';
-      time.textContent = action._kind === 'facility' ? '入店' : `${action.duration / 1000}秒`;
+      time.textContent = action._kind === 'facility' ? '入る' : `${action.duration / 1000}秒`;
 
       row.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1773,6 +1824,11 @@ function _updateModeToggleBtn() {
 
 function initStoryViewer() {
   els.storyCloseBtn.addEventListener('click', closeStory);
+  const chronicleOverlay = document.getElementById('world-chronicle-overlay');
+  document.getElementById('world-chronicle-close').addEventListener('click', () => chronicleOverlay.classList.remove('open'));
+  chronicleOverlay.addEventListener('click', e => {
+    if (e.target === chronicleOverlay) chronicleOverlay.classList.remove('open');
+  });
   els.storyOverlay.addEventListener('click', e => {
     if (e.target === els.storyOverlay) closeStory();
   });
@@ -1931,6 +1987,20 @@ function startLogSt_4() {
           addLog(`【！】${resourceSpan('guide_earring', resLabel('guide_earring'))} を手に入れた`, true, true);
         }
       );
+    },
+  });
+}
+
+function startWorldChronicleIntro() {
+  if (getState().worldChronicleUnlocked) return;
+  _pauseForStory();
+  _storyLogPlaying = true;
+  let cleanup = null;
+  cleanup = runWorldChronicleIntro(els.mainPanel, {
+    onComplete: () => {
+      unlockWorldChronicle();
+      addLog('【図書館】世界誌の復元が可能になった', true);
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
     },
   });
 }

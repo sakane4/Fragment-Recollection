@@ -299,6 +299,26 @@ const LOG_STORY_2_STEPS = parseScript(`
 [end: ついていく]
 `);
 
+const WORLD_CHRONICLE_INTRO_STEPS = parseScript(`
+図書館には多くの本がある。
+だが、そのタイトルも内容も、曖昧にぼやけたものばかりだった。
+一冊の古びた本を手に取り、開いてみる。
+文字は擦り切れ、ほとんど読むことができない。
+ふと足音が聞こえ、あなたの隣で止まった。
+顔を上げると、本を抱えた少年が立っている。
+「その本は、世界誌の写本です」
+「“喪失”以来……この図書館にあった多くの資料は、失われてしまいました」
+「今、復元の協力をお願いしているのです」
+「僕たちは、ここを離れられませんから……」
+彼は、司書の一人だという。
+「この図書館は、過ぎ行く世界を記録するために、世界中の資料を保存しています」
+「ただただ失われていくだけの世界を、せめてほんの少しでも、残していくために……」
+「では、この本を預けます」
+少年は、古びた写本をこちらへ押し戻した。
+「あなたが見たものを、失われる前に。ここへ記してください」
+[end: 引き受ける]
+`);
+
 // ── ログストーリー003 ──
 const LOG_STORY_3_STEPS = parseScript(`
 003
@@ -323,6 +343,7 @@ const LOG_STORY_3_STEPS = parseScript(`
 function runLogSt_1(mainPanel, opts) { return runLogSt(LOG_STORY_STEPS,   mainPanel, opts); }
 function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPanel, opts); }
 function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
+function runWorldChronicleIntro(mainPanel, opts) { return runLogSt(WORLD_CHRONICLE_INTRO_STEPS, mainPanel, opts); }
 
 const LOG_STORY_4_STEPS =parseScript(`
 004
@@ -515,6 +536,7 @@ function runFacilityMenu(mainPanel, {
   formatShopItem,
   onBuy,
   onSelectAction,
+  onSelectOption,
   onLeave,
 } = {}) {
   let tw = null;
@@ -547,9 +569,12 @@ function runFacilityMenu(mainPanel, {
         wrap.querySelectorAll('button').forEach(b => b.disabled = true);
         if (opt.type === 'shop') {
           renderShop(opt.shopId);
-        } else {
+        } else if (opt.type === 'action') {
           cleanup();
           onSelectAction?.(opt.actionId);
+        } else {
+          cleanup();
+          onSelectOption?.(opt);
         }
       });
       wrap.appendChild(btn);
@@ -608,4 +633,4 @@ function runFacilityMenu(mainPanel, {
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runLocationChoice, runCompanionJoin, runFacilityMenu };
