@@ -274,6 +274,13 @@ function _setViewerTitle(text) {
   el.style.opacity = '0';
   setTimeout(() => { el.textContent = text; el.style.opacity = '1'; }, 1000);
 }
+
+// ビューアを開いた直後の初期表示用。タイトル復元時のフェード切替とは違い、アニメーションさせない
+function _setViewerTitleImmediate(text) {
+  const el = els.storyViewerTitle;
+  el.textContent = text;
+  el.style.opacity = '1';
+}
 let _viewerCurrentPage = 0;
 let _viewerPrevUnlockedPages = 0;
 let _viewerFadeUpTo = 0;
@@ -335,7 +342,7 @@ function openStory(storyId, { prevProgress } = {}) {
   _storyPageCounts[storyId] = pages.reduce((s, p) => s + p.length, 0);
 
   const _titleRevealed = !!(getState().titleRevealed ?? {})[storyId];
-  _setViewerTitle(_titleRevealed ? story.title : (story.lockedTitle ?? DEFAULT_LOCKED_TITLE));
+  _setViewerTitleImmediate(_titleRevealed ? story.title : (story.lockedTitle ?? DEFAULT_LOCKED_TITLE));
   els.storyOverlay.classList.add('open');
   pauseLog();
   // スクロールモードでは前回閉じた位置を復元(0なら先頭でよいのでscrollToTopで十分)
@@ -2149,7 +2156,8 @@ function openConvertPopup(companionId) {
   };
 }
 
-let _prevUnlockedCompanions = [];
+// null = 未初期化(初回renderはセーブ済みの状態に同期するだけにし、「いま新規解放された」と誤判定しない)
+let _prevUnlockedCompanions = null;
 const _expandedCompanionIds = new Set();
 
 // キャラ詳細パネル用タブアイコン(暫定の線画アイコン)
@@ -2694,10 +2702,12 @@ function renderCharTab(state) {
 
   view.appendChild(benchSection);
 
-  // 新同行者解放時にトースト表示
-  const newlyUnlocked = unlocked.filter(id => !_prevUnlockedCompanions.includes(id));
-  if (newlyUnlocked.length > 0) {
-    showTabToast('.tab-btn[data-view="view-chars"]', '同行者を選択できます');
+  // 新同行者解放時にトースト表示(初回renderはセーブ済みの状態に同期するだけ)
+  if (_prevUnlockedCompanions !== null) {
+    const newlyUnlocked = unlocked.filter(id => !_prevUnlockedCompanions.includes(id));
+    if (newlyUnlocked.length > 0) {
+      showTabToast('.tab-btn[data-view="view-chars"]', '同行者を選択できます');
+    }
   }
   _prevUnlockedCompanions = [...unlocked];
 }
