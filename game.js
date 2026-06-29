@@ -435,6 +435,8 @@ const EQUIP_BONUS = 5;
 
 // 宿屋「休む」完了で付与される、報酬2倍バフのスタック数(他の行動の完了ごとに1消費)
 const REST_BUFF_STACKS = 20;
+// 花屋の「手伝う」解放後、図書館の調査完了時に花の図鑑を発見する確率
+const FLOWER_ENCYCLOPEDIA_DISCOVERY_CHANCE = 0.15;
 
 // ── 施設(FACILITIES) ──
 // 通常の行動(時間経過)とは別の概念。入店すると専用メニューが開き、そこから個別の行動を選んだり、
@@ -484,10 +486,11 @@ const FACILITIES = {
   },
 };
 
-// 花屋で買える品(マグコイン消費・在庫無限・効果は今のところ無し、収集アイテム)
+// 花屋で買える、この世界に存在する花や葉。マグコイン消費・在庫無限
 const FLOWER_SHOP_ITEMS = [
-  { id: 'pressed_flower_red',  price: 5 },
-  { id: 'pressed_flower_blue', price: 5 },
+  { id: 'mondo_leaf', price: 5, description: 'モコモコとした葉' },
+  { id: 'rescure',    price: 5, description: '白く可憐な花' },
+  { id: 'berylune',   price: 5, description: '涼しげな香りを漂わせる花' },
 ];
 
 // 道具屋で買える道具(マグコイン消費・1個だけ所持できる)。斧を買うと、はじまりの森で
@@ -545,7 +548,7 @@ const ELV_COSTS = Array.from({ length: ELV_MAX }, (_, n) => 10 * (n + 1));
 // 汎用アイテム)。上限・コスト曲線はELvと同じ仕様を流用。今は「育つ・表示される」のみで効果は未定
 const BOND_LV_MAX = 10;
 const BOND_LV_COSTS = ELV_COSTS;
-const GIFT_ITEMS = ['pressed_flower_red', 'pressed_flower_blue'];
+const GIFT_ITEMS = ['mondo_leaf', 'rescure', 'berylune'];
 
 // 同行者にプレゼントを渡して絆Lvを1上げる。itemIdはGIFT_ITEMSのいずれか
 function giveGift(companionId, itemId) {
@@ -759,6 +762,7 @@ const INITIAL_STATE = {
   restoredWorldChronicleEntries: [],
   shopPurchaseCount: {},
   flowerHelpUnlocked: false,
+  flowerEncyclopediaUnlocked: false,
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -1282,9 +1286,21 @@ function completeAction(actionId, onComplete) {
     }
   }
 
+  // 花屋で世話を手伝えるようになった後、図書館を調査すると花の図鑑を確率で発見する
+  let flowerEncyclopediaFound = false;
+  if (
+    actionId === 'touto_library_research' &&
+    state.flowerHelpUnlocked &&
+    !state.flowerEncyclopediaUnlocked &&
+    Math.random() < FLOWER_ENCYCLOPEDIA_DISCOVERY_CHANCE
+  ) {
+    state = { ...state, flowerEncyclopediaUnlocked: true };
+    flowerEncyclopediaFound = true;
+  }
+
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound };
   onComplete?.(result);
   // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
   notify();
@@ -1401,7 +1417,22 @@ function init() {
     restoredWorldChronicleEntries: saved.restoredWorldChronicleEntries ?? INITIAL_STATE.restoredWorldChronicleEntries,
     shopPurchaseCount: saved.shopPurchaseCount ?? INITIAL_STATE.shopPurchaseCount,
     flowerHelpUnlocked: saved.flowerHelpUnlocked ?? INITIAL_STATE.flowerHelpUnlocked,
+    flowerEncyclopediaUnlocked: saved.flowerEncyclopediaUnlocked ?? INITIAL_STATE.flowerEncyclopediaUnlocked,
   };
+
+  // 仮商品だった押し花を正式商品へ移行し、既存セーブの所持数を失わないようにする
+  const migratedResources = { ...state.resources };
+  const oldRed = migratedResources.pressed_flower_red ?? 0;
+  const oldBlue = migratedResources.pressed_flower_blue ?? 0;
+  if (oldRed > 0) migratedResources.rescure = (migratedResources.rescure ?? 0) + oldRed;
+  if (oldBlue > 0) migratedResources.berylune = (migratedResources.berylune ?? 0) + oldBlue;
+  delete migratedResources.pressed_flower_red;
+  delete migratedResources.pressed_flower_blue;
+  const migratedDiscovered = (state.discoveredResources ?? [])
+    .filter(id => id !== 'pressed_flower_red' && id !== 'pressed_flower_blue');
+  if (oldRed > 0 && !migratedDiscovered.includes('rescure')) migratedDiscovered.push('rescure');
+  if (oldBlue > 0 && !migratedDiscovered.includes('berylune')) migratedDiscovered.push('berylune');
+  state = { ...state, resources: migratedResources, discoveredResources: migratedDiscovered };
 
   for (const [companionId, task] of Object.entries(state.companionTasks ?? {})) {
     const remaining = task.endsAt - Date.now();

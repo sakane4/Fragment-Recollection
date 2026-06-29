@@ -6,6 +6,7 @@ import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForPa
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
+import { getActiveQuests } from './quests.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
 
@@ -108,8 +109,9 @@ const RESOURCES = {
   survey_knights:  { label: '王立騎士団本部の調査記録', color: '#aeb4bd', unit: '部' },
   survey_touto:    { label: '塔都の調査記録', color: '#c4b68f', unit: '部' },
   dream_fragment:  { label: '夢の欠片', color: '#b8a6e8', unit: '片' },
-  pressed_flower_red:  { label: '赤い押し花', color: '#e06a8c' },
-  pressed_flower_blue: { label: '青い押し花', color: '#6a9ee0' },
+  mondo_leaf: { label: 'モンドの葉', color: '#9bc48a' },
+  rescure:    { label: 'レスキュア', color: '#e8e8dc' },
+  berylune:   { label: 'ベリルーン', color: '#83cfd0' },
   // 黄昏の旧校舎
   old_paint:          { label: '古びた絵具',         color: '#e0a96d' },
   torn_page:          { label: '破れたページ',       color: '#d8cba0' },
@@ -189,7 +191,7 @@ function makeRandomRewardHandler() {
     if (!recordEntry) return;
     const [locationId, entry] = recordEntry;
     if ((getState().resources[resource] ?? 0) === entry.required) {
-      addLog(`【世界誌】${LOCATIONS[locationId]?.label ?? locationId}の記録が復元された`, true);
+      addLog(`【大陸誌】${LOCATIONS[locationId]?.label ?? locationId}の記録が復元された`, true);
     }
   };
 }
@@ -1100,91 +1102,44 @@ function renderEffectList(state) {
   }
 }
 
-// 導きパネルの中身。状況に応じたヒントを優先度順に積む
+// 導きパネルの中身。クエスト定義(quests.js)から現在の目的を優先度順に表示する
 function renderGuideList(state) {
   const list = document.getElementById('guide-list');
   if (!list) return;
   list.innerHTML = '';
 
-  const hints = [];
+  const quests = getActiveQuests(state, {
+    discoveryStepLv: DISCOVERY_STEP_LV,
+    toutoFacilities: TOUTO_FACILITIES,
+    actions: ACTIONS,
+    locations: LOCATIONS,
+    companionRelics: COMPANION_RELICS,
+    companions: COMPANION_DATA,
+  });
+  const displayItems = quests.length > 0
+    ? quests
+    : [{ id: 'guide_idle', text: '星の導きは、いまは静かだ…' }];
 
-  const firstDiscoveryLv = DISCOVERY_STEP_LV[0];
-  if ((state.worldLv ?? 0) < firstDiscoveryLv) {
-    hints.push(`【再生された世界】の再生Lvを上げよう…（Lv${firstDiscoveryLv}）`);
-  } else {
-    // 場所発見スケジュールの次のステップに向けて、再生された世界(wherever)のLvを上げるよう促す
-    const step = state.discoveryStep ?? 0;
-    if (state.logSt4Done && step < DISCOVERY_STEP_LV.length) {
-      const targetLv = DISCOVERY_STEP_LV[step];
-      const whereverLv = state.LocationLv?.['wherever'] ?? 0;
-      if (whereverLv < targetLv) {
-        hints.push(`【再生された世界】をさらに再生しよう…（再生Lv${targetLv}）`);
-      }
-    }
-  }
-
-  // はじまりの森のLvを2にすると採集が解放されることを示唆
-  if (state.unlockedLocations?.includes('forest') && !state.unlockedActions?.includes('forest_gather')) {
-    const forestLv = state.LocationLv?.['forest'] ?? 0;
-    if (forestLv < 2) {
-      hints.push('【はじまりの森】の再生Lvを上げよう…（新しいことができるようになる）');
-    }
-  }
-
-  // 塔都が解放済みで、まだ見つけていない施設があれば探索を促す
-  if (state.unlockedLocations?.includes('touto') && TOUTO_FACILITIES.some(id => !state.unlockedActions?.includes(id))) {
-    hints.push('【塔都】を探索してみよう…まだ見つけていない施設がありそうだ');
-  }
-
-  // 図書館発見後、世界誌イベントが起きるまで調査へ誘導する
-  if (state.unlockedActions?.includes('touto_library') && !state.worldChronicleUnlocked) {
-    hints.push('【塔都図書館】で調査を続けてみよう…読めない本が気にかかる');
-  }
-
-  // 解放済みの場所に、まだ見つけていない同行者がいれば探索を促す(レアドロップの示唆)
-  for (const action of Object.values(ACTIONS)) {
-    if (!action.rareDrop) continue;
-    if (state.unlockedCompanions?.includes(action.rareDrop.companionId)) continue;
-    if (!state.unlockedLocations?.includes(action.locationId)) continue;
-    const locLabel = LOCATIONS[action.locationId]?.label ?? 'どこか';
-    hints.push(`${locLabel}を探索してみよう…なにかが見つかるかもしれない`);
-    break;
-  }
-
-  // 同行中なのに、持っているはずの固有レリックを装備していない仲間がいれば教える
-  for (const id of (state.activeCompanions ?? [])) {
-    const relic = COMPANION_RELICS[id];
-    const owned = relic && (state.resources[relic] ?? 0) > 0;
-    const equipped = state.companionEquipment?.[id] === relic;
-    if (owned && !equipped) {
-      const name = COMPANION_DATA[id]?.name ?? id;
-      hints.push(`${name}に持ち物を持たせてみよう`);
-      break;
-    }
-  }
-
-  if (hints.length === 0) {
-    hints.push('星の導きは、いまは静かだ…');
-  }
-
-  for (const hint of hints) {
+  for (const quest of displayItems) {
     const item = document.createElement('div');
     item.className = 'guide-hint-item';
-    item.textContent = hint;
+    item.dataset.questId = quest.id;
+    item.textContent = quest.text;
     list.appendChild(item);
   }
 
-  // 新しいヒントが追加された時だけ、導きタブを光らせて気づかせる
+  // 新しいクエストが追加された時、または同じクエストの目標文が進行して変わった時だけタブを光らせる
   // (達成してヒントが消えただけの時や、初回同期では光らせない)
-  const hasNewHint = hints.some(h => !(_prevGuideHints?.includes(h)));
-  if (_prevGuideHints !== null && hasNewHint && state.guideUnlocked) {
+  const signatures = displayItems.map(quest => `${quest.id}:${quest.text}`);
+  const hasNewQuest = signatures.some(signature => !(_prevGuideQuestSigs?.includes(signature)));
+  if (_prevGuideQuestSigs !== null && hasNewQuest && state.guideUnlocked) {
     _flashGuideTab();
   }
-  _prevGuideHints = hints;
+  _prevGuideQuestSigs = signatures;
 }
 
 // 導きタブ(#guide-tab-btn)を発光させる。導きパネルを開くと消える
-let _prevGuideHints = null;
+let _prevGuideQuestSigs = null;
 function _flashGuideTab() {
   const btn = document.getElementById('guide-tab-btn');
   const panel = document.getElementById('guide-panel');
@@ -1514,10 +1469,13 @@ function _startActionById(actionId) {
 
 // 施設に入店する。メインパネルに専用メニュー(行動を選ぶ/買い物する/出る)を表示する
 function _formatShopItemLabel(item) {
-  const base = `${resLabel(item.id)} ${item.price}${resUnit('magcoin') || 'マグコイン'}`;
-  if (!item.companionId) return base;
-  const name = COMPANION_DATA[item.companionId]?.name ?? item.companionId;
-  return `${base}（${name}の品）`;
+  const companion = item.companionId
+    ? `（${COMPANION_DATA[item.companionId]?.name ?? item.companionId}の品）`
+    : '';
+  const description = item.description
+    ? `<span class="facility-shop-item-desc">${item.description}</span>`
+    : '';
+  return `<span class="facility-shop-item-name">${resLabel(item.id)}${companion}</span>${description}<span class="facility-shop-item-price">${item.price}${resUnit('magcoin') || 'マグコイン'}</span>`;
 }
 
 // 施設メニューの選択肢が「？？？」表示のロック中かどうか(イベント経由で解放される選択肢のみ対象)
@@ -1539,11 +1497,59 @@ function _enterFacility(facility) {
   }));
   if (facility.id === 'touto_library') {
     options.push({
-      id: 'world_chronicle',
-      label: '世界誌',
-      type: 'world_chronicle',
-      icon: actionIconSvg('世界誌'),
-      locked: !state.worldChronicleUnlocked,
+      id: 'restore_books',
+      label: '復元',
+      heading: '復元する本を選ぶ',
+      type: 'submenu',
+      style: 'bookshelf',
+      icon: actionIconSvg('復元'),
+      options: [
+        {
+          id: 'world_chronicle',
+          label: '大陸誌',
+          type: 'world_chronicle',
+          icon: actionIconSvg('大陸誌'),
+          bookTone: 'world',
+          bookWidth: 38,
+          locked: !state.worldChronicleUnlocked,
+        },
+        {
+          id: 'flower_encyclopedia',
+          label: '花の図鑑',
+          type: 'flower_encyclopedia',
+          icon: actionIconSvg('花の図鑑'),
+          bookTone: 'flower',
+          bookWidth: 29,
+          locked: !state.flowerEncyclopediaUnlocked,
+        },
+        {
+          id: 'ancient_grimoire',
+          label: '古代魔術書',
+          type: 'ancient_grimoire',
+          icon: actionIconSvg('古代魔術書'),
+          bookTone: 'magic',
+          bookWidth: 33,
+          disabled: true,
+        },
+        {
+          id: 'labyrinth_theory',
+          label: '迷宮理論',
+          type: 'labyrinth_theory',
+          icon: actionIconSvg('迷宮理論'),
+          bookTone: 'labyrinth',
+          bookWidth: 25,
+          disabled: true,
+        },
+        {
+          id: 'easy_cooking_recipes',
+          label: 'かんたん！料理',
+          type: 'easy_cooking_recipes',
+          icon: actionIconSvg('かんたん！料理'),
+          bookTone: 'cooking',
+          bookWidth: 31,
+          disabled: true,
+        },
+      ],
     });
   }
   let cleanup = null;
@@ -1561,7 +1567,15 @@ function _enterFacility(facility) {
       if (result.ok) {
         const label = resLabel(result.itemId);
         const extra = result.companionId ? `（${COMPANION_DATA[result.companionId]?.name ?? result.companionId}の品）` : '';
-        return { message: `${label}${extra}を ${result.price}マグコインで買った` };
+        const flowerHelpReady =
+          shopId === 'flower' &&
+          (getState().shopPurchaseCount?.flower ?? 0) >= 3 &&
+          !getState().flowerHelpUnlocked;
+        return {
+          message: `${label}${extra}を ${result.price}マグコインで買った`,
+          closeFacility: flowerHelpReady,
+          trigger: flowerHelpReady ? 'flower_help_intro' : null,
+        };
       }
       if (result.reason === 'magcoin') return { message: 'マグコインが足りない…' };
       return { message: '今は買えそうな品がない…' };
@@ -1573,6 +1587,12 @@ function _enterFacility(facility) {
     onSelectOption: (option) => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
       if (option.type === 'world_chronicle') openWorldChronicle();
+      if (option.type === 'flower_encyclopedia') openFlowerEncyclopedia();
+    },
+    onTrigger: (trigger) => {
+      if (trigger !== 'flower_help_intro') return;
+      // 購入時のnotifyでは施設メニュー中のため保留されていたルールを、パネル収束後に評価してイベントを始める
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
     },
     onLeave: () => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
@@ -1585,6 +1605,8 @@ function openWorldChronicle() {
   const overlay = document.getElementById('world-chronicle-overlay');
   const list = document.getElementById('world-chronicle-list');
   const state = getState();
+  document.querySelector('.world-chronicle-title').textContent = '大陸誌';
+  document.querySelector('.world-chronicle-meta').textContent = '各地の調査記録を集め、失われた頁を復元する';
   list.innerHTML = '';
 
   for (const location of Object.values(LOCATIONS)) {
@@ -1622,8 +1644,28 @@ function openWorldChronicle() {
   overlay.classList.add('open');
 }
 
+function openFlowerEncyclopedia() {
+  const overlay = document.getElementById('world-chronicle-overlay');
+  const list = document.getElementById('world-chronicle-list');
+  document.querySelector('.world-chronicle-title').textContent = '花の図鑑';
+  document.querySelector('.world-chronicle-meta').textContent = '失われた花の記録を復元する';
+  list.innerHTML = '';
+
+  const item = document.createElement('div');
+  item.className = 'chronicle-entry';
+  const title = document.createElement('div');
+  title.className = 'chronicle-entry-title';
+  title.textContent = '花の記録';
+  const body = document.createElement('div');
+  body.className = 'chronicle-entry-body';
+  body.textContent = '頁はまだ白紙だ。';
+  item.append(title, body);
+  list.appendChild(item);
+  overlay.classList.add('open');
+}
+
 function _handleActionComplete(actionId, result) {
-  const { allRewards, companionRewards, worldLvUp, rareDrop } = result;
+  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound } = result;
   const act = ACTIONS[actionId];
 
   if (act?.stub) {
@@ -1639,6 +1681,10 @@ function _handleActionComplete(actionId, result) {
   const companionRewardsHtml = (companionRewards ?? []).map(r => _rewardHtml(r, 'log-companion-reward')).join(', ');
   const fullRewardsHtml = companionRewardsHtml ? `${rewardsHtml} / ${companionRewardsHtml}` : rewardsHtml;
   addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewardsHtml}`, true, true);
+
+  if (flowerEncyclopediaFound) {
+    addLog('【図書館】失われた本棚から「花の図鑑」を見つけた', true);
+  }
 
   if (worldLvUp != null) {
     const next = WORLD_LV_THRESHOLDS[worldLvUp];
@@ -1699,7 +1745,12 @@ const ACTION_ICONS = {
   '塔都図書館':     _ICON_BOOK,
   '道具屋 リーリエ': _ICON_GEM,
   '調査':          _ICON_SEARCH,
-  '世界誌':        _ICON_BOOK,
+  '復元':          _ICON_BOOK,
+  '大陸誌':        _ICON_BOOK,
+  '花の図鑑':      _ICON_FLOWER,
+  '古代魔術書':    _ICON_BOOK,
+  '迷宮理論':      _ICON_BOOK,
+  'かんたん！料理': _ICON_BOOK,
   '休む':          _ICON_BED,
   '手伝う':        _ICON_FLOWER,
 };
@@ -2076,7 +2127,7 @@ function startWorldChronicleIntro() {
     cleanup = runWorldChronicleIntro(els.mainPanel, {
       onComplete: () => {
         unlockWorldChronicle();
-        addLog('【図書館】世界誌の復元が可能になった', true);
+        addLog('【図書館】大陸誌の復元が可能になった', true);
         finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
       },
     });

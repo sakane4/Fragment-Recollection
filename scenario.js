@@ -312,7 +312,7 @@ const WORLD_CHRONICLE_INTRO_STEPS = parseScript(`
 文字は擦り切れ、ほとんど読むことができない。
 ふと足音が聞こえ、あなたの隣で止まった。
 顔を上げると、本を抱えた少年が立っている。
-「その本は、世界誌の写本です」
+「その本は、大陸誌の写本です」
 「“喪失”以来……この図書館にあった多くの資料は、失われてしまいました」
 「今、復元の協力をお願いしているのです」
 「僕たちは、ここを離れられませんから……」
@@ -348,10 +348,15 @@ function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPa
 function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
 function runWorldChronicleIntro(mainPanel, opts) { return runLogSt(WORLD_CHRONICLE_INTRO_STEPS, mainPanel, opts); }
 
-// 花屋で何度か買い物をしたあと、「手伝う」が解放されるきっかけになる小イベント(仮文。あとで本文を書き直す)
+// 花屋で何度か買い物をしたあと、「手伝う」が解放されるきっかけになる小イベント
 const FLOWER_HELP_INTRO_STEPS = parseScript(`
-（仮）何度か顔を出すうち、店主と少し話すようになった。
-（仮）「よかったら、少し手伝ってくれない？」
+「お客さん、よくお花を買ってくれますよね」
+花を渡しながら、店員がそう声をかけてきた。
+「実は”喪失”以来、花の記録が失われて」
+「お花の世話の方法が分からなくなってしまったんです」
+「それで人手が足りなくて……」
+「お花が好きなら、少し店を手伝ってくれませんか？」
+「もちろん、お金は払いますし、時間のある時だけで構いませんから！」
 [end: 引き受ける]
 `);
 function runFlowerHelpIntro(mainPanel, opts) { return runLogSt(FLOWER_HELP_INTRO_STEPS, mainPanel, opts); }
@@ -537,7 +542,7 @@ function runLocationChoice(mainPanel, { prompt = '新しい場所が見つかり
 
 // ── 施設メニュー ──
 // メインパネルに入店演出＋メニュー(行動を選ぶ/買い物する/出る)を表示する。
-// options: [{ id, label, type: 'action'|'shop', actionId?, shopId? }]（「出る」は自動で追加）
+// options: [{ id, label, type: 'action'|'shop'|'submenu', actionId?, shopId?, options? }]（「出る」は自動で追加）
 // 戻り値: cleanup()（リスナー解除）
 function runFacilityMenu(mainPanel, {
   label,
@@ -551,6 +556,7 @@ function runFacilityMenu(mainPanel, {
   onBuy,
   onSelectAction,
   onSelectOption,
+  onTrigger,
   onLeave,
 } = {}) {
   let tw = null;
@@ -583,6 +589,18 @@ function runFacilityMenu(mainPanel, {
     const btn = document.createElement('button');
     btn.className = 'facility-list-row';
     btn.innerHTML = `<span class="facility-card-icon">${rowIcon ?? _ICON_FACILITY_DEFAULT}</span><span class="facility-list-row-label">${rowLabel}</span>`;
+    return btn;
+  }
+
+  function _makeBook(bookLabel, bookIcon, tone = 'world', width = null) {
+    const btn = document.createElement('button');
+    btn.className = 'facility-book';
+    btn.dataset.bookTone = tone;
+    if (width) btn.style.setProperty('--book-width', `${width}px`);
+    const titleLength = Math.max(1, [...bookLabel].length);
+    btn.style.setProperty('--book-font-size', `${Math.max(7, Math.min(11.5, 82 / titleLength))}px`);
+    btn.title = bookLabel;
+    btn.innerHTML = `<span class="facility-book-ornament"></span><span class="facility-book-label">${bookLabel}</span><span class="facility-book-icon">${bookIcon ?? _ICON_FACILITY_DEFAULT}</span>`;
     return btn;
   }
 
@@ -630,6 +648,45 @@ function runFacilityMenu(mainPanel, {
     };
   }
 
+  // 施設内行動の開始時、操作パネルを上下から中央へ畳み、ログの区切り線として残す
+  function collapsePanelToDivider(onCollapsed) {
+    const closingPanel = panel;
+    if (!closingPanel) return;
+    panel = null;
+
+    closingPanel.querySelectorAll('button').forEach(btn => { btn.disabled = true; });
+    const startHeight = closingPanel.getBoundingClientRect().height;
+    closingPanel.style.boxSizing = 'border-box';
+    closingPanel.style.height = `${startHeight}px`;
+    // 明示した開始heightを描画へ反映してから、CSSトランジションを開始する
+    closingPanel.getBoundingClientRect();
+    requestAnimationFrame(() => {
+      // 第1段階: 上下の線だけを中央へ寄せる
+      closingPanel.classList.add('facility-panel-closing');
+      // 第2段階: 線が重なってから、空いたパネルの高さを畳む
+      setTimeout(() => {
+        if (closingPanel.isConnected) closingPanel.classList.add('facility-panel-collapse-height');
+      }, 480);
+    });
+
+    let finalized = false;
+    const finalize = () => {
+      if (finalized || !closingPanel.isConnected) return;
+      finalized = true;
+      closingPanel.className = 'facility-panel-divider';
+      // メインログのflexレイアウトで空要素が潰れないよう、最終線の寸法を明示する
+      closingPanel.style.cssText = 'display:block;flex:0 0 1px;width:100%;height:1px;min-height:1px;margin:0.8rem 0 0.35rem;background:var(--accent);opacity:0.58;box-shadow:0 0 4px rgba(126,200,216,0.24);pointer-events:none;';
+      closingPanel.replaceChildren();
+      closingPanel.setAttribute('aria-hidden', 'true');
+      onCollapsed?.();
+    };
+    closingPanel.addEventListener('transitionend', (e) => {
+      if (e.target === closingPanel && e.propertyName === 'height') finalize();
+    });
+    // 背景タブ化などでtransitionendが発火しなかった場合の保険
+    setTimeout(finalize, 850);
+  }
+
   // 行動選択肢が「買い物」1つだけの施設は、メニューを経由せず入店時に直接商品リストを開く
   const _soloShop = options.length === 1 && options[0].type === 'shop' ? options[0] : null;
 
@@ -648,11 +705,20 @@ function runFacilityMenu(mainPanel, {
         continue;
       }
       const btn = _makeCard(opt.label, opt.icon);
+      if (opt.disabled) {
+        btn.disabled = true;
+        grid.appendChild(btn);
+        continue;
+      }
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (opt.type === 'shop') {
           renderShop(opt.shopId);
+        } else if (opt.type === 'submenu') {
+          renderSubmenu(opt);
         } else if (opt.type === 'action') {
+          // 入店ログは履歴として残し、操作パネルは中央線へ畳んで以後操作できない区切りにする。
+          collapsePanelToDivider();
           cleanup();
           onSelectAction?.(opt.actionId);
         } else {
@@ -661,6 +727,50 @@ function runFacilityMenu(mainPanel, {
         }
       });
       grid.appendChild(btn);
+    }
+    mainPanel.scrollTop = mainPanel.scrollHeight;
+  }
+
+  // 「復元」など、施設内の選択肢をさらに分類する二段目のカードメニュー
+  function renderSubmenu(parentOption) {
+    _ensurePanel();
+    body.innerHTML = '';
+    const subheading = document.createElement('div');
+    subheading.className = 'facility-shop-balance';
+    subheading.textContent = parentOption.heading ?? parentOption.label;
+    body.appendChild(subheading);
+    const shelf = document.createElement('div');
+    shelf.className = parentOption.style === 'bookshelf' ? 'facility-bookshelf' : 'facility-grid';
+    body.appendChild(shelf);
+    _setExit('戻る', renderMenu);
+
+    for (const opt of (parentOption.options ?? [])) {
+      if (opt.locked) {
+        const btn = parentOption.style === 'bookshelf'
+          ? _makeBook('？？？', _ICON_FACILITY_LOCK, 'locked', opt.bookWidth)
+          : _makeCard('？？？', _ICON_FACILITY_LOCK);
+        btn.disabled = true;
+        shelf.appendChild(btn);
+        continue;
+      }
+      const btn = parentOption.style === 'bookshelf'
+        ? _makeBook(opt.label, opt.icon, opt.bookTone, opt.bookWidth)
+        : _makeCard(opt.label, opt.icon);
+      if (opt.disabled) {
+        btn.disabled = true;
+        shelf.appendChild(btn);
+        continue;
+      }
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (opt.type === 'submenu') {
+          renderSubmenu(opt);
+        } else {
+          cleanup();
+          onSelectOption?.(opt);
+        }
+      });
+      shelf.appendChild(btn);
     }
     mainPanel.scrollTop = mainPanel.scrollHeight;
   }
@@ -698,6 +808,13 @@ function runFacilityMenu(mainPanel, {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const result = onBuy?.(shopId, item.id);
+            if (result?.closeFacility) {
+              collapsePanelToDivider(() => {
+                cleanup();
+                onTrigger?.(result.trigger);
+              });
+              return;
+            }
             refresh(result?.message ?? '');
           });
           grid.appendChild(btn);
