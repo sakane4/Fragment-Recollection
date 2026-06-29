@@ -38,6 +38,9 @@ const REWARD_TABLES = {
   magcoin_random: (_state, _locationLv, actionLv) => [
     { resource: 'magcoin', minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
   ],
+  touto_coin_random: () => [
+    { resource: 'magcoin', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 14000, chance: 0.12 },
+  ],
   // 塔都 — 図書館（調査）
   library_random: (_state, _locationLv, actionLv) => [
     { resource: 'old_text', minAmount: 1, maxAmount: 1 + Math.floor(actionLv / 2), minMs: 6000, maxMs: 14000 },
@@ -222,7 +225,7 @@ const LOCATION_DEFS = [
         description: '塔都の街を歩き回る。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: 'fragment_random',
+        rewardTableRandom: ['fragment_random', 'touto_coin_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
@@ -971,15 +974,17 @@ function _scheduleRandomRewardLoop(reward, onReward, applyExtra) {
     const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
     const t = setTimeout(() => {
       if (!state.activeAction) return;
-      const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
-      const newResources = { ...state.resources };
-      newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
-      _markDiscovered(reward.resource);
-      state = { ...state, resources: newResources };
-      applyExtra?.(amount);
-      saveToStorage(state);
-      notify();
-      onReward?.(amount);
+      if (Math.random() < (reward.chance ?? 1)) {
+        const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
+        const newResources = { ...state.resources };
+        newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
+        _markDiscovered(reward.resource);
+        state = { ...state, resources: newResources };
+        applyExtra?.(amount);
+        saveToStorage(state);
+        notify();
+        onReward?.(amount);
+      }
       schedule();
     }, delay);
     _randomRewardTimers.push(t);
@@ -1245,9 +1250,10 @@ function completeAction(actionId, onComplete) {
 
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  notify();
   const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop };
   onComplete?.(result);
+  // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
+  notify();
   return result;
 }
 

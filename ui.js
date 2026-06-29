@@ -1119,6 +1119,11 @@ function renderGuideList(state) {
     hints.push('【塔都】を探索してみよう…まだ見つけていない施設がありそうだ');
   }
 
+  // 図書館発見後、世界誌イベントが起きるまで調査へ誘導する
+  if (state.unlockedActions?.includes('touto_library') && !state.worldChronicleUnlocked) {
+    hints.push('【塔都図書館】で調査を続けてみよう…読めない本が気にかかる');
+  }
+
   // 解放済みの場所に、まだ見つけていない同行者がいれば探索を促す(レアドロップの示唆)
   for (const action of Object.values(ACTIONS)) {
     if (!action.rareDrop) continue;
