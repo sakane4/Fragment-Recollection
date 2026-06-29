@@ -1083,6 +1083,118 @@
     .story-choice-btn:hover { background: var(--accent-hover); }
     .story-choice-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    /* ── 施設メニュー(展開パネル+カードグリッド) ── */
+    .facility-panel {
+      width: 100%;
+      margin-top: 0.5rem;
+      padding: 0.8rem;
+      background: var(--panel);
+      border: 1px solid var(--accent-border);
+      border-radius: 10px;
+    }
+    .facility-panel-header {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding-bottom: 0.6rem;
+      margin-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .facility-panel-icon { color: var(--accent); flex-shrink: 0; }
+    .facility-panel-icon svg { width: 22px; height: 22px; display: block; }
+    .facility-panel-titlewrap { flex: 1; padding-right: 3.5rem; }
+    .facility-panel-title { font-size: 1rem; font-weight: bold; color: var(--text); }
+    .facility-panel-desc { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+    .facility-panel-exit {
+      position: absolute;
+      top: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.25rem 0.5rem;
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .facility-panel-exit svg { width: 14px; height: 14px; display: block; }
+    .facility-panel-exit:hover { background: var(--accent-dim); }
+    .facility-panel-exit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .facility-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      width: 100%;
+    }
+    .facility-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1.1rem 0.6rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .facility-card:hover { background: var(--accent-hover); }
+    .facility-card:disabled { opacity: 0.4; cursor: not-allowed; }
+    .facility-card-icon svg { width: 26px; height: 26px; }
+    .facility-card-label { line-height: 1.3; text-align: center; }
+
+    .facility-shop-balance {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    .facility-shop-balance b { color: var(--accent); font-weight: bold; }
+
+    .facility-list {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+    .facility-list-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      width: 100%;
+      padding: 0.5rem 0.2rem;
+      background: none;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .facility-list-row:last-child { border-bottom: none; }
+    .facility-list-row:hover { background: var(--accent-dim); }
+    .facility-list-row:disabled { opacity: 0.4; cursor: not-allowed; }
+    .facility-list-row .facility-card-icon { color: var(--accent); flex-shrink: 0; }
+    .facility-list-row .facility-card-icon svg { width: 18px; height: 18px; display: block; }
+    .facility-list-row-label { flex: 1; }
+    .facility-list-empty {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      padding: 0.6rem 0;
+    }
+
     /* ── フッタータブ ── */
     #footer {
       display: flex;

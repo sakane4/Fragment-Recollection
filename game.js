@@ -530,6 +530,7 @@ function buyShopItem(shopId, itemId) {
       [itemId]: (state.resources[itemId] ?? 0) + 1,
     },
     discoveredResources: newDiscovered,
+    shopPurchaseCount: { ...state.shopPurchaseCount, [shopId]: (state.shopPurchaseCount[shopId] ?? 0) + 1 },
   };
   saveToStorage(state);
   notify();
@@ -756,6 +757,8 @@ const INITIAL_STATE = {
   restBuffStacks: 0,
   worldChronicleUnlocked: false,
   restoredWorldChronicleEntries: [],
+  shopPurchaseCount: {},
+  flowerHelpUnlocked: false,
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -1396,6 +1399,8 @@ function init() {
     encounterStreak: saved.encounterStreak ?? INITIAL_STATE.encounterStreak,
     worldChronicleUnlocked: saved.worldChronicleUnlocked ?? INITIAL_STATE.worldChronicleUnlocked,
     restoredWorldChronicleEntries: saved.restoredWorldChronicleEntries ?? INITIAL_STATE.restoredWorldChronicleEntries,
+    shopPurchaseCount: saved.shopPurchaseCount ?? INITIAL_STATE.shopPurchaseCount,
+    flowerHelpUnlocked: saved.flowerHelpUnlocked ?? INITIAL_STATE.flowerHelpUnlocked,
   };
 
   for (const [companionId, task] of Object.entries(state.companionTasks ?? {})) {
@@ -1428,6 +1433,13 @@ function setLogSt2Done() {
 function unlockWorldChronicle() {
   if (state.worldChronicleUnlocked) return;
   state = { ...state, worldChronicleUnlocked: true };
+  saveToStorage(state);
+  notify();
+}
+
+function unlockFlowerHelp() {
+  if (state.flowerHelpUnlocked) return;
+  state = { ...state, flowerHelpUnlocked: true };
   saveToStorage(state);
   notify();
 }
@@ -1558,4 +1570,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

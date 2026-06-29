@@ -1,10 +1,10 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
@@ -1040,6 +1040,7 @@ function render(state) {
     startLogSt_3,
     startLogSt_4,
     startWorldChronicleIntro,
+    startFlowerHelpIntro,
     unlockLocation,
     unlockAction,
     unlockGuide,
@@ -1519,22 +1520,42 @@ function _formatShopItemLabel(item) {
   return `${base}（${name}の品）`;
 }
 
+// 施設メニューの選択肢が「？？？」表示のロック中かどうか(イベント経由で解放される選択肢のみ対象)
+function _isFacilityOptionLocked(facilityId, optionId, state) {
+  if (facilityId === 'touto_flower' && optionId === 'help') return !state.flowerHelpUnlocked;
+  return false;
+}
+
 function _enterFacility(facility) {
   selectedActionId = facility.id;
   els.actionPickerBtn.textContent = actionDisplayLabel(facility, ' — ');
   _pauseForStory();
   _storyLogPlaying = true;
-  const options = [...facility.options];
-  if (facility.id === 'touto_library' && getState().worldChronicleUnlocked) {
-    options.push({ id: 'world_chronicle', label: '世界誌', type: 'world_chronicle' });
+  const state = getState();
+  const options = facility.options.map(o => ({
+    ...o,
+    icon: actionIconSvg(o.label),
+    locked: _isFacilityOptionLocked(facility.id, o.id, state),
+  }));
+  if (facility.id === 'touto_library') {
+    options.push({
+      id: 'world_chronicle',
+      label: '世界誌',
+      type: 'world_chronicle',
+      icon: actionIconSvg('世界誌'),
+      locked: !state.worldChronicleUnlocked,
+    });
   }
   let cleanup = null;
   cleanup = runFacilityMenu(els.mainPanel, {
     label: facility.label,
+    description: facility.description,
+    icon: actionIconSvg(facility.label),
     enterText: facility.enterText,
     options,
     getShopItems,
     formatShopItem: _formatShopItemLabel,
+    getCurrency: () => ({ label: resLabel('magcoin'), amount: getState().resources.magcoin ?? 0, color: resColor('magcoin') }),
     onBuy: (shopId, itemId) => {
       const result = buyShopItem(shopId, itemId);
       if (result.ok) {
@@ -1677,6 +1698,10 @@ const ACTION_ICONS = {
   '花屋 竜の鱗':    _ICON_FLOWER,
   '塔都図書館':     _ICON_BOOK,
   '道具屋 リーリエ': _ICON_GEM,
+  '調査':          _ICON_SEARCH,
+  '世界誌':        _ICON_BOOK,
+  '休む':          _ICON_BED,
+  '手伝う':        _ICON_FLOWER,
 };
 
 function actionIconSvg(label) {
@@ -2052,6 +2077,20 @@ function startWorldChronicleIntro() {
       onComplete: () => {
         unlockWorldChronicle();
         addLog('【図書館】世界誌の復元が可能になった', true);
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
+  });
+}
+
+function startFlowerHelpIntro() {
+  if (getState().flowerHelpUnlocked) return;
+  enqueueLogStory('flower_help_intro', (finish) => {
+    let cleanup = null;
+    cleanup = runFlowerHelpIntro(els.mainPanel, {
+      onComplete: () => {
+        unlockFlowerHelp();
+        addLog('【花屋】「手伝う」ができるようになった', true);
         finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
       },
     });

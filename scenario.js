@@ -1,5 +1,11 @@
 // scenario.js — シナリオフロー・タイプライターエンジン
 
+// 施設メニューのカード用フォールバックアイコン(個別アイコンはui.js側からoptionに付与される)
+const _ICON_FACILITY_DEFAULT = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>`;
+const _ICON_FACILITY_EXIT = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
+const _ICON_FACILITY_CART = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`;
+const _ICON_FACILITY_LOCK = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+
 // ── タイプライター ──
 // 指定要素にテキストを1文字ずつ表示。skip()で即時完了
 function typewriter(el, text, { speed = 45, onDone, onStep } = {}) {
@@ -342,6 +348,14 @@ function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPa
 function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
 function runWorldChronicleIntro(mainPanel, opts) { return runLogSt(WORLD_CHRONICLE_INTRO_STEPS, mainPanel, opts); }
 
+// 花屋で何度か買い物をしたあと、「手伝う」が解放されるきっかけになる小イベント(仮文。あとで本文を書き直す)
+const FLOWER_HELP_INTRO_STEPS = parseScript(`
+（仮）何度か顔を出すうち、店主と少し話すようになった。
+（仮）「よかったら、少し手伝ってくれない？」
+[end: 引き受ける]
+`);
+function runFlowerHelpIntro(mainPanel, opts) { return runLogSt(FLOWER_HELP_INTRO_STEPS, mainPanel, opts); }
+
 const LOG_STORY_4_STEPS =parseScript(`
 004
 森の中、あなたはユウヤと足を止める。
@@ -527,10 +541,13 @@ function runLocationChoice(mainPanel, { prompt = '新しい場所が見つかり
 // 戻り値: cleanup()（リスナー解除）
 function runFacilityMenu(mainPanel, {
   label,
+  description,
+  icon,
   enterText,
   options = [],
   getShopItems,
   formatShopItem,
+  getCurrency,
   onBuy,
   onSelectAction,
   onSelectOption,
@@ -555,15 +572,84 @@ function runFacilityMenu(mainPanel, {
     mainPanel.removeEventListener('click', handleClick);
   }
 
+  function _makeCard(cardLabel, cardIcon) {
+    const btn = document.createElement('button');
+    btn.className = 'facility-card';
+    btn.innerHTML = `<span class="facility-card-icon">${cardIcon ?? _ICON_FACILITY_DEFAULT}</span><span class="facility-card-label">${cardLabel}</span>`;
+    return btn;
+  }
+
+  function _makeListRow(rowLabel, rowIcon) {
+    const btn = document.createElement('button');
+    btn.className = 'facility-list-row';
+    btn.innerHTML = `<span class="facility-card-icon">${rowIcon ?? _ICON_FACILITY_DEFAULT}</span><span class="facility-list-row-label">${rowLabel}</span>`;
+    return btn;
+  }
+
+  // 施設パネル(アイコン+名前+説明+出る/戻るボタンのヘッダー)は施設に入っている間1つだけ保持し、
+  // メニュー⇔買い物の切り替えは中身(body)を作り直すだけで同じパネルを上書きする
+  let panel = null;
+  let exitBtn = null;
+  let body = null;
+
+  function _ensurePanel() {
+    if (panel) return;
+    panel = addEntry('facility-panel');
+    const header = document.createElement('div');
+    header.className = 'facility-panel-header';
+    header.innerHTML = `
+      <span class="facility-panel-icon">${icon ?? _ICON_FACILITY_DEFAULT}</span>
+      <div class="facility-panel-titlewrap">
+        <div class="facility-panel-title">${label ?? ''}</div>
+        <div class="facility-panel-desc">${description ?? ''}</div>
+      </div>
+    `;
+    exitBtn = document.createElement('button');
+    exitBtn.className = 'facility-panel-exit';
+    header.appendChild(exitBtn);
+    panel.appendChild(header);
+
+    body = document.createElement('div');
+    panel.appendChild(body);
+  }
+
+  function _setExit(exitLabel, onExit) {
+    exitBtn.innerHTML = `${_ICON_FACILITY_EXIT}<span>${exitLabel}</span>`;
+    exitBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (exitLabel === '出る') {
+        panel.remove();
+        panel = null;
+        const exitEl = addEntry('log-entry story-log center');
+        tw = typewriter(exitEl, `${label ?? ''}を出た。`, {
+          speed: 55,
+          onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
+        });
+      }
+      onExit();
+    };
+  }
+
+  // 行動選択肢が「買い物」1つだけの施設は、メニューを経由せず入店時に直接商品リストを開く
+  const _soloShop = options.length === 1 && options[0].type === 'shop' ? options[0] : null;
+
   function renderMenu() {
-    const wrap = addEntry('story-choice-wrap');
+    _ensurePanel();
+    body.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'facility-grid';
+    body.appendChild(grid);
+    _setExit('出る', () => { cleanup(); onLeave?.(); });
     for (const opt of options) {
-      const btn = document.createElement('button');
-      btn.className = 'story-choice-btn';
-      btn.textContent = opt.label;
+      if (opt.locked) {
+        const btn = _makeCard('？？？', _ICON_FACILITY_LOCK);
+        btn.disabled = true;
+        grid.appendChild(btn);
+        continue;
+      }
+      const btn = _makeCard(opt.label, opt.icon);
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        wrap.querySelectorAll('button').forEach(b => b.disabled = true);
         if (opt.type === 'shop') {
           renderShop(opt.shopId);
         } else if (opt.type === 'action') {
@@ -574,60 +660,72 @@ function runFacilityMenu(mainPanel, {
           onSelectOption?.(opt);
         }
       });
-      wrap.appendChild(btn);
+      grid.appendChild(btn);
     }
-    const leaveBtn = document.createElement('button');
-    leaveBtn.className = 'story-choice-btn';
-    leaveBtn.textContent = '出る';
-    leaveBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      wrap.querySelectorAll('button').forEach(b => b.disabled = true);
-      cleanup();
-      onLeave?.();
-    });
-    wrap.appendChild(leaveBtn);
     mainPanel.scrollTop = mainPanel.scrollHeight;
   }
 
-  function renderShop(shopId) {
-    const items = getShopItems?.(shopId) ?? [];
-    const wrap = addEntry('story-choice-wrap');
-    if (items.length === 0) {
-      addEntry('log-entry story-log center').textContent = '今は買えそうな品がない…';
+  function renderShop(shopId, { exitLabel = '戻る', onExit = renderMenu } = {}) {
+    _ensurePanel();
+    body.innerHTML = '';
+    const balance = document.createElement('div');
+    balance.className = 'facility-shop-balance';
+    body.appendChild(balance);
+    const grid = document.createElement('div');
+    grid.className = 'facility-list';
+    body.appendChild(grid);
+    const note = document.createElement('div');
+    note.className = 'log-entry story-log center';
+    body.appendChild(note);
+    _setExit(exitLabel, onExit);
+
+    // 購入してもパネルを作り直さず、残高・商品リストだけをその場で更新する
+    function refresh(message = '') {
+      const currency = getCurrency?.();
+      balance.innerHTML = currency
+        ? `ポケットの中: <span style="color:${currency.color ?? 'var(--accent)'};font-weight:bold">${currency.label}</span> <span style="color:var(--text)">${currency.amount}</span>`
+        : '';
+      const items = getShopItems?.(shopId) ?? [];
+      grid.innerHTML = '';
+      if (items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'facility-list-empty';
+        empty.textContent = '今は買えそうな品がない…';
+        grid.appendChild(empty);
+      } else {
+        for (const item of items) {
+          const btn = _makeListRow(formatShopItem ? formatShopItem(item) : item.id, _ICON_FACILITY_CART);
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const result = onBuy?.(shopId, item.id);
+            refresh(result?.message ?? '');
+          });
+          grid.appendChild(btn);
+        }
+      }
+      note.textContent = message;
+      mainPanel.scrollTop = mainPanel.scrollHeight;
     }
-    for (const item of items) {
-      const btn = document.createElement('button');
-      btn.className = 'story-choice-btn';
-      btn.textContent = formatShopItem ? formatShopItem(item) : item.id;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        wrap.querySelectorAll('button').forEach(b => b.disabled = true);
-        const result = onBuy?.(shopId, item.id);
-        addEntry('log-entry story-log center').textContent = result?.message ?? '';
-        renderMenu();
-      });
-      wrap.appendChild(btn);
-    }
-    const backBtn = document.createElement('button');
-    backBtn.className = 'story-choice-btn';
-    backBtn.textContent = '戻る';
-    backBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+
+    refresh();
+  }
+
+  function renderEntry() {
+    if (_soloShop) {
+      renderShop(_soloShop.shopId, { exitLabel: '出る', onExit: () => { cleanup(); onLeave?.(); } });
+    } else {
       renderMenu();
-    });
-    wrap.appendChild(backBtn);
-    mainPanel.scrollTop = mainPanel.scrollHeight;
+    }
   }
 
   const promptEl = addEntry('log-entry story-log center');
   tw = typewriter(promptEl, enterText ?? `${label}に入った。`, {
     speed: 55,
     onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
-    onDone: renderMenu,
+    onDone: renderEntry,
   });
 
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runLocationChoice, runCompanionJoin, runFacilityMenu };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runLocationChoice, runCompanionJoin, runFacilityMenu };
