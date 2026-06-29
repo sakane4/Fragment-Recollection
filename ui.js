@@ -1191,7 +1191,7 @@ function initTabs() {
 }
 
 // サブパネル(記憶/地図/持ち物/同行)を横フリックで切り替える(開発タブはスワイプ対象外)
-const _SUB_PANEL_SWIPE_ORDER = ['view-stories', 'view-actions', 'view-items', 'view-chars'];
+const _SUB_PANEL_SWIPE_ORDER = ['view-stories', 'view-actions', 'view-items', 'view-chars', 'view-gallery'];
 const _SUB_PANEL_SWIPE_THRESHOLD = 50;
 
 function _attachSubPanelSwipe() {

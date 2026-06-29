@@ -1700,6 +1700,7 @@
       animation: blink 1s step-start infinite;
     }
   </style>
+  <link rel="stylesheet" href="./gallery.css">
 </head>
 <body>
 <div id="splash-screen">
@@ -1790,6 +1791,20 @@
       <div class="sub-title">行動を選択</div>
       <div id="action-list"></div>
     </div>
+    <div id="view-gallery" class="sub-view">
+      <div class="sub-title">&#36039;&#26009;</div>
+      <div class="gallery-toolbar">
+        <input id="gallery-search" class="gallery-search" type="search" placeholder="&#20316;&#21697;&#21517;&#12434;&#26908;&#32034;" aria-label="&#20316;&#21697;&#21517;&#12434;&#26908;&#32034;">
+        <div class="gallery-filter" aria-label="&#34920;&#31034;&#12377;&#12427;&#31278;&#39006;">
+          <button type="button" class="active" data-gallery-filter="all" aria-pressed="true">&#20840;&#12390;</button>
+          <button type="button" data-gallery-filter="image" aria-pressed="false">&#30011;&#20687;</button>
+          <button type="button" data-gallery-filter="video" aria-pressed="false">&#21205;&#30011;</button>
+        </div>
+      </div>
+      <div id="gallery-grid" class="gallery-grid"></div>
+      <div id="gallery-empty" class="gallery-empty">&#12414;&#12384;&#36039;&#26009;&#12364;&#12354;&#12426;&#12414;&#12379;&#12435;&#12290;<br>resource/gallery &#12395;&#30011;&#20687;&#12420;&#21205;&#30011;&#12434;&#36861;&#21152;&#12375;&#12390;&#12367;&#12384;&#12373;&#12356;&#12290;</div>
+    </div>
+
     <div id="view-dev" class="sub-view">
       <div class="sub-title">開発メニュー</div>
       <div class="dev-row">
@@ -1932,11 +1947,24 @@
   </div>
 
   <!-- フッター -->
+  <div id="gallery-overlay" aria-hidden="true">
+    <div class="gallery-viewer-header">
+      <span id="gallery-viewer-title"></span>
+      <button id="gallery-close" class="gallery-icon-btn" type="button" title="閉じる" aria-label="閉じる">✕</button>
+    </div>
+    <div id="gallery-stage"></div>
+    <div class="gallery-viewer-footer">
+      <button id="gallery-prev" class="gallery-icon-btn" type="button" title="前へ" aria-label="前へ">‹</button>
+      <span id="gallery-viewer-count"></span>
+      <button id="gallery-next" class="gallery-icon-btn" type="button" title="次へ" aria-label="次へ">›</button>
+    </div>
+  </div>
   <div id="footer">
     <button class="tab-btn" data-view="view-stories">記憶<span class="tab-badge" id="stories-tab-badge" hidden></span></button>
     <button class="tab-btn" data-view="view-actions">地図<span class="tab-badge" id="actions-tab-badge" hidden></span></button>
     <button class="tab-btn active" data-view="view-items">持ち物</button>
     <button class="tab-btn" data-view="view-chars">同行</button>
+    <button class="tab-btn" data-view="view-gallery">&#36039;&#26009;</button>
     <button class="tab-btn tab-btn--dev" data-view="view-dev">開発</button>
   </div>
 </div>
@@ -1944,7 +1972,9 @@
 <script type="module">
   import { ACTIONS, getState, subscribe, startAction, getProgress } from './game.js';
   import { init } from './ui.js';
+  import { initGallery } from './gallery.js';
   init();
+  initGallery();
 </script>
 <script>
   const sidePanelWrap = document.getElementById('main-panel-wrap');
