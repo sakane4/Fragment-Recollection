@@ -196,8 +196,42 @@ function makeActionCallbacks(actionId) {
 }
 
 // ── ログ ──
+// ページ再読込してもログが消えないよう、本文をlocalStorageに永続化する。件数はMAX_LOG_ENTRIESで頭打ち
+const LOG_HISTORY_KEY = 'fr_log_history';
+const MAX_LOG_ENTRIES = 200;
 let _logBuffer = [];
 let _logPaused = false;
+let _logHistory = [];
+
+function _saveLogHistory() {
+  try { localStorage.setItem(LOG_HISTORY_KEY, JSON.stringify(_logHistory)); } catch {}
+}
+
+function _createLogEl(text, highlight, html, rightAlign) {
+  const el = document.createElement('div');
+  el.className = 'log-entry' + (highlight ? ' highlight' : '') + (rightAlign ? ' log-entry--right' : '');
+  if (html) el.innerHTML = text;
+  else el.textContent = text;
+  return el;
+}
+
+// 起動時に1回だけ呼ぶ。保存済みのログがあれば(静的な初期表示の代わりに)それを復元表示する
+function _restoreLogHistory() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(LOG_HISTORY_KEY) || 'null'); } catch {}
+  if (saved && saved.length > 0) {
+    _logHistory = saved;
+    els.mainPanel.innerHTML = '';
+    for (const { text, highlight, html, rightAlign } of _logHistory) {
+      els.mainPanel.appendChild(_createLogEl(text, highlight, html, rightAlign));
+    }
+    els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
+  } else {
+    // 初回起動: 静的に表示済みの最初のログをそのまま履歴の1件目として積む
+    _logHistory = [{ text: '世界を再生しました', highlight: true, html: false, rightAlign: false }];
+    _saveLogHistory();
+  }
+}
 
 function addLog(text, highlight = false, html = false, rightAlign = false) {
   if (_logPaused) {
@@ -208,14 +242,18 @@ function addLog(text, highlight = false, html = false, rightAlign = false) {
 }
 
 function _appendLog(text, highlight, html, rightAlign = false) {
-  const el = document.createElement('div');
-  el.className = 'log-entry' + (highlight ? ' highlight' : '') + (rightAlign ? ' log-entry--right' : '');
-  if (html) el.innerHTML = text;
-  else el.textContent = text;
+  const el = _createLogEl(text, highlight, html, rightAlign);
   const panel = els.mainPanel;
   const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 40;
   panel.appendChild(el);
   if (atBottom) panel.scrollTop = panel.scrollHeight;
+
+  _logHistory.push({ text, highlight, html, rightAlign });
+  if (_logHistory.length > MAX_LOG_ENTRIES) {
+    _logHistory.shift();
+    if (panel.firstChild) panel.removeChild(panel.firstChild);
+  }
+  _saveLogHistory();
 }
 
 function pauseLog()  { _logPaused = true; }
@@ -818,6 +856,11 @@ function renderResources(resources) {
 function render(state) {
   document.getElementById('world-lv-value').textContent = state.worldLv ?? 0;
   renderResources(state.resources);
+
+  // worldLv進捗ポップアップが開いている間は、フラグメント獲得などに合わせてリアルタイムに更新する
+  if (document.getElementById('worldlv-popup')?.classList.contains('open')) {
+    _renderWorldLvPopup();
+  }
 
   const restBuffStacks = state.restBuffStacks ?? 0;
   if (prevRestBuffStacks !== null && restBuffStacks > prevRestBuffStacks) {
@@ -2705,6 +2748,7 @@ function initDevTools() {
 }
 
 export function init() {
+  _restoreLogHistory();
   subscribe(render);
   const initialState = getState();
   if (initialState.activeAction?.actionId) selectedActionId = initialState.activeAction.actionId;

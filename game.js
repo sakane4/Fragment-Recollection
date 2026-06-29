@@ -301,12 +301,12 @@ function getLocationLvCost(locationId, lv) {
 
 // ── 場所発見スケジュール ──
 // ログストーリー004以降、再生された世界(wherever)のLocationLvが各ステップの閾値に達すると発見イベントが起きる。
-// ステップ: 0=Lv3 序盤2択 / 1=Lv7 塔都(固定) / 2=Lv10 序盤の残り＋終盤の1/2抽選 / 3=Lv13 残り2つ / 4=Lv15 残り1つ
+// ステップ: 0=Lv3 序盤2択 / 1=Lv5 塔都(固定) / 2=Lv6 序盤の残り＋終盤の1/2抽選 / 3=Lv7 残り2つ / 4=Lv8 残り1つ
 // キャラはテーマで場所に固定: 旧校舎→シズク, レンリル→カオル, メフィスト→ユキカ, 騎士団本部→ラビ
 const DISCOVERY_EARLY = ['kyusha', 'renril'];
 const DISCOVERY_LATE = ['mephisto', 'knights'];
 const DISCOVERY_CHAR_LOCATIONS = [...DISCOVERY_EARLY, ...DISCOVERY_LATE];
-const DISCOVERY_STEP_LV = [3, 7, 10, 13, 15];
+const DISCOVERY_STEP_LV = [3, 5, 6, 7, 8];
 const DISCOVERY_LABELS = {
   kyusha:   '黄昏の旧校舎',
   renril:   '翼竜の都 レンリル',
