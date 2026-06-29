@@ -883,7 +883,7 @@ function notify() {
 
 let _timer = null;
 let _randomRewardTimers = [];
-let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null };
+let _savedCallbacks = { onRandomReward: null, onCompanionRandomReward: null, onComplete: null, onEncounter: null };
 
 // ── エンカウントシステム ──
 // 行動(探索など)を中断なく連続で続けるほど遭遇確率が上がっていく汎用機構。
@@ -955,8 +955,10 @@ function _triggerEncounter(actionId, onEncounter) {
     encounterStreak: { ...state.encounterStreak, [actionId]: 0 },
   };
   saveToStorage(state);
-  notify();
+  // onEncounterをnotify()より先に呼ぶ: ui側がここで_cancelledを立てることで、notify()がトリガーする
+  // render()内の自動再開判定(wasCancelled)に間に合わせる(逆順だと自動再開が止まらない)
   onEncounter?.({ actionId, evaded, canEvade, enemyLabel: cfg.enemyLabel, companionId: cfg.evadeCompanion });
+  notify();
 }
 
 // ランダム報酬1件を、minMs〜maxMsの間隔で繰り返しactiveAction中に付与し続けるループを仕掛ける
@@ -1036,6 +1038,38 @@ function startAction(actionId, { onRandomReward, onCompanionRandomReward, onComp
   return { ok: true };
 }
 
+// 起動直後など、保存済みactiveActionにUI側のコールバックを後から接続し直す。
+// game.jsはDOMを知らないため、モジュール初期化時点では完了ログ・ランダム報酬ログ・遭遇ログを復元できない。
+function restoreActiveActionCallbacks({ onRandomReward, onCompanionRandomReward, onComplete, onEncounter } = {}) {
+  if (!state.activeAction) return { ok: false, reason: 'no_active_action' };
+  clearTimeout(_timer);
+  clearRandomRewardTimers();
+  _clearEncounterTimer();
+  _savedCallbacks = { onRandomReward, onCompanionRandomReward, onComplete, onEncounter };
+
+  const actionId = state.activeAction.actionId;
+  const action = ACTIONS[actionId];
+  if (!action) return { ok: false, reason: 'unknown_action' };
+  const remaining = state.activeAction.endsAt - Date.now();
+  if (remaining <= 0) {
+    completeAction(actionId, _savedCallbacks.onComplete);
+    return { ok: true, completed: true };
+  }
+
+  _timer = setTimeout(() => completeAction(actionId, _savedCallbacks.onComplete), remaining);
+  scheduleRandomRewards(action, _savedCallbacks.onRandomReward);
+  scheduleCompanionRandomRewards(_savedCallbacks.onCompanionRandomReward);
+  if (state.activeAction.encounterAt != null) {
+    const encRemaining = state.activeAction.encounterAt - Date.now();
+    if (encRemaining <= 0) {
+      _triggerEncounter(actionId, _savedCallbacks.onEncounter);
+    } else {
+      _encounterTimer = setTimeout(() => _triggerEncounter(actionId, _savedCallbacks.onEncounter), encRemaining);
+    }
+  }
+  return { ok: true };
+}
+
 function cancelAction() {
   if (!state.activeAction) return { ok: false, reason: 'no_active_action' };
   clearTimeout(_timer);
@@ -1097,10 +1131,12 @@ function completeAction(actionId, onComplete) {
   const hadRestBuff = (state.restBuffStacks ?? 0) > 0;
   const multiplier = (1 + state.activeCompanions.length) * (hadRestBuff ? 2 : 1);
   const allRewards = [...resolveTable(action.rewardTable, action.locationId, action.id), ...(action.rewards ?? [])];
+  const appliedRewards = [];
   let fragmentsGained = 0;
   for (const reward of allRewards) {
     const gained = reward.amount * multiplier;
     newResources[reward.resource] = (newResources[reward.resource] ?? 0) + gained;
+    appliedRewards.push({ ...reward, amount: gained });
     if (reward.resource === 'fragment') fragmentsGained += gained;
   }
   let newRestBuffStacks = (state.restBuffStacks ?? 0) - (hadRestBuff ? 1 : 0);
@@ -1212,7 +1248,7 @@ function completeAction(actionId, onComplete) {
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
   notify();
-  const result = { discovered, allRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop };
   onComplete?.(result);
   return result;
 }
@@ -1325,15 +1361,6 @@ function init() {
     lastCompanionTaskResult: saved.lastCompanionTaskResult ?? INITIAL_STATE.lastCompanionTaskResult,
     encounterStreak: saved.encounterStreak ?? INITIAL_STATE.encounterStreak,
   };
-
-  if (state.activeAction) {
-    const remaining = state.activeAction.endsAt - Date.now();
-    if (remaining > 0) {
-      _timer = setTimeout(() => completeAction(state.activeAction.actionId), remaining);
-    } else {
-      completeAction(state.activeAction.actionId);
-    }
-  }
 
   for (const [companionId, task] of Object.entries(state.companionTasks ?? {})) {
     const remaining = task.endsAt - Date.now();
@@ -1488,4 +1515,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

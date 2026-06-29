@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
@@ -183,6 +183,15 @@ function makeCompanionRandomRewardHandler() {
   return ({ companionId, resource, amount }) => {
     const name = COMPANION_DATA[companionId]?.name ?? companionId;
     addLog(`<span class="log-companion-reward">${name}が ${resourceLog(resource, amount)}</span>`, false, true);
+  };
+}
+
+function makeActionCallbacks(actionId) {
+  return {
+    onRandomReward: makeRandomRewardHandler(),
+    onCompanionRandomReward: makeCompanionRandomRewardHandler(),
+    onComplete: (result) => _handleActionComplete(actionId, result),
+    onEncounter: (result) => _handleEncounter(actionId, result),
   };
 }
 
@@ -877,7 +886,7 @@ function render(state) {
           if (!(getState().autoRepeat || _autoRestartEnabled)) return; // クールタイム中にオートが切られた場合
           if (getState().activeAction) return; // クールタイム中に別の行動が開始された場合
           _isAutoRestart = true;
-          startAction(selectedActionId, { onRandomReward: makeRandomRewardHandler(), onCompanionRandomReward: makeCompanionRandomRewardHandler(), onComplete: (result) => _handleActionComplete(selectedActionId, result), onEncounter: (result) => _handleEncounter(selectedActionId, result) });
+          startAction(selectedActionId, makeActionCallbacks(selectedActionId));
         }, 2000);
       }
     }
@@ -1428,12 +1437,7 @@ function _startActionById(actionId) {
   }
   selectedActionId = actionId;
   els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
-  if (!_storyLogPlaying) startAction(actionId, {
-    onRandomReward: makeRandomRewardHandler(),
-    onCompanionRandomReward: makeCompanionRandomRewardHandler(),
-    onComplete: (result) => _handleActionComplete(actionId, result),
-    onEncounter: (result) => _handleEncounter(actionId, result),
-  });
+  if (!_storyLogPlaying) startAction(actionId, makeActionCallbacks(actionId));
 }
 
 // 施設に入店する。メインパネルに専用メニュー(行動を選ぶ/買い物する/出る)を表示する
@@ -1510,7 +1514,9 @@ function _handleActionComplete(actionId, result) {
 }
 
 // 行動中にエンカウントが発生し、強制中断された(forest_exploreの「亡者の群れ」など。ENCOUNTERS参照)
+// 自動再開(autoRepeat)はせず完全停止する。_cancelledを立てることで、render()内の自動再開判定を素通りさせる
 function _handleEncounter(actionId, { evaded, enemyLabel } = {}) {
+  _cancelled = true;
   const label = enemyLabel ?? '何か';
   addLog(evaded ? `【！】${label}に遭遇したが、難を逃れた` : `【！】${label}に遭遇した！探索は中断した…`, true, true);
   render(getState());
@@ -2701,6 +2707,7 @@ function initDevTools() {
 export function init() {
   subscribe(render);
   const initialState = getState();
+  if (initialState.activeAction?.actionId) selectedActionId = initialState.activeAction.actionId;
   render(initialState);
   initTabs();
   initStoryViewer();
@@ -2718,6 +2725,9 @@ export function init() {
   }
 
   initActionPicker();
+  if (initialState.activeAction?.actionId) {
+    restoreActiveActionCallbacks(makeActionCallbacks(initialState.activeAction.actionId));
+  }
 
   els.actionBtn.addEventListener('click', () => {
     if (_storyLogPlaying) { els.mainPanel.click(); return; }
