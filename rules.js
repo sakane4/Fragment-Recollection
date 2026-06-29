@@ -109,6 +109,7 @@ export function evaluateRules(state, ctx) {
     if (rule.condition(state)) {
       if (!rule.repeatable) _fired.add(rule.id);
       rule.action(ctx);
+      if (ctx.isStoryLogPlaying?.()) break;
     }
   }
 }

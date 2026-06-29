@@ -1019,6 +1019,7 @@ function render(state) {
   evaluateRules(state, {
     viewerOpen: _viewerStoryId !== null,
     storyLogPlaying: _storyLogPlaying,
+    isStoryLogPlaying: () => _storyLogPlaying,
     startLogSt_1,
     startLogSt_2: () => startLogSt_2(state),
     startLogSt_3,
@@ -1630,18 +1631,17 @@ function _handleEncounter(actionId, { evaded, enemyLabel } = {}) {
 
 // レアドロップ後の同行者加入イベントを再生し、完了後にunlockCompanionする
 function startCompanionJoin(companionId) {
-  _storyLogPlaying = true;
-  let cleanup = null;
-  cleanup = runCompanionJoin(companionId, els.mainPanel, {
-    initialName: getState().playerName,
-    onComplete: () => {
-      _storyLogPlaying = false;
-      if (cleanup) { cleanup(); cleanup = null; }
-      unlockCompanion(companionId);
-      const compName = COMPANION_DATA[companionId]?.name ?? companionId;
-      addLog(`【同行】${compName} が仲間になった`, true);
-      render(getState());
-    },
+  enqueueLogStory(`companion_join:${companionId}`, (finish) => {
+    let cleanup = null;
+    cleanup = runCompanionJoin(companionId, els.mainPanel, {
+      initialName: getState().playerName,
+      onComplete: () => {
+        unlockCompanion(companionId);
+        const compName = COMPANION_DATA[companionId]?.name ?? companionId;
+        addLog(`【同行】${compName} が仲間になった`, true);
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
   });
 }
 
@@ -1883,6 +1883,39 @@ let _logStCleanup = null;
 let _logStPending = false;
 let _storyLogPlaying = false; // ストーリーログ再生中フラグ
 let _waitingForPrologue = false;
+const _logStoryQueue = [];
+const _queuedLogStoryIds = new Set();
+let _activeLogStoryId = null;
+
+function enqueueLogStory(id, start) {
+  if (_activeLogStoryId === id || _queuedLogStoryIds.has(id)) return;
+  _queuedLogStoryIds.add(id);
+  _logStoryQueue.push({ id, start });
+  drainLogStoryQueue();
+}
+
+function drainLogStoryQueue() {
+  if (_storyLogPlaying || _activeLogStoryId || _logStoryQueue.length === 0) return;
+  const next = _logStoryQueue.shift();
+  _queuedLogStoryIds.delete(next.id);
+  _activeLogStoryId = next.id;
+  _pauseForStory();
+  _storyLogPlaying = true;
+
+  next.start((cleanup, extraFn) => {
+    if (cleanup) cleanup();
+    if (extraFn) extraFn();
+    _activeLogStoryId = null;
+    _storyLogPlaying = false;
+
+    if (_logStoryQueue.length > 0) {
+      drainLogStoryQueue();
+      render(getState());
+      return;
+    }
+    _onLogStComplete();
+  });
+}
 
 function launchTutorial() {
   resetTutorial();
@@ -1915,6 +1948,8 @@ function _onLogStComplete(cleanup, extraFn) {
   if (cleanup) cleanup();
   if (extraFn) extraFn();
   render(getState());
+  drainLogStoryQueue();
+  if (_storyLogPlaying) return;
   // ポーズ中に止めていたフレーバーテキストを再開
   const resumedState = getState();
   if (resumedState.activeAction && !stopFlavor) {
@@ -1928,85 +1963,85 @@ function _onLogStComplete(cleanup, extraFn) {
 }
 
 function startLogSt_2(state) {
-  _pauseForStory();
-  setLogSt2Done();
-  _storyLogPlaying = true;
-  let cleanup = null;
-  cleanup = runLogSt_2(els.mainPanel, {
-    onComplete: () => {
-      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } },
-        () => addLog('フラグメントをもっと集めてみよう...', false));
-    },
+  if (state.logSt2Done) return;
+  enqueueLogStory('log_st_2', (finish) => {
+    setLogSt2Done();
+    let cleanup = null;
+    cleanup = runLogSt_2(els.mainPanel, {
+      onComplete: () => {
+        finish(
+          () => { if (cleanup) { cleanup(); cleanup = null; } },
+          () => addLog('フラグメントをもっと集めてみよう...', false),
+        );
+      },
+    });
   });
 }
 
 function startLogSt_1() {
   const state = getState();
   if (state.logSt1Done) return;
-  _pauseForStory();
-  _waitingForPrologue = false;
-  setLogSt1Done();
-  _storyLogPlaying = true;
-
-  if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
-  _logStCleanup = runLogSt_1(els.mainPanel, {
-    onNameDecided: (name) => {
-      setPlayerName(name);
-      renderCharTab(getState());
-    },
-    onComplete: () => {
-      unlockCompanion('yuya');
-      addLog('【同行】ユウヤが仲間になった', true);
-      _onLogStComplete(() => { if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; } });
-    },
+  enqueueLogStory('log_st_1', (finish) => {
+    _waitingForPrologue = false;
+    setLogSt1Done();
+    if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
+    _logStCleanup = runLogSt_1(els.mainPanel, {
+      onNameDecided: (name) => {
+        setPlayerName(name);
+        renderCharTab(getState());
+      },
+      onComplete: () => {
+        unlockCompanion('yuya');
+        addLog('【同行】ユウヤが仲間になった', true);
+        finish(() => { if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; } });
+      },
+    });
   });
 }
 
 function startLogSt_3() {
   const state = getState();
   if (state.logSt3Done) return;
-  _pauseForStory();
-  setLogSt3Done();
-  _storyLogPlaying = true;
-  let cleanup = null;
-  cleanup = runLogSt_3(els.mainPanel, {
-    onComplete: () => {
-      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
-    },
+  enqueueLogStory('log_st_3', (finish) => {
+    setLogSt3Done();
+    let cleanup = null;
+    cleanup = runLogSt_3(els.mainPanel, {
+      onComplete: () => finish(() => { if (cleanup) { cleanup(); cleanup = null; } }),
+    });
   });
 }
 
 function startLogSt_4() {
   const state = getState();
   if (state.logSt4Done) return;
-  _pauseForStory();
-  setLogSt4Done();
-  _storyLogPlaying = true;
-  let cleanup = null;
-  cleanup = runLogSt_4(els.mainPanel, {
-    onComplete: () => {
-      _onLogStComplete(
-        () => { if (cleanup) { cleanup(); cleanup = null; } },
-        () => {
-          addResources('guide_earring', 1);
-          addLog(`【！】${resourceSpan('guide_earring', resLabel('guide_earring'))} を手に入れた`, true, true);
-        }
-      );
-    },
+  enqueueLogStory('log_st_4', (finish) => {
+    setLogSt4Done();
+    let cleanup = null;
+    cleanup = runLogSt_4(els.mainPanel, {
+      onComplete: () => {
+        finish(
+          () => { if (cleanup) { cleanup(); cleanup = null; } },
+          () => {
+            addResources('guide_earring', 1);
+            addLog(`【！】${resourceSpan('guide_earring', resLabel('guide_earring'))} を手に入れた`, true, true);
+          },
+        );
+      },
+    });
   });
 }
 
 function startWorldChronicleIntro() {
   if (getState().worldChronicleUnlocked) return;
-  _pauseForStory();
-  _storyLogPlaying = true;
-  let cleanup = null;
-  cleanup = runWorldChronicleIntro(els.mainPanel, {
-    onComplete: () => {
-      unlockWorldChronicle();
-      addLog('【図書館】世界誌の復元が可能になった', true);
-      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
-    },
+  enqueueLogStory('world_chronicle_intro', (finish) => {
+    let cleanup = null;
+    cleanup = runWorldChronicleIntro(els.mainPanel, {
+      onComplete: () => {
+        unlockWorldChronicle();
+        addLog('【図書館】世界誌の復元が可能になった', true);
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
   });
 }
 
