@@ -685,19 +685,11 @@
       line-height: 1.7;
     }
     .chronicle-entry.restored .chronicle-entry-body { color: var(--text); }
-    .chronicle-restore-btn {
+    .chronicle-entry-progress {
       margin-top: 0.6rem;
-      padding: 0.4rem 0.65rem;
-      border: 1px solid var(--accent-border);
-      border-radius: 4px;
-      background: transparent;
       color: var(--accent);
-      font: inherit;
       font-size: 0.75rem;
-      cursor: pointer;
     }
-    .chronicle-restore-btn:hover { background: var(--accent-dim); }
-    .chronicle-restore-btn:disabled { opacity: 0.4; cursor: default; }
 
     #story-viewer {
       position: relative;
@@ -1965,7 +1957,7 @@
       <div class="world-chronicle-header">
         <div>
           <div class="world-chronicle-title">世界誌</div>
-          <div class="world-chronicle-meta">古い文献 <span id="world-chronicle-old-text">0</span></div>
+          <div class="world-chronicle-meta">各地の調査記録を集め、失われた頁を復元する</div>
         </div>
         <button id="world-chronicle-close" type="button" title="閉じる" aria-label="閉じる">✕</button>
       </div>

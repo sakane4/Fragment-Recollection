@@ -1,5 +1,6 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
 import { STORIES, getCostForParagraph } from './stories.js';
+import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
@@ -41,6 +42,22 @@ const REWARD_TABLES = {
   touto_coin_random: () => [
     { resource: 'magcoin', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 14000, chance: 0.12 },
   ],
+  chronicle_record_random: (state, _locationLv, _actionLv, locationId) => {
+    const entry = WORLD_CHRONICLE_ENTRIES[locationId];
+    const record = entry && { resource: entry.recordResource, required: entry.required };
+    if (!state.worldChronicleUnlocked || !record) return [];
+    if (state.restoredWorldChronicleEntries.includes(locationId)) return [];
+    if ((state.resources[record.resource] ?? 0) >= record.required) return [];
+    return [{
+      resource: record.resource,
+      minAmount: 1,
+      maxAmount: 1,
+      maxOwned: record.required,
+      minMs: 14000,
+      maxMs: 14000,
+      chance: 0.15,
+    }];
+  },
   // 塔都 — 図書館（調査）
   library_random: (_state, _locationLv, actionLv) => [
     { resource: 'old_text', minAmount: 1, maxAmount: 1 + Math.floor(actionLv / 2), minMs: 6000, maxMs: 14000 },
@@ -59,7 +76,7 @@ function resolveTable(tableNameOrArray, locationId, actionId) {
   const actionLv = state.ActionLv?.[actionId] ?? 0;
   return names.flatMap(name => {
     const fn = REWARD_TABLES[name];
-    return fn ? fn(state, locationLv, actionLv) : [];
+    return fn ? fn(state, locationLv, actionLv, locationId, actionId) : [];
   });
 }
 
@@ -76,7 +93,7 @@ const LOCATION_DEFS = [
         description: '再生された世界を探索する。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: 'fragment_random',
+        rewardTableRandom: ['fragment_random', 'chronicle_record_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
@@ -94,7 +111,7 @@ const LOCATION_DEFS = [
         description: 'はじまりの森を探索する。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: ['forest_common_random', 'forest_explore_random'],
+        rewardTableRandom: ['forest_common_random', 'forest_explore_random', 'chronicle_record_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
@@ -135,6 +152,7 @@ const LOCATION_DEFS = [
         description: '旧校舎の中を歩き回る。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'chronicle_record_random',
         randomRewards: [
           { resource: 'old_paint', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
           { resource: 'torn_page', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
@@ -157,6 +175,7 @@ const LOCATION_DEFS = [
         description: 'レンリルの街を歩く。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'chronicle_record_random',
         randomRewards: [
           { resource: 'wyvern_claw', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
           { resource: 'wyvern_scale', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
@@ -178,6 +197,7 @@ const LOCATION_DEFS = [
         description: 'メフィストの路地を歩く。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'chronicle_record_random',
         randomRewards: [
           { resource: 'spellbook_page', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
           { resource: 'magic_circle_shard', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
@@ -200,6 +220,7 @@ const LOCATION_DEFS = [
         description: '騎士団本部のまわりを調べる。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'chronicle_record_random',
         randomRewards: [
           { resource: 'subjugation_report', minAmount: 1, maxAmount: 2, minMs: 6000, maxMs: 16000 },
           { resource: 'old_armband', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 18000 },
@@ -225,7 +246,7 @@ const LOCATION_DEFS = [
         description: '塔都の街を歩き回る。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: ['fragment_random', 'touto_coin_random'],
+        rewardTableRandom: ['fragment_random', 'touto_coin_random', 'chronicle_record_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
@@ -689,6 +710,13 @@ const INITIAL_STATE = {
     axe: 0,
     magcoin: 0,
     old_text: 0,
+    survey_wherever: 0,
+    survey_forest: 0,
+    survey_kyusha: 0,
+    survey_renril: 0,
+    survey_mephisto: 0,
+    survey_knights: 0,
+    survey_touto: 0,
     dream_fragment: 0,
   },
   activeAction: null,
@@ -975,9 +1003,12 @@ function _scheduleRandomRewardLoop(reward, onReward, applyExtra) {
     const t = setTimeout(() => {
       if (!state.activeAction) return;
       if (Math.random() < (reward.chance ?? 1)) {
-        const amount = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
+        const rolled = Math.floor(Math.random() * (reward.maxAmount - reward.minAmount + 1)) + reward.minAmount;
+        const owned = state.resources[reward.resource] ?? 0;
+        const amount = reward.maxOwned == null ? rolled : Math.min(rolled, Math.max(0, reward.maxOwned - owned));
+        if (amount <= 0) return;
         const newResources = { ...state.resources };
-        newResources[reward.resource] = (newResources[reward.resource] ?? 0) + amount;
+        newResources[reward.resource] = owned + amount;
         _markDiscovered(reward.resource);
         state = { ...state, resources: newResources };
         applyExtra?.(amount);
@@ -1401,23 +1432,6 @@ function unlockWorldChronicle() {
   notify();
 }
 
-function restoreWorldChronicleEntry(locationId) {
-  if (!state.worldChronicleUnlocked) return { ok: false, reason: 'locked' };
-  if (!LOCATIONS[locationId]) return { ok: false, reason: 'unknown_entry' };
-  if (!state.unlockedLocations.includes(locationId)) return { ok: false, reason: 'undiscovered' };
-  if (state.restoredWorldChronicleEntries.includes(locationId)) return { ok: false, reason: 'already_restored' };
-  if ((state.resources.old_text ?? 0) < 1) return { ok: false, reason: 'old_text' };
-
-  state = {
-    ...state,
-    resources: { ...state.resources, old_text: state.resources.old_text - 1 },
-    restoredWorldChronicleEntries: [...state.restoredWorldChronicleEntries, locationId],
-  };
-  saveToStorage(state);
-  notify();
-  return { ok: true };
-}
-
 function setLogSt3Done() {
   state = { ...state, logSt3Done: true };
   saveToStorage(state);
@@ -1544,4 +1558,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, restoreWorldChronicleEntry, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

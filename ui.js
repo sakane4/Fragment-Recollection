@@ -1,6 +1,7 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, restoreWorldChronicleEntry, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
@@ -99,6 +100,13 @@ const RESOURCES = {
   // 塔都
   magcoin:         { label: 'マグコイン', color: '#e6c200', unit: '枚' },
   old_text:        { label: '古文書',   color: '#bba16a', unit: '冊' },
+  survey_wherever: { label: '再生された世界の調査記録', color: '#9eb7c4', unit: '部' },
+  survey_forest:   { label: 'はじまりの森の調査記録', color: '#8fb59a', unit: '部' },
+  survey_kyusha:   { label: '黄昏の旧校舎の調査記録', color: '#c2a68d', unit: '部' },
+  survey_renril:   { label: '翼竜の都の調査記録', color: '#8fb5c8', unit: '部' },
+  survey_mephisto: { label: '魔界王都の調査記録', color: '#ad91c4', unit: '部' },
+  survey_knights:  { label: '王立騎士団本部の調査記録', color: '#aeb4bd', unit: '部' },
+  survey_touto:    { label: '塔都の調査記録', color: '#c4b68f', unit: '部' },
   dream_fragment:  { label: '夢の欠片', color: '#b8a6e8', unit: '片' },
   pressed_flower_red:  { label: '赤い押し花', color: '#e06a8c' },
   pressed_flower_blue: { label: '青い押し花', color: '#6a9ee0' },
@@ -176,6 +184,13 @@ function actionDisplayLabel(action, sep = ' / ') {
 function makeRandomRewardHandler() {
   return ({ resource, amount }) => {
     addLog(`<span class="log-companion-reward">${resourceLog(resource, amount)}</span>`, false, true);
+    const recordEntry = Object.entries(WORLD_CHRONICLE_ENTRIES)
+      .find(([, entry]) => entry.recordResource === resource);
+    if (!recordEntry) return;
+    const [locationId, entry] = recordEntry;
+    if ((getState().resources[resource] ?? 0) === entry.required) {
+      addLog(`【世界誌】${LOCATIONS[locationId]?.label ?? locationId}の記録が復元された`, true);
+    }
   };
 }
 
@@ -1553,7 +1568,10 @@ function openWorldChronicle() {
 
   for (const location of Object.values(LOCATIONS)) {
     const discovered = state.unlockedLocations.includes(location.id);
-    const restored = state.restoredWorldChronicleEntries.includes(location.id);
+    const entry = WORLD_CHRONICLE_ENTRIES[location.id];
+    const recordCount = entry ? Math.min(state.resources[entry.recordResource] ?? 0, entry.required) : 0;
+    const restored = state.restoredWorldChronicleEntries.includes(location.id) ||
+      (entry && recordCount >= entry.required);
     const item = document.createElement('div');
     item.className = `chronicle-entry${restored ? ' restored' : ''}`;
 
@@ -1565,26 +1583,21 @@ function openWorldChronicle() {
     const body = document.createElement('div');
     body.className = 'chronicle-entry-body';
     body.textContent = restored
-      ? location.description
+      ? (entry?.body ?? location.description)
       : discovered
         ? '文字は擦り切れ、ほとんど読むことができない。'
         : '頁全体が曖昧にぼやけている。';
     item.appendChild(body);
 
-    if (discovered && !restored) {
-      const btn = document.createElement('button');
-      btn.className = 'chronicle-restore-btn';
-      btn.textContent = '古い文献 1 で復元';
-      btn.disabled = (state.resources.old_text ?? 0) < 1;
-      btn.addEventListener('click', () => {
-        if (restoreWorldChronicleEntry(location.id).ok) openWorldChronicle();
-      });
-      item.appendChild(btn);
+    if (discovered && !restored && entry) {
+      const progress = document.createElement('div');
+      progress.className = 'chronicle-entry-progress';
+      progress.textContent = `調査記録 ${recordCount}/${entry.required}`;
+      item.appendChild(progress);
     }
     list.appendChild(item);
   }
 
-  document.getElementById('world-chronicle-old-text').textContent = state.resources.old_text ?? 0;
   overlay.classList.add('open');
 }
 
