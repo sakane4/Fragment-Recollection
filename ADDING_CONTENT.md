@@ -350,6 +350,28 @@ turnInLabel: '報告する',
 
 素材納品の `requirements` と探索型の `objective` は、標準的な依頼ではどちらか一方を使います。
 
+#### 特定の行動を決まった回数行う依頼
+
+```js
+objective: {
+  type: 'action_count',
+  actionId: 'touto_flower_help',
+  target: 10,
+  unitLabel: '回',
+},
+```
+
+指定した行動の完了回数が `target` に達すると「完了」になります。
+依頼UIには `回 3/10` のように進捗が表示されます。
+
+施設やイベントの解放と同時に自動受注させる場合は、次も追加します。
+
+```js
+autoStart: { stateFlag: 'flowerHelpUnlocked' },
+```
+
+この形式では `reveal` と `unlock` は不要です。
+
 ### 5. 報酬と報告方法を書く
 
 ```js

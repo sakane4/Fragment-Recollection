@@ -74,10 +74,40 @@ const ACTION_QUEST = {
   turnIn: 'quest_ui',
 };
 
+// ──────────────────────────────────────────
+// C. 行動回数型
+// ──────────────────────────────────────────
+
+const ACTION_COUNT_QUEST = {
+  id: 'sample_action_count',
+  title: '花屋のお手伝い',
+  requester: '花屋の店員',
+  description: '花屋の仕事を繰り返し手伝おう。',
+  requestComment: '「お時間のある時に、お店を手伝ってもらえると嬉しいです」',
+  completeComment: '「いつもありがとうございます。本当に助かりました」',
+  goalLabel: '花屋を10回手伝う',
+
+  // 指定フラグがtrueになると自動受注する。
+  autoStart: { stateFlag: 'flowerHelpUnlocked' },
+
+  objective: {
+    type: 'action_count',
+    actionId: 'touto_flower_help',
+    target: 10,
+    unitLabel: '回',
+  },
+
+  rewards: [
+    { resource: 'magcoin', amount: 30 },
+  ],
+  turnIn: 'quest_ui',
+  turnInLabel: '報告する',
+};
+
 // エディタで未使用警告を出しにくくするためのまとめ。
 // ゲーム側へは、このexport行をコピーしません。
 export {
   DELIVERY_QUEST,
   ACTION_QUEST,
+  ACTION_COUNT_QUEST,
 };
-

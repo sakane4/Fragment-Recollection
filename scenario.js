@@ -549,7 +549,8 @@ function runLocationChoice(mainPanel, { prompt = '新しい場所が見つかり
 
 // ── 施設メニュー ──
 // メインパネルに入店演出＋メニュー(行動を選ぶ/買い物する/出る)を表示する。
-// options: [{ id, label, type: 'action'|'shop'|'submenu', actionId?, shopId?, options? }]（「出る」は自動で追加）
+// options: [{ id, label, type: 'action'|'shop'|'submenu'|'talk', actionId?, shopId?, options?, dialogue? }]
+// （「出る」は自動で追加）
 // 戻り値: cleanup()（リスナー解除）
 function runFacilityMenu(mainPanel, {
   label,
@@ -723,6 +724,8 @@ function runFacilityMenu(mainPanel, {
           renderShop(opt.shopId);
         } else if (opt.type === 'submenu') {
           renderSubmenu(opt);
+        } else if (opt.type === 'talk') {
+          renderTalk(opt);
         } else if (opt.type === 'action') {
           // 入店ログは履歴として残し、操作パネルは中央線へ畳んで以後操作できない区切りにする。
           collapsePanelToDivider();
@@ -736,6 +739,24 @@ function runFacilityMenu(mainPanel, {
       grid.appendChild(btn);
     }
     mainPanel.scrollTop = mainPanel.scrollHeight;
+  }
+
+  // 施設内の人物との短い会話。パネルを閉じず、「戻る」で元の施設メニューへ戻れる。
+  function renderTalk(option) {
+    _ensurePanel();
+    if (tw && !tw.done) tw.skip();
+    body.innerHTML = '';
+    const speaker = document.createElement('div');
+    speaker.className = 'facility-talk-speaker';
+    speaker.textContent = option.speaker ?? '';
+    const dialogue = document.createElement('div');
+    dialogue.className = 'facility-talk-dialogue';
+    body.append(speaker, dialogue);
+    _setExit('戻る', renderMenu);
+    tw = typewriter(dialogue, option.dialogue ?? '「……」', {
+      speed: 38,
+      onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
+    });
   }
 
   // 「復元」など、施設内の選択肢をさらに分類する二段目のカードメニュー

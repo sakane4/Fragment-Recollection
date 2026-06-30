@@ -7,7 +7,7 @@ import { createLogManager, startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
-import { QUEST_STATUS, getQuestDefinition, getQuestProgress, getVisibleQuests } from './quests.js';
+import { QUEST_STATUS, getQuestDefinition, getQuestProgress, getQuestStatus, getVisibleQuests } from './quests.js';
 import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel, resColor, resCategory, resUnit, resourceSpan, resourceLog, maskedResLabel, formatCostLabel } from './resource.js';
 import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
 
@@ -789,6 +789,9 @@ function render(state) {
     [...(quest.reveal?.requirements ?? []), ...(quest.unlock?.requirements ?? []), ...(quest.requirements ?? [])]
       .concat(quest.objective?.requirements ?? [])
       .map(item => [item.resource, state.resources?.[item.resource] ?? 0]),
+    quest.objective?.actionId
+      ? [quest.objective.actionId, state.actionCount?.[quest.objective.actionId] ?? 0]
+      : null,
   ]));
   if (questSig !== _prevQuestSig) {
     renderQuestList(state);
@@ -1003,8 +1006,26 @@ function renderEffectList(state) {
 }
 
 const _typedQuestComments = new Set();
-const _collapsedQuestCards = new Set();
+const _collapsedQuestCards = new Set(JSON.parse(localStorage.getItem('questCollapsed') ?? '[]'));
+const _justReportedQuests = new Set();
 let _questFilter = 'all';
+
+function _saveCollapsedQuestCards() {
+  localStorage.setItem('questCollapsed', JSON.stringify([..._collapsedQuestCards]));
+}
+
+// 依頼パネルが開かれたとき、納品済み保留セットをクリアして再描画する
+{
+  const _questPanel = document.getElementById('quest-panel');
+  if (_questPanel) {
+    new MutationObserver(() => {
+      if (_questPanel.classList.contains('open') && _justReportedQuests.size > 0) {
+        _justReportedQuests.clear();
+        renderQuestList(getState());
+      }
+    }).observe(_questPanel, { attributeFilter: ['class'] });
+  }
+}
 
 function _setQuestComment(element, text, key) {
   if (_typedQuestComments.has(key)) {
@@ -1067,10 +1088,11 @@ function renderQuestList(state) {
 
   const filtered = visible.filter(({ status }) => {
     if (_questFilter === 'rumor') return status === QUEST_STATUS.AVAILABLE;
-    if (_questFilter === 'active') return status === QUEST_STATUS.ACTIVE;
-    if (_questFilter === 'done') {
-      return status === QUEST_STATUS.COMPLETED || status === QUEST_STATUS.REPORTED;
+    if (_questFilter === 'active') {
+      return status === QUEST_STATUS.ACTIVE || status === QUEST_STATUS.COMPLETED ||
+        (status === QUEST_STATUS.REPORTED && _justReportedQuests.has(quest.id));
     }
+    if (_questFilter === 'done') return status === QUEST_STATUS.REPORTED;
     return true;
   });
   const ordered = [
@@ -1156,6 +1178,7 @@ function renderQuestList(state) {
     toggleDetails.addEventListener('click', () => {
       if (_collapsedQuestCards.has(quest.id)) _collapsedQuestCards.delete(quest.id);
       else _collapsedQuestCards.add(quest.id);
+      _saveCollapsedQuestCards();
       syncCollapsed();
     });
     header.append(dialogIcon, heading, toggleDetails);
@@ -1204,7 +1227,7 @@ function renderQuestList(state) {
       actionProgress.textContent = '';
     } else if ((quest.requirements ?? []).length > 0) {
       actionProgress.appendChild(_buildQuestResourceList(quest.requirements, state.resources));
-    } else if (quest.objective?.type === 'resource_set') {
+    } else if (quest.objective?.type === 'resource_set' || quest.objective?.type === 'action_count') {
       const progress = getQuestProgress(state, quest.id);
       actionProgress.textContent = `${progress?.unitLabel ?? ''} ${progress?.current ?? 0}/${progress?.target ?? 0}`.trim();
     } else {
@@ -1230,6 +1253,7 @@ function renderQuestList(state) {
         if (!result.ok) return;
         const rewards = result.rewards.map(item => `${resLabel(item.resource)} +${item.amount}`).join('、');
         addLog(`【依頼】「${quest.title}」を達成した${rewards ? ` — ${rewards}` : ''}`, true);
+        _justReportedQuests.add(quest.id);
       });
       actionSlot.appendChild(turnIn);
     }
@@ -1673,7 +1697,12 @@ function _formatShopItemLabel(item) {
 // 施設メニューの選択肢が「？？？」表示のロック中かどうか(イベント経由で解放される選択肢のみ対象)
 function _isFacilityOptionLocked(facilityId, optionId, state) {
   if (facilityId === 'touto_flower' && optionId === 'help') return !state.flowerHelpUnlocked;
+  if (facilityId === 'touto_flower' && optionId === 'talk') return getQuestStatus(state, 'flower_shop_help') !== QUEST_STATUS.REPORTED;
   return false;
+}
+
+function _flowerClerkDialogue(_state) {
+  return '「あなたが来てくれると、お店が少し明るくなる気がするんです」';
 }
 
 function _enterFacility(facility) {
@@ -1687,6 +1716,13 @@ function _enterFacility(facility) {
     icon: actionIconSvg(o.label),
     locked: _isFacilityOptionLocked(facility.id, o.id, state),
   }));
+  if (facility.id === 'touto_flower') {
+    const talk = options.find(option => option.id === 'talk');
+    if (talk) {
+      talk.speaker = '花屋の店員';
+      talk.dialogue = _flowerClerkDialogue(state);
+    }
+  }
   if (facility.id === 'touto_library') {
     options.push({
       id: 'restore_books',
@@ -1802,8 +1838,9 @@ function openWorldChronicle() {
   list.innerHTML = '';
 
   for (const location of Object.values(LOCATIONS)) {
-    const discovered = state.unlockedLocations.includes(location.id);
     const entry = WORLD_CHRONICLE_ENTRIES[location.id];
+    if (!entry) continue;
+    const discovered = state.unlockedLocations.includes(location.id);
     const recordCount = entry ? Math.min(state.resources[entry.recordResource] ?? 0, entry.required) : 0;
     const restored = state.restoredWorldChronicleEntries.includes(location.id) ||
       (entry && recordCount >= entry.required);
@@ -1965,6 +2002,7 @@ const _ICON_FLOWER   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="no
 const _ICON_BOOK     = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`;
 const _ICON_GEM      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/><path d="M9 3l3 6-3 12"/><path d="M15 3l-3 6 3 12"/></svg>`;
 const _ICON_DEFAULT  = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>`;
+const _ICON_TALK     = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>`;
 
 const _ICON_AXE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l7 7-3 3-7-7z"/><path d="M11 6L4 13l3 3 7-7"/><line x1="6" y1="15" x2="3" y2="21"/></svg>`;
 
@@ -1985,6 +2023,7 @@ const ACTION_ICONS = {
   'かんたん！料理': _ICON_BOOK,
   '休む':          _ICON_BED,
   '手伝う':        _ICON_FLOWER,
+  '店員と話す':    _ICON_TALK,
 };
 
 function actionIconSvg(label) {

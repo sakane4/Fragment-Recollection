@@ -10,19 +10,9 @@ export const WORLD_CHRONICLE_ENTRIES = {
     recordResource: 'survey_forest',
     required: 3,
   },
-  kyusha: {
-    body: '誰もいない、夕暮れの校舎。懐かしくも知らない記憶の匂いがする。',
-    recordResource: 'survey_kyusha',
-    required: 3,
-  },
   renril: {
     body: '人と翼竜がともに暮らす空の街。',
     recordResource: 'survey_renril',
-    required: 3,
-  },
-  mephisto: {
-    body: '紫煙ただよう魔の都。魔術と禁書のにおい。',
-    recordResource: 'survey_mephisto',
     required: 3,
   },
   knights: {

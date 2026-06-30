@@ -467,8 +467,9 @@ const FACILITIES = {
     description: '花や雑貨を扱う店。',
     enterText: '花屋 竜の鱗に入った。',
     options: [
-      { id: 'help', label: '手伝う', type: 'action', actionId: 'touto_flower_help' },
       { id: 'shop', label: '買い物', type: 'shop', shopId: 'flower' },
+      { id: 'talk', label: '店員と話す', type: 'talk' },
+      { id: 'help', label: '手伝う', type: 'action', actionId: 'touto_flower_help' },
     ],
   },
   touto_library: {

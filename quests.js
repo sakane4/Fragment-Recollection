@@ -68,6 +68,26 @@ export const QUESTS = [
     turnIn: 'quest_ui',
     turnInLabel: '報告する',
   },
+  {
+    id: 'flower_shop_help',
+    title: '花屋のお手伝い',
+    requester: '花屋の店員',
+    description: '花屋の仕事を手伝い、店員との信頼を深めよう。',
+    requestComment: '「お時間のある時だけで構いませんから、お店を手伝ってもらえると嬉しいです」',
+    completeComment: '「いつもありがとうございます。あなたが来てくれる日、少し楽しみにしていたんです」',
+    goalLabel: '花屋を10回手伝う',
+    autoStart: { stateFlag: 'flowerHelpUnlocked' },
+    objective: {
+      type: 'action_count',
+      actionId: 'touto_flower_help',
+      target: 10,
+      unitLabel: '回',
+    },
+    // この依頼のreported状態は、将来の花屋店員個人ストーリーの発生条件として使う。
+    rewards: [{ resource: 'magcoin', amount: 30 }],
+    turnIn: 'quest_ui',
+    turnInLabel: '報告する',
+  },
 ];
 
 export function getQuestDefinition(questId) {
@@ -99,6 +119,10 @@ export function getQuestStatus(state, questId) {
     );
     return ready ? QUEST_STATUS.COMPLETED : status;
   }
+  if (quest.objective?.type === 'action_count') {
+    const count = state.actionCount?.[quest.objective.actionId] ?? 0;
+    return count >= quest.objective.target ? QUEST_STATUS.COMPLETED : status;
+  }
   if (quest.objective) return status;
   const ready = (quest.requirements ?? []).every(requirement =>
     (state.resources?.[requirement.resource] ?? 0) >= requirement.amount
@@ -116,6 +140,13 @@ export function getQuestProgress(state, questId) {
         (state.resources?.[requirement.resource] ?? 0) >= requirement.amount
       ).length,
       target: requirements.length,
+      unitLabel: quest.objective.unitLabel ?? '',
+    };
+  }
+  if (quest.objective?.type === 'action_count') {
+    return {
+      current: Math.min(state.actionCount?.[quest.objective.actionId] ?? 0, quest.objective.target),
+      target: quest.objective.target,
       unitLabel: quest.objective.unitLabel ?? '',
     };
   }
