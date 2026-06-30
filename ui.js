@@ -706,6 +706,7 @@ let prevRestBuffStacks = null; // null = 未初期化(初回renderでは現在�
 let _prevStorySig = null;
 let _prevCharSig = null;
 let _prevActionSig = null;
+let _prevQuestSig = null;
 let stopFlavor = null;
 let _cancelled = false;
 let _isAutoRestart = false;
@@ -782,7 +783,16 @@ function render(state) {
   const effectPanelEl = document.getElementById('effect-panel');
   if (effectPanelEl) effectPanelEl.classList.toggle('hidden', !state.effectsUnlocked);
   renderEffectList(state);
-  renderQuestList(state);
+  const questSig = JSON.stringify(getVisibleQuests(state).map(({ quest, status }) => [
+    quest.id,
+    status,
+    [...(quest.reveal?.requirements ?? []), ...(quest.unlock?.requirements ?? []), ...(quest.requirements ?? [])]
+      .map(item => [item.resource, state.resources?.[item.resource] ?? 0]),
+  ]));
+  if (questSig !== _prevQuestSig) {
+    renderQuestList(state);
+    _prevQuestSig = questSig;
+  }
 
   const active = state.activeAction;
 
@@ -991,6 +1001,32 @@ function renderEffectList(state) {
   }
 }
 
+const _typedQuestComments = new Set();
+const _collapsedQuestCards = new Set();
+let _questFilter = 'all';
+
+function _setQuestComment(element, text, key) {
+  if (_typedQuestComments.has(key)) {
+    element.textContent = text;
+    return;
+  }
+  _typedQuestComments.add(key);
+  element.textContent = '';
+  let index = 0;
+  const timer = setInterval(() => {
+    if (!element.isConnected) {
+      clearInterval(timer);
+      return;
+    }
+    element.textContent += text[index++] ?? '';
+    if (index >= text.length) clearInterval(timer);
+  }, 28);
+}
+
+function _questRewardText(quest) {
+  return (quest.rewards ?? []).map(item => `${resLabel(item.resource)} ${item.amount}`).join('、');
+}
+
 // 依頼パネル。進行状況を表示し、条件を満たした依頼はここから直接納品できる
 function renderQuestList(state) {
   const panel = document.getElementById('quest-panel');
@@ -1002,84 +1038,191 @@ function renderQuestList(state) {
   list.innerHTML = '';
   if (visible.length === 0) return;
 
+  document.querySelectorAll('.quest-filter-btn').forEach(button => {
+    const selected = button.dataset.questFilter === _questFilter;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-selected', String(selected));
+  });
+
   const readyToTurnIn = visible.some(({ status }) => status === QUEST_STATUS.COMPLETED);
   document.getElementById('quest-tab-btn')?.classList.toggle('ready', readyToTurnIn);
 
+  const filtered = visible.filter(({ status }) => {
+    if (_questFilter === 'rumor') return status === QUEST_STATUS.AVAILABLE;
+    if (_questFilter === 'active') return status === QUEST_STATUS.ACTIVE;
+    if (_questFilter === 'done') {
+      return status === QUEST_STATUS.COMPLETED || status === QUEST_STATUS.REPORTED;
+    }
+    return true;
+  });
   const ordered = [
-    ...visible.filter(({ status }) => status !== QUEST_STATUS.REPORTED),
-    ...visible.filter(({ status }) => status === QUEST_STATUS.REPORTED),
+    ...filtered.filter(({ status }) => status !== QUEST_STATUS.REPORTED),
+    ...filtered.filter(({ status }) => status === QUEST_STATUS.REPORTED),
   ];
+  if (ordered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'quest-filter-empty';
+    empty.textContent = '該当する依頼はない';
+    list.appendChild(empty);
+    return;
+  }
   for (const { quest, status } of ordered) {
     const card = document.createElement('div');
     card.className = `quest-card quest-card--${status}`;
 
-    const title = document.createElement('div');
-    title.className = 'quest-title';
-    title.textContent = quest.title;
-    card.appendChild(title);
-
     if (status === QUEST_STATUS.AVAILABLE) {
+      const icon = document.createElement('div');
+      icon.className = 'quest-rumor-icon';
+      icon.textContent = '?';
+      card.appendChild(icon);
+      const rumorMain = document.createElement('div');
+      rumorMain.className = 'quest-rumor-main';
+      const kicker = document.createElement('div');
+      kicker.className = 'quest-rumor-kicker';
+      kicker.textContent = '塔都の噂';
+      rumorMain.appendChild(kicker);
+      const title = document.createElement('div');
+      title.className = 'quest-title';
+      title.textContent = `「${quest.rumorText ?? '誰かが何かを求めているようだ・・・'}」`;
+      rumorMain.appendChild(title);
       const unlockCosts = quest.unlock?.requirements ?? [];
       const canUnlock = unlockCosts.every(requirement =>
         (state.resources?.[requirement.resource] ?? 0) >= requirement.amount
       );
-      if (canUnlock) {
-        const button = document.createElement('button');
-        button.className = 'quest-turnin-btn';
-        button.textContent = `${unlockCosts.map(cost => `${resLabel(cost.resource)} ${cost.amount}`).join('、')}で調べる`;
-        button.addEventListener('click', () => {
-          const result = unlockQuest(quest.id);
-          if (result.ok) addLog(`【依頼】「${quest.title}」の詳細が判明した`, true, false, false, 'log-rare');
-        });
-        card.appendChild(button);
+      const actions = document.createElement('div');
+      actions.className = 'quest-rumor-actions';
+      for (const cost of unlockCosts) {
+        const have = state.resources?.[cost.resource] ?? 0;
+        const progress = document.createElement('div');
+        progress.className = 'quest-progress';
+        progress.innerHTML = `<span>${resLabel(cost.resource)}</span><span>${Math.min(have, cost.amount)} / ${cost.amount}</span>`;
+        actions.appendChild(progress);
       }
+      const button = document.createElement('button');
+      button.className = 'quest-turnin-btn';
+      button.textContent = '引き受ける';
+      button.disabled = !canUnlock;
+      button.addEventListener('click', () => {
+        const result = unlockQuest(quest.id);
+        if (result.ok) addLog(`【依頼】「${quest.title}」の詳細が判明した`, true, false, false, 'log-rare');
+      });
+      actions.appendChild(button);
+      rumorMain.appendChild(actions);
+      card.appendChild(rumorMain);
       list.appendChild(card);
       continue;
     }
 
-    const requester = document.createElement('div');
-    requester.className = 'quest-requester';
-    requester.textContent = quest.requester;
-    card.appendChild(requester);
+    const layout = document.createElement('div');
+    layout.className = 'quest-layout';
+    const left = document.createElement('div');
+    left.className = 'quest-left';
+    const header = document.createElement('div');
+    header.className = 'quest-header';
+    const dialogIcon = document.createElement('div');
+    dialogIcon.className = 'quest-dialog-icon';
+    dialogIcon.textContent = status === QUEST_STATUS.REPORTED ? '✓' : '!';
+    const heading = document.createElement('div');
+    heading.className = 'quest-heading';
+    heading.innerHTML = `<div class="quest-title">${quest.title}</div><div class="quest-requester">― ${quest.requester}</div>`;
+    const toggleDetails = document.createElement('button');
+    toggleDetails.className = 'quest-details-toggle';
+    toggleDetails.type = 'button';
+    const syncCollapsed = () => {
+      const collapsed = _collapsedQuestCards.has(quest.id);
+      layout.classList.toggle('quest-layout--collapsed', collapsed);
+      toggleDetails.textContent = collapsed ? '⌄' : '⌃';
+      toggleDetails.setAttribute('aria-label', collapsed ? '依頼内容を開く' : '依頼内容を閉じる');
+      toggleDetails.setAttribute('aria-expanded', String(!collapsed));
+    };
+    toggleDetails.addEventListener('click', () => {
+      if (_collapsedQuestCards.has(quest.id)) _collapsedQuestCards.delete(quest.id);
+      else _collapsedQuestCards.add(quest.id);
+      syncCollapsed();
+    });
+    header.append(dialogIcon, heading, toggleDetails);
+    layout.appendChild(header);
+    const dialog = document.createElement('div');
+    dialog.className = 'quest-dialog';
+    const comment = document.createElement('div');
+    comment.className = 'quest-comment';
+    const commentText = status === QUEST_STATUS.REPORTED
+      ? (quest.completeComment ?? '「ありがとう。助かりました」')
+      : (quest.requestComment ?? `「${quest.description}」`);
+    _setQuestComment(comment, commentText, `${quest.id}:${status}`);
+    dialog.appendChild(comment);
+    left.appendChild(dialog);
+    layout.appendChild(left);
 
-    const description = document.createElement('div');
-    description.className = 'quest-description';
-    description.textContent = quest.description;
-    card.appendChild(description);
+    const goal = document.createElement('div');
+    goal.className = 'quest-goal';
+    const goalMain = document.createElement('div');
+    goalMain.className = 'quest-goal-main';
+    goalMain.textContent = quest.goalLabel ?? quest.description;
+    goal.appendChild(goalMain);
 
     if (status === QUEST_STATUS.REPORTED) {
+      const count = document.createElement('div');
+      count.className = 'quest-goal-count';
+      count.textContent = '達成';
+      goal.appendChild(count);
+      const rewardText = _questRewardText(quest);
+      if (rewardText) {
+        const reward = document.createElement('div');
+        reward.className = 'quest-goal-reward';
+        reward.textContent = `報酬受取済み　${rewardText}`;
+        goal.appendChild(reward);
+      }
       const done = document.createElement('div');
       done.className = 'quest-reported';
-      done.textContent = '納品済み';
-      card.appendChild(done);
+      done.textContent = '報告済み';
+      goal.appendChild(done);
     } else {
-      for (const requirement of (quest.requirements ?? [])) {
-        const have = state.resources?.[requirement.resource] ?? 0;
-        const progress = document.createElement('div');
-        progress.className = 'quest-progress';
-        progress.innerHTML = `<span>${resLabel(requirement.resource)}</span><span>${Math.min(have, requirement.amount)} / ${requirement.amount}</span>`;
-        card.appendChild(progress);
+      const count = document.createElement('div');
+      count.className = 'quest-goal-count';
+      if ((quest.requirements ?? []).length > 0) {
+        count.textContent = quest.requirements.map(requirement => {
+          const have = state.resources?.[requirement.resource] ?? 0;
+          return `${Math.min(have, requirement.amount)} / ${requirement.amount}`;
+        }).join('、');
+      } else {
+        count.textContent = status === QUEST_STATUS.COMPLETED ? '発見済み' : '探索中';
       }
-      const reward = document.createElement('div');
-      reward.className = 'quest-reward';
-      reward.textContent = `報酬　${(quest.rewards ?? []).map(item => `${resLabel(item.resource)} ${item.amount}`).join('、')}`;
-      card.appendChild(reward);
-
+      goal.appendChild(count);
+      const rewardText = _questRewardText(quest);
+      if (rewardText) {
+        const reward = document.createElement('div');
+        reward.className = 'quest-goal-reward';
+        reward.textContent = `報酬　${rewardText}`;
+        goal.appendChild(reward);
+      }
       const turnIn = document.createElement('button');
       turnIn.className = 'quest-turnin-btn';
-      turnIn.textContent = status === QUEST_STATUS.COMPLETED ? '納品する' : '素材が足りない';
+      turnIn.textContent = status === QUEST_STATUS.COMPLETED
+        ? (quest.turnInLabel ?? '納品する')
+        : (quest.activeLabel ?? '素材が足りない');
       turnIn.disabled = status !== QUEST_STATUS.COMPLETED;
       turnIn.addEventListener('click', () => {
         const result = turnInQuest(quest.id);
         if (!result.ok) return;
         const rewards = result.rewards.map(item => `${resLabel(item.resource)} +${item.amount}`).join('、');
-        addLog(`【依頼】「${quest.title}」を達成した — ${rewards}`, true);
+        addLog(`【依頼】「${quest.title}」を達成した${rewards ? ` — ${rewards}` : ''}`, true);
       });
-      card.appendChild(turnIn);
+      goal.appendChild(turnIn);
     }
+    layout.appendChild(goal);
+    syncCollapsed();
+    card.appendChild(layout);
     list.appendChild(card);
   }
 }
+
+document.querySelectorAll('.quest-filter-btn').forEach(button => {
+  button.addEventListener('click', () => {
+    _questFilter = button.dataset.questFilter ?? 'all';
+    renderQuestList(getState());
+  });
+});
 
 function _flashQuestTab() {
   const btn = document.getElementById('quest-tab-btn');
@@ -1690,7 +1833,7 @@ function openFlowerEncyclopedia() {
 }
 
 function _handleActionComplete(actionId, result) {
-  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [] } = result;
+  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [] } = result;
   const act = ACTIONS[actionId];
 
   if (act?.stub) {
@@ -1738,6 +1881,12 @@ function _handleActionComplete(actionId, result) {
     const quest = getQuestDefinition(questId);
     if (!quest) continue;
     addLog(`【！】依頼「${quest.title}」を受けた`, true, false, false, 'log-rare');
+  }
+  for (const questId of progressedQuests) {
+    const quest = getQuestDefinition(questId);
+    if (!quest) continue;
+    addLog(`【依頼】${quest.progressLog ?? `「${quest.title}」の手がかりを見つけた`}`, true, false, false, 'log-rare');
+    _flashQuestTab();
   }
   if (receivedQuests.length > 0) {
     renderQuestList(getState());

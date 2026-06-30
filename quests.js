@@ -16,13 +16,35 @@ export const QUESTS = [
   {
     id: 'need_herb',
     title: '薬草が欲しい',
+    rumorText: '薬草を探している人がいるらしい……',
     requester: '塔都の住民',
     description: '薬草を必要としている人がいる。10束集めて届けよう。',
+    requestComment: '「薬草が足りなくて困っているんです。10束ほど、集めてきてもらえませんか？」',
+    completeComment: '「助かりました。これでしばらくは安心して過ごせそうです。本当にありがとう」',
+    goalLabel: '薬草を10束集める',
     reveal: { requirements: [{ resource: 'touto_rumor', amount: 1 }] },
     unlock: { requirements: [{ resource: 'touto_rumor', amount: 3 }] },
     requirements: [{ resource: 'herb', amount: 10 }],
     rewards: [{ resource: 'magcoin', amount: 20 }],
     turnIn: 'quest_ui',
+  },
+  {
+    id: 'missing_cat',
+    title: 'いなくなった猫',
+    rumorText: '何かを探している人がいるらしい……',
+    requester: '塔都の住民',
+    description: 'いなくなった猫を探してほしいと頼まれた。塔都を探索してみよう。',
+    requestComment: '「飼っている猫が戻ってこないんです。塔都のどこかにいると思うのですが……」',
+    completeComment: '「見つけてくれたんですね……！　本当にありがとうございます」',
+    goalLabel: '猫を探す',
+    reveal: { requirements: [{ resource: 'touto_rumor', amount: 5 }] },
+    unlock: { requirements: [{ resource: 'touto_rumor', amount: 5 }] },
+    objective: { type: 'action_chance', actionId: 'touto_explore', chance: 0.15 },
+    progressLog: '猫を見つけた',
+    rewards: [],
+    turnIn: 'quest_ui',
+    turnInLabel: '報告する',
+    activeLabel: 'まだ猫は見つかっていない',
   },
 ];
 
@@ -42,6 +64,7 @@ export function getQuestStatus(state, questId) {
     if (revealed) status = QUEST_STATUS.AVAILABLE;
   }
   if (status !== QUEST_STATUS.ACTIVE) return status;
+  if (quest.objective) return status;
   const ready = (quest.requirements ?? []).every(requirement =>
     (state.resources?.[requirement.resource] ?? 0) >= requirement.amount
   );
@@ -79,4 +102,12 @@ export function canUnlockQuest(state, questId) {
     (quest.unlock?.requirements ?? []).every(requirement =>
       (state.resources?.[requirement.resource] ?? 0) >= requirement.amount
     );
+}
+
+export function getActionObjectiveQuests(actionId, state) {
+  return QUESTS.filter(quest =>
+    quest.objective?.type === 'action_chance' &&
+    quest.objective.actionId === actionId &&
+    getQuestStatus(state, quest.id) === QUEST_STATUS.ACTIVE
+  );
 }

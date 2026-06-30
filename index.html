@@ -282,15 +282,185 @@
       border-bottom: 1px solid var(--border);
       padding-bottom: 0.4rem;
     }
+    #quest-filter {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.2rem;
+    }
+    .quest-filter-btn {
+      padding: 0.28rem 0.1rem;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #737a91;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .quest-filter-btn:hover {
+      color: var(--text);
+    }
+    .quest-filter-btn.active {
+      border-color: rgba(232, 192, 122, 0.42);
+      background: rgba(232, 192, 122, 0.09);
+      color: #e8c07a;
+    }
+    .quest-filter-empty {
+      padding: 1.25rem 0.5rem;
+      color: var(--muted);
+      font-size: 0.7rem;
+      text-align: center;
+    }
     .quest-card {
       padding: 0.65rem;
       border: 1px solid var(--border);
       border-radius: 7px;
       background: rgba(255,255,255,0.025);
     }
-    .quest-card--reported { opacity: 0.55; }
+    .quest-card--reported { opacity: 0.65; }
     .quest-title { color: var(--text); font-size: 0.86rem; font-weight: 600; }
+    .quest-card--available {
+      display: grid;
+      grid-template-columns: 1.75rem minmax(0, 1fr);
+      gap: 0.5rem;
+      padding: 0.5rem 0.55rem;
+      border-style: dashed;
+    }
+    .quest-rumor-icon, .quest-dialog-icon {
+      display: grid;
+      place-items: center;
+      border: 1px solid #3b4058;
+      border-radius: 50%;
+      color: #747b94;
+    }
+    .quest-rumor-icon { width: 1.5rem; height: 1.5rem; font-style: italic; }
+    .quest-rumor-main { min-width: 0; }
+    .quest-rumor-kicker {
+      color: #747b94;
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+    }
+    .quest-card--available .quest-title {
+      margin-top: 0.1rem;
+      color: #969caf;
+      font-style: italic;
+      font-weight: 400;
+      font-size: 0.72rem;
+      line-height: 1.4;
+    }
+    .quest-rumor-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.55rem;
+      margin-top: 0.35rem;
+    }
+    .quest-rumor-actions .quest-progress {
+      flex: 1;
+      padding: 0;
+      border-bottom: none;
+      font-size: 0.68rem;
+    }
+    .quest-rumor-actions .quest-progress::before {
+      content: '手がかり';
+      color: #5f657e;
+      margin-right: 0.35rem;
+    }
+    .quest-rumor-actions .quest-turnin-btn {
+      width: auto;
+      min-width: 5.4rem;
+      margin-top: 0;
+      padding: 0.28rem 0.55rem;
+      font-size: 0.7rem;
+    }
     .quest-requester { color: #e8c07a; font-size: 0.68rem; margin-top: 0.12rem; }
+    .quest-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 6.5rem;
+      gap: 0.55rem;
+      align-items: stretch;
+    }
+    .quest-left { min-width: 0; }
+    .quest-header {
+      display: grid;
+      grid-template-columns: 1.75rem minmax(0, 1fr) 1.7rem;
+      gap: 0.5rem;
+      align-items: center;
+      grid-column: 1 / -1;
+    }
+    .quest-details-toggle {
+      width: 1.7rem;
+      height: 1.7rem;
+      padding: 0;
+      border: 1px solid #343a52;
+      border-radius: 5px;
+      background: transparent;
+      color: #8c93aa;
+      font-size: 0.8rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .quest-details-toggle:hover {
+      color: var(--text);
+      border-color: #555e7d;
+    }
+    .quest-layout--collapsed .quest-left,
+    .quest-layout--collapsed .quest-goal {
+      display: none;
+    }
+    .quest-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 0.45rem;
+      min-width: 0;
+      white-space: nowrap;
+    }
+    .quest-heading .quest-requester {
+      margin-top: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .quest-dialog {
+      margin-top: 0;
+    }
+    .quest-dialog-icon { width: 1.75rem; height: 1.75rem; }
+    .quest-comment {
+      position: relative;
+      min-height: 2.25rem;
+      padding: 0.42rem 0.5rem;
+      border: 1px solid #2d334a;
+      border-radius: 7px;
+      background: #151827;
+      color: #aeb3c7;
+      font-size: 0.68rem;
+      line-height: 1.55;
+    }
+    .quest-comment::before {
+      content: '';
+      position: absolute;
+      left: 0.45rem;
+      top: -0.42rem;
+      border-width: 0 0.3rem 0.42rem 0.3rem;
+      border-style: solid;
+      border-color: transparent transparent #2d334a transparent;
+    }
+    .quest-goal {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding-left: 0.55rem;
+      border-left: 1px solid #2b3046;
+      color: var(--muted);
+      font-size: 0.62rem;
+      line-height: 1.45;
+    }
+    .quest-goal-main { color: var(--text); font-size: 0.68rem; }
+    .quest-goal-count { color: var(--accent); text-align: right; }
+    .quest-goal-reward { margin-top: 0.35rem; }
+    .quest-goal .quest-turnin-btn {
+      margin-top: 0.4rem;
+      padding: 0.3rem 0.2rem;
+      font-size: 0.64rem;
+    }
     .quest-description { color: var(--muted); font-size: 0.74rem; line-height: 1.55; margin-top: 0.45rem; }
     .quest-progress {
       display: flex;
@@ -2274,6 +2444,12 @@
       <button id="quest-tab-btn" class="side-panel-tab">依頼</button>
       <div id="quest-panel-inner">
         <div id="quest-panel-header">依頼</div>
+        <div id="quest-filter" role="tablist" aria-label="依頼の絞り込み">
+          <button class="quest-filter-btn active" type="button" data-quest-filter="all">すべて</button>
+          <button class="quest-filter-btn" type="button" data-quest-filter="rumor">噂</button>
+          <button class="quest-filter-btn" type="button" data-quest-filter="active">受注中</button>
+          <button class="quest-filter-btn" type="button" data-quest-filter="done">完了</button>
+        </div>
         <div id="quest-list"></div>
       </div>
     </div>
@@ -2545,7 +2721,9 @@
   }
   document.addEventListener('click', (e) => {
     const openPanel = sidePanels.find(panel => panel.classList.contains('open'));
-    if (openPanel && !openPanel.contains(e.target)) {
+    // パネル内の操作で中身が再描画され、クリック元がDOMから外れても閉じない。
+    // contains(e.target) ではなく、クリック時点の伝播経路で内外を判定する。
+    if (openPanel && !e.composedPath().includes(openPanel)) {
       openPanel.classList.remove('open');
       syncSidePanelState();
     }

@@ -1,7 +1,7 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
 import { STORIES, getCostForParagraph } from './stories.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
-import { QUEST_STATUS, getQuestDefinition, getDiscoverableQuests, canTurnInQuest, canUnlockQuest } from './quests.js';
+import { QUEST_STATUS, getQuestDefinition, getVisibleQuests, getDiscoverableQuests, canTurnInQuest, canUnlockQuest, getActionObjectiveQuests } from './quests.js';
 
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
@@ -877,13 +877,20 @@ function unlockQuest(questId) {
   const quest = getQuestDefinition(questId);
   if (!quest || !canUnlockQuest(state, questId)) return { ok: false };
   const resources = { ...state.resources };
+  // 消費前に見えていた依頼を固定する。一度耳にした噂が、別の依頼で噂話を消費したために消えないようにする。
+  const questStatus = { ...state.questStatus };
+  for (const visible of getVisibleQuests(state)) {
+    if (visible.status === QUEST_STATUS.AVAILABLE) {
+      questStatus[visible.quest.id] = QUEST_STATUS.AVAILABLE;
+    }
+  }
   for (const requirement of (quest.unlock?.requirements ?? [])) {
     resources[requirement.resource] -= requirement.amount;
   }
   state = {
     ...state,
     resources,
-    questStatus: { ...state.questStatus, [questId]: QUEST_STATUS.ACTIVE },
+    questStatus: { ...questStatus, [questId]: QUEST_STATUS.ACTIVE },
   };
   saveToStorage(state);
   notify();
@@ -1363,9 +1370,19 @@ function completeAction(actionId, onComplete) {
     receivedQuests.push(quest.id);
   }
 
+  const progressedQuests = [];
+  for (const quest of getActionObjectiveQuests(actionId, state)) {
+    if (Math.random() >= (quest.objective?.chance ?? 0)) continue;
+    state = {
+      ...state,
+      questStatus: { ...state.questStatus, [quest.id]: QUEST_STATUS.COMPLETED },
+    };
+    progressedQuests.push(quest.id);
+  }
+
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests };
   onComplete?.(result);
   // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
   notify();
