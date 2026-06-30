@@ -1,6 +1,7 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
 import { STORIES, getCostForParagraph } from './stories.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
+import { QUEST_STATUS, getQuestDefinition, getDiscoverableQuests, canTurnInQuest } from './quests.js';
 
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
@@ -763,6 +764,7 @@ const INITIAL_STATE = {
   shopPurchaseCount: {},
   flowerHelpUnlocked: false,
   flowerEncyclopediaUnlocked: false,
+  questStatus: {},
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -834,6 +836,34 @@ function addResources(resource, amount) {
   _markDiscovered(resource);
   saveToStorage(state);
   notify();
+}
+
+// 依頼UIから直接納品する。必要素材を消費し、報酬を加算して報告済みにする
+function turnInQuest(questId) {
+  const quest = getQuestDefinition(questId);
+  if (!quest || !canTurnInQuest(state, questId)) return { ok: false };
+
+  const resources = { ...state.resources };
+  for (const requirement of (quest.requirements ?? [])) {
+    if ((resources[requirement.resource] ?? 0) < requirement.amount) return { ok: false };
+    resources[requirement.resource] -= requirement.amount;
+  }
+  for (const reward of (quest.rewards ?? [])) {
+    resources[reward.resource] = (resources[reward.resource] ?? 0) + reward.amount;
+  }
+  const discoveredResources = [...state.discoveredResources];
+  for (const reward of (quest.rewards ?? [])) {
+    if (!discoveredResources.includes(reward.resource)) discoveredResources.push(reward.resource);
+  }
+  state = {
+    ...state,
+    resources,
+    discoveredResources,
+    questStatus: { ...state.questStatus, [questId]: QUEST_STATUS.REPORTED },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true, questId, rewards: (quest.rewards ?? []).map(reward => ({ ...reward })) };
 }
 
 function unlockAllStories() {
@@ -1298,9 +1328,20 @@ function completeAction(actionId, onComplete) {
     flowerEncyclopediaFound = true;
   }
 
+  // 行動完了時の依頼発見。一度受けた依頼はgetDiscoverableQuestsの対象外になる
+  const receivedQuests = [];
+  for (const quest of getDiscoverableQuests(actionId, state)) {
+    if (Math.random() >= (quest.discover?.chance ?? 0)) continue;
+    state = {
+      ...state,
+      questStatus: { ...state.questStatus, [quest.id]: QUEST_STATUS.ACTIVE },
+    };
+    receivedQuests.push(quest.id);
+  }
+
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests };
   onComplete?.(result);
   // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
   notify();
@@ -1418,6 +1459,7 @@ function init() {
     shopPurchaseCount: saved.shopPurchaseCount ?? INITIAL_STATE.shopPurchaseCount,
     flowerHelpUnlocked: saved.flowerHelpUnlocked ?? INITIAL_STATE.flowerHelpUnlocked,
     flowerEncyclopediaUnlocked: saved.flowerEncyclopediaUnlocked ?? INITIAL_STATE.flowerEncyclopediaUnlocked,
+    questStatus: saved.questStatus ?? INITIAL_STATE.questStatus,
   };
 
   // 仮商品だった押し花を正式商品へ移行し、既存セーブの所持数を失わないようにする
@@ -1601,4 +1643,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

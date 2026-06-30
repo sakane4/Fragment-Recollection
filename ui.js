@@ -1,12 +1,13 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
-import { getActiveQuests } from './quests.js';
+import { getActiveGuides } from './guides.js';
+import { QUEST_STATUS, getQuestDefinition, getVisibleQuests } from './quests.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
 
@@ -895,6 +896,7 @@ function render(state) {
   const effectPanelEl = document.getElementById('effect-panel');
   if (effectPanelEl) effectPanelEl.classList.toggle('hidden', !state.effectsUnlocked);
   renderEffectList(state);
+  renderQuestList(state);
 
   const active = state.activeAction;
 
@@ -1102,13 +1104,95 @@ function renderEffectList(state) {
   }
 }
 
-// 導きパネルの中身。クエスト定義(quests.js)から現在の目的を優先度順に表示する
+// 依頼パネル。進行状況を表示し、条件を満たした依頼はここから直接納品できる
+function renderQuestList(state) {
+  const panel = document.getElementById('quest-panel');
+  const list = document.getElementById('quest-list');
+  if (!panel || !list) return;
+
+  const visible = getVisibleQuests(state);
+  panel.classList.toggle('hidden', visible.length === 0);
+  list.innerHTML = '';
+  if (visible.length === 0) return;
+
+  const readyToTurnIn = visible.some(({ status }) => status === QUEST_STATUS.COMPLETED);
+  document.getElementById('quest-tab-btn')?.classList.toggle('ready', readyToTurnIn);
+
+  const ordered = [
+    ...visible.filter(({ status }) => status !== QUEST_STATUS.REPORTED),
+    ...visible.filter(({ status }) => status === QUEST_STATUS.REPORTED),
+  ];
+  for (const { quest, status } of ordered) {
+    const card = document.createElement('div');
+    card.className = `quest-card quest-card--${status}`;
+
+    const title = document.createElement('div');
+    title.className = 'quest-title';
+    title.textContent = quest.title;
+    card.appendChild(title);
+
+    const requester = document.createElement('div');
+    requester.className = 'quest-requester';
+    requester.textContent = quest.requester;
+    card.appendChild(requester);
+
+    const description = document.createElement('div');
+    description.className = 'quest-description';
+    description.textContent = quest.description;
+    card.appendChild(description);
+
+    if (status === QUEST_STATUS.REPORTED) {
+      const done = document.createElement('div');
+      done.className = 'quest-reported';
+      done.textContent = '納品済み';
+      card.appendChild(done);
+    } else {
+      for (const requirement of (quest.requirements ?? [])) {
+        const have = state.resources?.[requirement.resource] ?? 0;
+        const progress = document.createElement('div');
+        progress.className = 'quest-progress';
+        progress.innerHTML = `<span>${resLabel(requirement.resource)}</span><span>${Math.min(have, requirement.amount)} / ${requirement.amount}</span>`;
+        card.appendChild(progress);
+      }
+      const reward = document.createElement('div');
+      reward.className = 'quest-reward';
+      reward.textContent = `報酬　${(quest.rewards ?? []).map(item => `${resLabel(item.resource)} ${item.amount}`).join('、')}`;
+      card.appendChild(reward);
+
+      const turnIn = document.createElement('button');
+      turnIn.className = 'quest-turnin-btn';
+      turnIn.textContent = status === QUEST_STATUS.COMPLETED ? '納品する' : '素材が足りない';
+      turnIn.disabled = status !== QUEST_STATUS.COMPLETED;
+      turnIn.addEventListener('click', () => {
+        const result = turnInQuest(quest.id);
+        if (!result.ok) return;
+        const rewards = result.rewards.map(item => `${resLabel(item.resource)} +${item.amount}`).join('、');
+        addLog(`【依頼】「${quest.title}」を達成した — ${rewards}`, true);
+      });
+      card.appendChild(turnIn);
+    }
+    list.appendChild(card);
+  }
+}
+
+function _flashQuestTab() {
+  const btn = document.getElementById('quest-tab-btn');
+  const panel = document.getElementById('quest-panel');
+  if (!btn || !panel || panel.classList.contains('open')) return;
+  btn.classList.add('glow');
+  if (!btn._glowClearBound) {
+    btn._glowClearBound = true;
+    btn.addEventListener('click', () => btn.classList.remove('glow'));
+  }
+}
+
+// 導きパネルの中身。導き定義(guides.js)から現在の助言を優先度順に表示する
 function renderGuideList(state) {
   const list = document.getElementById('guide-list');
   if (!list) return;
   list.innerHTML = '';
 
-  const quests = getActiveQuests(state, {
+  const guides = getActiveGuides(state, {
     discoveryStepLv: DISCOVERY_STEP_LV,
     toutoFacilities: TOUTO_FACILITIES,
     actions: ACTIONS,
@@ -1116,30 +1200,30 @@ function renderGuideList(state) {
     companionRelics: COMPANION_RELICS,
     companions: COMPANION_DATA,
   });
-  const displayItems = quests.length > 0
-    ? quests
+  const displayItems = guides.length > 0
+    ? guides
     : [{ id: 'guide_idle', text: '星の導きは、いまは静かだ…' }];
 
-  for (const quest of displayItems) {
+  for (const guide of displayItems) {
     const item = document.createElement('div');
     item.className = 'guide-hint-item';
-    item.dataset.questId = quest.id;
-    item.textContent = quest.text;
+    item.dataset.guideId = guide.id;
+    item.textContent = guide.text;
     list.appendChild(item);
   }
 
-  // 新しいクエストが追加された時、または同じクエストの目標文が進行して変わった時だけタブを光らせる
+  // 新しい導きが追加された時、または同じ導きの目標文が進行して変わった時だけタブを光らせる
   // (達成してヒントが消えただけの時や、初回同期では光らせない)
-  const signatures = displayItems.map(quest => `${quest.id}:${quest.text}`);
-  const hasNewQuest = signatures.some(signature => !(_prevGuideQuestSigs?.includes(signature)));
-  if (_prevGuideQuestSigs !== null && hasNewQuest && state.guideUnlocked) {
+  const signatures = displayItems.map(guide => `${guide.id}:${guide.text}`);
+  const hasNewGuide = signatures.some(signature => !(_prevGuideSigs?.includes(signature)));
+  if (_prevGuideSigs !== null && hasNewGuide && state.guideUnlocked) {
     _flashGuideTab();
   }
-  _prevGuideQuestSigs = signatures;
+  _prevGuideSigs = signatures;
 }
 
 // 導きタブ(#guide-tab-btn)を発光させる。導きパネルを開くと消える
-let _prevGuideQuestSigs = null;
+let _prevGuideSigs = null;
 function _flashGuideTab() {
   const btn = document.getElementById('guide-tab-btn');
   const panel = document.getElementById('guide-panel');
@@ -1665,7 +1749,7 @@ function openFlowerEncyclopedia() {
 }
 
 function _handleActionComplete(actionId, result) {
-  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound } = result;
+  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [] } = result;
   const act = ACTIONS[actionId];
 
   if (act?.stub) {
@@ -1684,6 +1768,16 @@ function _handleActionComplete(actionId, result) {
 
   if (flowerEncyclopediaFound) {
     addLog('【図書館】失われた本棚から「花の図鑑」を見つけた', true);
+  }
+
+  for (const questId of receivedQuests) {
+    const quest = getQuestDefinition(questId);
+    if (!quest) continue;
+    addLog(`【！】依頼「${quest.title}」を受けた`, true);
+  }
+  if (receivedQuests.length > 0) {
+    renderQuestList(getState());
+    _flashQuestTab();
   }
 
   if (worldLvUp != null) {
