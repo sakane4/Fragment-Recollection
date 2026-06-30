@@ -98,17 +98,17 @@ const RESOURCES = {
   forest_voice:    { label: '木々の声', color: '#a8d8a8', unit: 'かけら' },
   branch:          { label: '木の枝',   color: '#c8a97e', unit: '本' },
   wood:            { label: '木材',     color: '#a47d4e', unit: '本' },
-  axe:             { label: '鉄の斧',   color: '#9aa0a6', category: 'relic', unit: '振' },
+  axe:             { label: '鉄の斧',   color: '#9aa0a6', category: 'tool', unit: '振' },
   // 塔都
   magcoin:         { label: 'マグコイン', color: '#e6c200', unit: '枚' },
   old_text:        { label: '古文書',   color: '#bba16a', unit: '冊' },
-  survey_wherever: { label: '再生された世界の調査記録', color: '#9eb7c4', unit: '部' },
-  survey_forest:   { label: 'はじまりの森の調査記録', color: '#8fb59a', unit: '部' },
-  survey_kyusha:   { label: '黄昏の旧校舎の調査記録', color: '#c2a68d', unit: '部' },
-  survey_renril:   { label: '翼竜の都の調査記録', color: '#8fb5c8', unit: '部' },
-  survey_mephisto: { label: '魔界王都の調査記録', color: '#ad91c4', unit: '部' },
-  survey_knights:  { label: '王立騎士団本部の調査記録', color: '#aeb4bd', unit: '部' },
-  survey_touto:    { label: '塔都の調査記録', color: '#c4b68f', unit: '部' },
+  survey_wherever: { label: '再生された世界の調査記録', color: '#9eb7c4', unit: '部', category: 'survey', highlight: true },
+  survey_forest:   { label: 'はじまりの森の調査記録', color: '#8fb59a', unit: '部', category: 'survey', highlight: true },
+  survey_kyusha:   { label: '黄昏の旧校舎の調査記録', color: '#c2a68d', unit: '部', category: 'survey', highlight: true },
+  survey_renril:   { label: '翼竜の都の調査記録', color: '#8fb5c8', unit: '部', category: 'survey', highlight: true },
+  survey_mephisto: { label: '魔界王都の調査記録', color: '#ad91c4', unit: '部', category: 'survey', highlight: true },
+  survey_knights:  { label: '王立騎士団本部の調査記録', color: '#aeb4bd', unit: '部', category: 'survey', highlight: true },
+  survey_touto:    { label: '塔都の調査記録', color: '#c4b68f', unit: '部', category: 'survey', highlight: true },
   dream_fragment:  { label: '夢の欠片', color: '#b8a6e8', unit: '片' },
   mondo_leaf: { label: 'モンドの葉', color: '#9bc48a' },
   rescure:    { label: 'レスキュア', color: '#e8e8dc' },
@@ -135,8 +135,8 @@ const RESOURCES = {
   guide_earring:      { label: '導きのイヤリング', color: '#d6336c', category: 'relic' },
 };
 
-const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'relic'];
-const RESOURCE_CATEGORY_LABELS = { fragment: 'フラグメント', material: '素材', relic: 'レリック' };
+const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'tool', 'relic'];
+const RESOURCE_CATEGORY_LABELS = { fragment: 'フラグメント', material: '素材', tool: '道具', relic: 'レリック' };
 
 function resLabel(resource) { return RESOURCES[resource]?.label ?? resource; }
 function resColor(resource) { return RESOURCES[resource]?.color ?? 'var(--text)'; }
@@ -186,7 +186,11 @@ function actionDisplayLabel(action, sep = ' / ') {
 
 function makeRandomRewardHandler() {
   return ({ resource, amount }) => {
-    addLog(`<span class="log-companion-reward">${resourceLog(resource, amount)}</span>`, false, true);
+    if (RESOURCES[resource]?.highlight) {
+      addLog(`【！】${resourceSpan(resource, resLabel(resource))} +${amount} を入手した`, true, true, false, 'log-rare');
+    } else {
+      addLog(`<span class="log-companion-reward">${resourceLog(resource, amount)}</span>`, false, true);
+    }
     const recordEntry = Object.entries(WORLD_CHRONICLE_ENTRIES)
       .find(([, entry]) => entry.recordResource === resource);
     if (!recordEntry) return;
@@ -225,9 +229,9 @@ function _saveLogHistory() {
   try { localStorage.setItem(LOG_HISTORY_KEY, JSON.stringify(_logHistory)); } catch {}
 }
 
-function _createLogEl(text, highlight, html, rightAlign) {
+function _createLogEl(text, highlight, html, rightAlign, extraClass) {
   const el = document.createElement('div');
-  el.className = 'log-entry' + (highlight ? ' highlight' : '') + (rightAlign ? ' log-entry--right' : '');
+  el.className = 'log-entry' + (highlight ? ' highlight' : '') + (rightAlign ? ' log-entry--right' : '') + (extraClass ? ` ${extraClass}` : '');
   if (html) el.innerHTML = text;
   else el.textContent = text;
   return el;
@@ -240,8 +244,8 @@ function _restoreLogHistory() {
   if (saved && saved.length > 0) {
     _logHistory = saved;
     els.mainPanel.innerHTML = '';
-    for (const { text, highlight, html, rightAlign } of _logHistory) {
-      els.mainPanel.appendChild(_createLogEl(text, highlight, html, rightAlign));
+    for (const { text, highlight, html, rightAlign, extraClass } of _logHistory) {
+      els.mainPanel.appendChild(_createLogEl(text, highlight, html, rightAlign, extraClass));
     }
     els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
   } else {
@@ -251,22 +255,22 @@ function _restoreLogHistory() {
   }
 }
 
-function addLog(text, highlight = false, html = false, rightAlign = false) {
+function addLog(text, highlight = false, html = false, rightAlign = false, extraClass = '') {
   if (_logPaused) {
-    _logBuffer.push({ text, highlight, html, rightAlign });
+    _logBuffer.push({ text, highlight, html, rightAlign, extraClass });
     return;
   }
-  _appendLog(text, highlight, html, rightAlign);
+  _appendLog(text, highlight, html, rightAlign, extraClass);
 }
 
-function _appendLog(text, highlight, html, rightAlign = false) {
-  const el = _createLogEl(text, highlight, html, rightAlign);
+function _appendLog(text, highlight, html, rightAlign = false, extraClass = '') {
+  const el = _createLogEl(text, highlight, html, rightAlign, extraClass);
   const panel = els.mainPanel;
   const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 40;
   panel.appendChild(el);
   if (atBottom) panel.scrollTop = panel.scrollHeight;
 
-  _logHistory.push({ text, highlight, html, rightAlign });
+  _logHistory.push({ text, highlight, html, rightAlign, extraClass });
   if (_logHistory.length > MAX_LOG_ENTRIES) {
     _logHistory.shift();
     if (panel.firstChild) panel.removeChild(panel.firstChild);
@@ -277,7 +281,7 @@ function _appendLog(text, highlight, html, rightAlign = false) {
 function pauseLog()  { _logPaused = true; }
 function resumeLog() {
   _logPaused = false;
-  _logBuffer.forEach(({ text, highlight, html, rightAlign }) => _appendLog(text, highlight, html, rightAlign));
+  _logBuffer.forEach(({ text, highlight, html, rightAlign, extraClass }) => _appendLog(text, highlight, html, rightAlign, extraClass));
   _logBuffer = [];
 }
 
@@ -1761,10 +1765,15 @@ function _handleActionComplete(actionId, result) {
     const span = `${resourceSpan(resource, resLabel(resource))} +${amount}`;
     return wrapClass ? `<span class="${wrapClass}">${span}</span>` : span;
   };
-  const rewardsHtml = (allRewards ?? []).map(r => _rewardHtml(r)).join(', ');
+  const normalRewards = (allRewards ?? []).filter(r => !RESOURCES[r.resource]?.highlight);
+  const highlightRewards = (allRewards ?? []).filter(r => RESOURCES[r.resource]?.highlight);
+  const rewardsHtml = normalRewards.map(r => _rewardHtml(r)).join(', ');
   const companionRewardsHtml = (companionRewards ?? []).map(r => _rewardHtml(r, 'log-companion-reward')).join(', ');
   const fullRewardsHtml = companionRewardsHtml ? `${rewardsHtml} / ${companionRewardsHtml}` : rewardsHtml;
   addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewardsHtml}`, true, true);
+  for (const r of highlightRewards) {
+    addLog(`【！】${resourceSpan(r.resource, resLabel(r.resource))} +${r.amount} を入手した`, true, true);
+  }
 
   if (flowerEncyclopediaFound) {
     addLog('【図書館】失われた本棚から「花の図鑑」を見つけた', true);
@@ -2517,27 +2526,44 @@ function _buildCompanionDetailProfile(id, state) {
   bondSection.innerHTML = `<div class="companion-detail-label">絆Lv</div>`;
   const bondRow = document.createElement('div');
   bondRow.className = 'companion-detail-body companion-level-row';
-  const bondText = document.createElement('span');
-  bondText.textContent = `Lv ${bondLv}`;
-  bondRow.appendChild(bondText);
+  bondRow.appendChild(Object.assign(document.createElement('span'), { textContent: `Lv ${bondLv}` }));
   if (bondLv < BOND_LV_MAX) {
     const cost = BOND_LV_COSTS[bondLv];
+    const giftBtn = document.createElement('button');
+    giftBtn.className = 'companion-equip-btn';
+    giftBtn.textContent = '贈り物をする';
+
+    const giftList = document.createElement('div');
+    giftList.className = 'facility-list';
+    giftList.style.display = 'none';
+    giftList.style.marginTop = '0.4rem';
+
     for (const itemId of GIFT_ITEMS) {
       const have = state.resources[itemId] ?? 0;
-      if (have <= 0) continue;
-      const giftBtn = document.createElement('button');
-      giftBtn.className = 'companion-equip-btn';
-      giftBtn.textContent = `${resLabel(itemId)}を渡す（${cost}）`;
-      giftBtn.disabled = have < cost;
-      giftBtn.addEventListener('click', (e) => {
+      const row = document.createElement('button');
+      row.className = 'facility-list-row';
+      row.disabled = have < cost;
+      row.innerHTML = `<span class="facility-card-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><rect x="2" y="7" width="20" height="5" rx="1"/><path d="M12 22V7"/><path d="M12 7H7.5A2.5 2.5 0 0 1 7.5 2C11 2 12 7 12 7z"/><path d="M12 7h4.5A2.5 2.5 0 0 0 16.5 2C13 2 12 7 12 7z"/></svg></span><span class="facility-list-row-label">${resLabel(itemId)}の花束</span><span style="color:var(--muted);font-size:0.8rem">${resLabel(itemId)} ${have}/${cost}</span>`;
+      row.addEventListener('click', (e) => {
         e.stopPropagation();
         giveGift(id, itemId);
         renderCharTab(getState());
       });
-      bondRow.appendChild(giftBtn);
+      giftList.appendChild(row);
     }
+
+    giftBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      giftList.style.display = giftList.style.display === 'none' ? '' : 'none';
+      giftBtn.textContent = giftList.style.display === 'none' ? '贈り物をする' : '▲ 閉じる';
+    });
+
+    bondRow.appendChild(giftBtn);
+    bondSection.appendChild(bondRow);
+    bondSection.appendChild(giftList);
+  } else {
+    bondSection.appendChild(bondRow);
   }
-  bondSection.appendChild(bondRow);
   wrap.appendChild(bondSection);
 
   return wrap;
@@ -2682,7 +2708,10 @@ function _buildCompanionDetailMemory(id, state) {
   memories.innerHTML = `<div class="companion-detail-label">関連する記憶</div>`;
   const memoryBody = document.createElement('div');
   memoryBody.className = 'companion-detail-body';
-  const relatedStories = Object.values(STORIES).filter(s => s.companionId === id && (state.appearedStories ?? []).includes(s.id));
+  const relatedStories = Object.values(STORIES).filter(s =>
+    s.companionId === id &&
+    ((state.appearedStories ?? []).includes(s.id) || (state.unlockedStories ?? []).includes(s.id))
+  );
   if (relatedStories.length === 0) {
     memoryBody.textContent = 'まだ何も思い出せない…';
   } else {

@@ -276,6 +276,7 @@ const LOCATION_DEFS = [
         rewards: [],
         randomRewards: [],
         discoveries: [],
+        noCompanionReward: true,
       },
       // 図書館(touto_library)のメニューから選べる行動
       {
@@ -1216,9 +1217,9 @@ function completeAction(actionId, onComplete) {
   let newRestBuffStacks = (state.restBuffStacks ?? 0) - (hadRestBuff ? 1 : 0);
   if (actionId === 'touto_inn_rest') newRestBuffStacks += REST_BUFF_STACKS;
 
-  // 同行者固有報酬
+  // 同行者固有報酬(noCompanionRewardフラグが立っている行動はスキップ)
   const companionRewardsList = [];
-  for (const companionId of state.activeCompanions) {
+  if (!action.noCompanionReward) for (const companionId of state.activeCompanions) {
     const rewards = COMPANION_REWARDS[companionId];
     if (!rewards) continue;
     const level = state.ELv[companionId] ?? 0;
