@@ -1,4 +1,85 @@
-// logs.js — アクション中に表示するフレーバーテキスト定義
+// logs.js — ログの表示・履歴管理と、アクション中に表示するフレーバーテキスト定義
+
+function createLogManager(panel, {
+  storageKey = 'fr_log_history',
+  maxEntries = 200,
+} = {}) {
+  let buffer = [];
+  let paused = false;
+  let history = [];
+
+  function saveHistory() {
+    try { localStorage.setItem(storageKey, JSON.stringify(history)); } catch {}
+  }
+
+  function createEntryElement(text, highlight, html, rightAlign, extraClass) {
+    const el = document.createElement('div');
+    el.className = 'log-entry'
+      + (highlight ? ' highlight' : '')
+      + (rightAlign ? ' log-entry--right' : '')
+      + (extraClass ? ` ${extraClass}` : '');
+    if (html) el.innerHTML = text;
+    else el.textContent = text;
+    return el;
+  }
+
+  function restoreLogHistory() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch {}
+    if (saved && saved.length > 0) {
+      history = saved;
+      panel.innerHTML = '';
+      for (const { text, highlight, html, rightAlign, extraClass } of history) {
+        panel.appendChild(createEntryElement(text, highlight, html, rightAlign, extraClass));
+      }
+      panel.scrollTop = panel.scrollHeight;
+    } else {
+      history = [{
+        text: '世界を再生しました',
+        highlight: true,
+        html: false,
+        rightAlign: false,
+      }];
+      saveHistory();
+    }
+  }
+
+  function appendLog(text, highlight, html, rightAlign = false, extraClass = '') {
+    const el = createEntryElement(text, highlight, html, rightAlign, extraClass);
+    const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 40;
+    panel.appendChild(el);
+    if (atBottom) panel.scrollTop = panel.scrollHeight;
+
+    history.push({ text, highlight, html, rightAlign, extraClass });
+    if (history.length > maxEntries) {
+      history.shift();
+      if (panel.firstChild) panel.removeChild(panel.firstChild);
+    }
+    saveHistory();
+  }
+
+  function addLog(text, highlight = false, html = false, rightAlign = false, extraClass = '') {
+    if (paused) {
+      buffer.push({ text, highlight, html, rightAlign, extraClass });
+      return;
+    }
+    appendLog(text, highlight, html, rightAlign, extraClass);
+  }
+
+  function pauseLog() {
+    paused = true;
+  }
+
+  function resumeLog() {
+    paused = false;
+    buffer.forEach(({ text, highlight, html, rightAlign, extraClass }) => {
+      appendLog(text, highlight, html, rightAlign, extraClass);
+    });
+    buffer = [];
+  }
+
+  return { addLog, pauseLog, resumeLog, restoreLogHistory };
+}
 
 const ACTION_LOGS = {
   explore: [
@@ -153,4 +234,4 @@ function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000, com
   };
 }
 
-export { ACTION_LOGS, startFlavorScheduler };
+export { ACTION_LOGS, createLogManager, startFlavorScheduler };

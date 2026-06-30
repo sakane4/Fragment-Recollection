@@ -119,11 +119,11 @@
       left: -28px;
       width: 28px;
       height: 64px;
-      background: var(--accent-dim);
-      border: 1px solid var(--border);
+      background: rgba(126, 200, 216, 0.14);
+      border: 1px solid rgba(126, 200, 216, 0.5);
       border-right: none;
       border-radius: 8px 0 0 8px;
-      color: var(--text);
+      color: var(--accent);
       writing-mode: vertical-rl;
       letter-spacing: 0.1em;
       font-size: 0.78rem;
@@ -132,8 +132,6 @@
     /* 導きの内容が更新されたとき、タブを発光させて気づかせる */
     #guide-tab-btn.glow {
       animation: guide-glow 1.4s ease-in-out infinite;
-      background: var(--accent);
-      color: var(--panel);
     }
     @keyframes guide-glow {
       0%, 100% { box-shadow: -2px 0 4px rgba(126,200,216,0.3); }

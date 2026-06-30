@@ -3,7 +3,7 @@
 import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
-import { startFlavorScheduler } from './logs.js';
+import { createLogManager, startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
@@ -25,6 +25,13 @@ const els = {
   storyCloseBtn: document.getElementById('story-close-btn'),
   storyModeToggleBtn: document.getElementById('story-mode-toggle-btn'),
 };
+
+const {
+  addLog,
+  pauseLog,
+  resumeLog,
+  restoreLogHistory,
+} = createLogManager(els.mainPanel);
 
 // 記憶ビューアの表示モード: false=ページ送り / true=スクロール(-----区切りを無視)
 let _viewerScrollMode = (() => {
@@ -215,74 +222,6 @@ function makeActionCallbacks(actionId) {
     onComplete: (result) => _handleActionComplete(actionId, result),
     onEncounter: (result) => _handleEncounter(actionId, result),
   };
-}
-
-// ── ログ ──
-// ページ再読込してもログが消えないよう、本文をlocalStorageに永続化する。件数はMAX_LOG_ENTRIESで頭打ち
-const LOG_HISTORY_KEY = 'fr_log_history';
-const MAX_LOG_ENTRIES = 200;
-let _logBuffer = [];
-let _logPaused = false;
-let _logHistory = [];
-
-function _saveLogHistory() {
-  try { localStorage.setItem(LOG_HISTORY_KEY, JSON.stringify(_logHistory)); } catch {}
-}
-
-function _createLogEl(text, highlight, html, rightAlign, extraClass) {
-  const el = document.createElement('div');
-  el.className = 'log-entry' + (highlight ? ' highlight' : '') + (rightAlign ? ' log-entry--right' : '') + (extraClass ? ` ${extraClass}` : '');
-  if (html) el.innerHTML = text;
-  else el.textContent = text;
-  return el;
-}
-
-// 起動時に1回だけ呼ぶ。保存済みのログがあれば(静的な初期表示の代わりに)それを復元表示する
-function _restoreLogHistory() {
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(LOG_HISTORY_KEY) || 'null'); } catch {}
-  if (saved && saved.length > 0) {
-    _logHistory = saved;
-    els.mainPanel.innerHTML = '';
-    for (const { text, highlight, html, rightAlign, extraClass } of _logHistory) {
-      els.mainPanel.appendChild(_createLogEl(text, highlight, html, rightAlign, extraClass));
-    }
-    els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
-  } else {
-    // 初回起動: 静的に表示済みの最初のログをそのまま履歴の1件目として積む
-    _logHistory = [{ text: '世界を再生しました', highlight: true, html: false, rightAlign: false }];
-    _saveLogHistory();
-  }
-}
-
-function addLog(text, highlight = false, html = false, rightAlign = false, extraClass = '') {
-  if (_logPaused) {
-    _logBuffer.push({ text, highlight, html, rightAlign, extraClass });
-    return;
-  }
-  _appendLog(text, highlight, html, rightAlign, extraClass);
-}
-
-function _appendLog(text, highlight, html, rightAlign = false, extraClass = '') {
-  const el = _createLogEl(text, highlight, html, rightAlign, extraClass);
-  const panel = els.mainPanel;
-  const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 40;
-  panel.appendChild(el);
-  if (atBottom) panel.scrollTop = panel.scrollHeight;
-
-  _logHistory.push({ text, highlight, html, rightAlign, extraClass });
-  if (_logHistory.length > MAX_LOG_ENTRIES) {
-    _logHistory.shift();
-    if (panel.firstChild) panel.removeChild(panel.firstChild);
-  }
-  _saveLogHistory();
-}
-
-function pauseLog()  { _logPaused = true; }
-function resumeLog() {
-  _logPaused = false;
-  _logBuffer.forEach(({ text, highlight, html, rightAlign, extraClass }) => _appendLog(text, highlight, html, rightAlign, extraClass));
-  _logBuffer = [];
 }
 
 // ── 物語ビューア ──
@@ -3111,7 +3050,7 @@ function initDevTools() {
 }
 
 export function init() {
-  _restoreLogHistory();
+  restoreLogHistory();
   subscribe(render);
   const initialState = getState();
   if (initialState.activeAction?.actionId) selectedActionId = initialState.activeAction.actionId;
