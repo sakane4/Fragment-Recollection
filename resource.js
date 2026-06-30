@@ -47,6 +47,7 @@ const RESOURCES = {
   chipped_insignia:   { label: '欠けた記章', color: '#c0c4cc' },
   polished_sheath:    { label: '美しい細身の剣', color: '#d6336c', category: 'relic' },
   guide_earring:      { label: '導きのイヤリング', color: '#d6336c', category: 'relic' },
+  kinomi:           { label: '木の実', color: '#85652c', unit: '個', acquireVerb: '拾った' },
 };
 
 const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'tool', 'relic'];

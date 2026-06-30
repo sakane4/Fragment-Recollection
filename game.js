@@ -2,6 +2,7 @@
 import { STORIES, getCostForParagraph } from './stories.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { QUEST_STATUS, getQuestDefinition, getVisibleQuests, getDiscoverableQuests, canTurnInQuest, canUnlockQuest, getActionObjectiveQuests } from './quests.js';
+import { RESOURCES } from './resource.js';
 
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
@@ -23,6 +24,7 @@ const REWARD_TABLES = {
   forest_gather_random: (_state, locationLv, actionLv) => [
     { resource: 'herb',     minAmount: 1, maxAmount: 3 + actionLv, minMs: 4000, maxMs: 9000 },
     { resource: 'fragment', minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
+    { resource: 'kinomi',   minAmount: 1, maxAmount: 2 + actionLv, minMs: 3000, maxMs: 7000 },
     ...(locationLv >= 2 ? [{ resource: 'branch', minAmount: 1, maxAmount: 1, minMs: 8000, maxMs: 20000 }] : []),
   ],
   // はじまりの森 — 木こり(道具屋で斧を買うと解放)
@@ -706,29 +708,8 @@ const ACTION_LV_THRESHOLDS = [
 ];
 
 const INITIAL_STATE = {
-  resources: {
-    fragment: 0,
-    blue_fragment: 0,
-    red_fragment: 0,
-    clear_fragment: 0,
-    bubble_fragment: 0,
-    sky_fragment: 0,
-    forest_voice: 0,
-    branch: 0,
-    wood: 0,
-    axe: 0,
-    magcoin: 0,
-    touto_rumor: 0,
-    old_text: 0,
-    survey_wherever: 0,
-    survey_forest: 0,
-    survey_kyusha: 0,
-    survey_renril: 0,
-    survey_mephisto: 0,
-    survey_knights: 0,
-    survey_touto: 0,
-    dream_fragment: 0,
-  },
+  // resource.jsへ定義した全リソースを、初期所持数0で自動登録する。
+  resources: Object.fromEntries(Object.keys(RESOURCES).map(id => [id, 0])),
   activeAction: null,
   unlockedStories: [],
   storyProgress: {},
@@ -1503,20 +1484,6 @@ function init() {
     questStatus: saved.questStatus ?? INITIAL_STATE.questStatus,
     allCompanionsMetDone: saved.allCompanionsMetDone ?? INITIAL_STATE.allCompanionsMetDone,
   };
-
-  // 仮商品だった押し花を正式商品へ移行し、既存セーブの所持数を失わないようにする
-  const migratedResources = { ...state.resources };
-  const oldRed = migratedResources.pressed_flower_red ?? 0;
-  const oldBlue = migratedResources.pressed_flower_blue ?? 0;
-  if (oldRed > 0) migratedResources.rescure = (migratedResources.rescure ?? 0) + oldRed;
-  if (oldBlue > 0) migratedResources.berylune = (migratedResources.berylune ?? 0) + oldBlue;
-  delete migratedResources.pressed_flower_red;
-  delete migratedResources.pressed_flower_blue;
-  const migratedDiscovered = (state.discoveredResources ?? [])
-    .filter(id => id !== 'pressed_flower_red' && id !== 'pressed_flower_blue');
-  if (oldRed > 0 && !migratedDiscovered.includes('rescure')) migratedDiscovered.push('rescure');
-  if (oldBlue > 0 && !migratedDiscovered.includes('berylune')) migratedDiscovered.push('berylune');
-  state = { ...state, resources: migratedResources, discoveredResources: migratedDiscovered };
 
   for (const [companionId, task] of Object.entries(state.companionTasks ?? {})) {
     const remaining = task.endsAt - Date.now();
