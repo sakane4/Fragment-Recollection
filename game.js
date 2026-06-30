@@ -1,7 +1,7 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
 import { STORIES, getCostForParagraph } from './stories.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
-import { QUEST_STATUS, getQuestDefinition, getDiscoverableQuests, canTurnInQuest } from './quests.js';
+import { QUEST_STATUS, getQuestDefinition, getDiscoverableQuests, canTurnInQuest, canUnlockQuest } from './quests.js';
 
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
@@ -42,6 +42,9 @@ const REWARD_TABLES = {
   ],
   touto_coin_random: () => [
     { resource: 'magcoin', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 14000, chance: 0.12 },
+  ],
+  touto_rumor_random: () => [
+    { resource: 'touto_rumor', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 13000, chance: 0.25 },
   ],
   chronicle_record_random: (state, _locationLv, _actionLv, locationId) => {
     const entry = WORLD_CHRONICLE_ENTRIES[locationId];
@@ -247,7 +250,7 @@ const LOCATION_DEFS = [
         description: '塔都の街を歩き回る。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: ['fragment_random', 'touto_coin_random', 'chronicle_record_random'],
+        rewardTableRandom: ['fragment_random', 'touto_coin_random', 'touto_rumor_random', 'chronicle_record_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
@@ -715,6 +718,7 @@ const INITIAL_STATE = {
     wood: 0,
     axe: 0,
     magcoin: 0,
+    touto_rumor: 0,
     old_text: 0,
     survey_wherever: 0,
     survey_forest: 0,
@@ -867,6 +871,23 @@ function turnInQuest(questId) {
   saveToStorage(state);
   notify();
   return { ok: true, questId, rewards: (quest.rewards ?? []).map(reward => ({ ...reward })) };
+}
+
+function unlockQuest(questId) {
+  const quest = getQuestDefinition(questId);
+  if (!quest || !canUnlockQuest(state, questId)) return { ok: false };
+  const resources = { ...state.resources };
+  for (const requirement of (quest.unlock?.requirements ?? [])) {
+    resources[requirement.resource] -= requirement.amount;
+  }
+  state = {
+    ...state,
+    resources,
+    questStatus: { ...state.questStatus, [questId]: QUEST_STATUS.ACTIVE },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true, questId };
 }
 
 function unlockAllStories() {
@@ -1654,4 +1675,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

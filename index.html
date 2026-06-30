@@ -547,6 +547,18 @@
       width: 0%;
       transition: width 0.3s;
     }
+    #worldlv-popup.is-capped .worldlv-popup-bar-fill {
+      background: #686b76;
+      transition: none;
+    }
+    #worldlv-popup.is-capped .worldlv-popup-bar-wrap {
+      border-color: #555864;
+    }
+    #worldlv-popup.is-capped #worldlv-popup-label {
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 260px;
+    }
 
     /* プログレスバーはメインパネルの下端 */
     #progress-wrap {
@@ -1784,7 +1796,8 @@
       letter-spacing: 0.03em;
     }
 
-    #refresh-btn {
+    #refresh-btn,
+    #settings-btn {
       flex-shrink: 0;
       width: 28px;
       height: 28px;
@@ -1794,9 +1807,38 @@
       color: var(--muted);
       cursor: pointer;
     }
-    #refresh-btn svg { width: 100%; height: 100%; display: block; }
-    #refresh-btn:hover { color: var(--text); }
+    #refresh-btn svg,
+    #settings-btn svg { width: 100%; height: 100%; display: block; }
+    #refresh-btn:hover,
+    #settings-btn:hover { color: var(--text); }
     #refresh-btn:active { transform: rotate(60deg); transition: transform 0.2s; }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.82rem;
+    }
+    .settings-choice {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .settings-choice button {
+      border: none;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      padding: 0.35rem 0.65rem;
+      cursor: pointer;
+    }
+    .settings-choice button:last-child { border-right: none; }
+    .settings-choice button.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
 
     #world-lv-display span {
       color: var(--text);
@@ -2201,6 +2243,12 @@
         <polyline points="21 20 21 15 16 15" />
       </svg>
     </button>
+    <button id="settings-btn" title="設定">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.38.35.72.6 1 .29.31.68.5 1.1.4h.09v4h-.09A1.7 1.7 0 0 0 19.4 15z" />
+      </svg>
+    </button>
   </div>
 
   <!-- メインパネル(ログ) -->
@@ -2432,6 +2480,20 @@
       <div class="confirm-popup-buttons">
         <button class="equip-popup-item" id="confirm-popup-yes">はい</button>
         <button class="equip-popup-item" id="confirm-popup-no">いいえ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 設定ポップアップ -->
+  <div id="settings-popup" class="equip-popup">
+    <div class="equip-popup-inner">
+      <div class="equip-popup-title">設定</div>
+      <div class="settings-row">
+        <span>探索ログ表示</span>
+        <div class="settings-choice">
+          <button type="button" data-log-mode="detailed">詳細</button>
+          <button type="button" data-log-mode="simple">シンプル</button>
+        </div>
       </div>
     </div>
   </div>

@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
@@ -8,6 +8,8 @@ import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, r
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
 import { QUEST_STATUS, getQuestDefinition, getVisibleQuests } from './quests.js';
+import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel, resColor, resCategory, resUnit, resourceSpan, resourceLog, maskedResLabel, formatCostLabel } from './resource.js';
+import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
 
@@ -92,83 +94,6 @@ function _markDiscoveriesSeen(state) {
   }
 }
 
-// リソース定義を1か所に集約(label/color/category/unit)。新アイテム追加時はここに1行追加するだけ。
-// category省略時は'material'、unit省略時は''がデフォルト
-const RESOURCES = {
-  fragment:        { label: 'フラグメント',     color: '#7ec8d8', category: 'fragment', unit: '片' },
-  blue_fragment:   { label: '青のフラグメント',   color: '#89b4fa', category: 'fragment', unit: '片' },
-  red_fragment:    { label: '赤のフラグメント',   color: '#f38ba8', category: 'fragment', unit: '片' },
-  clear_fragment:  { label: '無色のフラグメント', color: '#cdd6f4', category: 'fragment', unit: '片' },
-  bubble_fragment: { label: '泡のフラグメント',   color: '#cba6f7', category: 'fragment', unit: '片' },
-  sky_fragment:    { label: '空のフラグメント',   color: '#89dceb', category: 'fragment', unit: '片' },
-  herb:            { label: '薬草',     color: '#a6e3a1', unit: '束' },
-  forest_voice:    { label: '木々の声', color: '#a8d8a8', unit: 'かけら' },
-  branch:          { label: '木の枝',   color: '#c8a97e', unit: '本' },
-  wood:            { label: '木材',     color: '#a47d4e', unit: '本' },
-  axe:             { label: '鉄の斧',   color: '#9aa0a6', category: 'tool', unit: '振' },
-  // 塔都
-  magcoin:         { label: 'マグコイン', color: '#e6c200', unit: '枚' },
-  old_text:        { label: '古文書',   color: '#bba16a', unit: '冊' },
-  survey_wherever: { label: '再生された世界の調査記録', color: '#9eb7c4', unit: '部', category: 'survey', highlight: true },
-  survey_forest:   { label: 'はじまりの森の調査記録', color: '#8fb59a', unit: '部', category: 'survey', highlight: true },
-  survey_kyusha:   { label: '黄昏の旧校舎の調査記録', color: '#c2a68d', unit: '部', category: 'survey', highlight: true },
-  survey_renril:   { label: '翼竜の都の調査記録', color: '#8fb5c8', unit: '部', category: 'survey', highlight: true },
-  survey_mephisto: { label: '魔界王都の調査記録', color: '#ad91c4', unit: '部', category: 'survey', highlight: true },
-  survey_knights:  { label: '王立騎士団本部の調査記録', color: '#aeb4bd', unit: '部', category: 'survey', highlight: true },
-  survey_touto:    { label: '塔都の調査記録', color: '#c4b68f', unit: '部', category: 'survey', highlight: true },
-  dream_fragment:  { label: '夢の欠片', color: '#b8a6e8', unit: '片' },
-  mondo_leaf: { label: 'モンドの葉', color: '#9bc48a' },
-  rescure:    { label: 'レスキュア', color: '#e8e8dc' },
-  berylune:   { label: 'ベリルーン', color: '#83cfd0' },
-  // 黄昏の旧校舎
-  old_paint:          { label: '古びた絵具',         color: '#e0a96d' },
-  torn_page:          { label: '破れたページ',       color: '#d8cba0' },
-  broken_piano_sound: { label: '少し狂ったピアノの音', color: '#b0a8c8' },
-  art_room_key:       { label: '旧美術室の鍵',       color: '#d6336c', category: 'relic' },
-  // 翼竜の都 レンリル
-  wyvern_claw:        { label: '翼竜の爪', color: '#c0c4cc' },
-  wyvern_scale:       { label: '翼竜の鱗', color: '#7fb0c8' },
-  melon_keychain:     { label: 'もっふりん', color: '#d6336c', category: 'relic' },
-  // 魔界王都 メフィスト
-  spellbook_page:     { label: '魔術書のページ',       color: '#b89cd8' },
-  magic_circle_shard: { label: '魔法陣の欠片',         color: '#a98cd8' },
-  astard_fragment:    { label: 'アスタード文字の破片', color: '#9a8cc8' },
-  sky_compass:        { label: '天空の羅針盤',         color: '#d6336c', category: 'relic' },
-  // 王立騎士団本部
-  subjugation_report: { label: '討伐報告書',       color: '#d8cba0' },
-  old_armband:        { label: '古びた腕章',       color: '#b0926a' },
-  chipped_insignia:   { label: '欠けた記章',       color: '#c0c4cc' },
-  polished_sheath:    { label: '美しい細身の剣',   color: '#d6336c', category: 'relic' },
-  guide_earring:      { label: '導きのイヤリング', color: '#d6336c', category: 'relic' },
-};
-
-const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'tool', 'relic'];
-const RESOURCE_CATEGORY_LABELS = { fragment: 'フラグメント', material: '素材', tool: '道具', relic: 'レリック' };
-
-function resLabel(resource) { return RESOURCES[resource]?.label ?? resource; }
-function resColor(resource) { return RESOURCES[resource]?.color ?? 'var(--text)'; }
-function resCategory(resource) { return RESOURCES[resource]?.category ?? 'material'; }
-function resUnit(resource) { return RESOURCES[resource]?.unit ?? ''; }
-
-function resourceSpan(resource, text) {
-  return `<span style="color:${resColor(resource)};font-weight:bold">${text}</span>`;
-}
-
-function resourceLog(resource, amount) {
-  return `${resourceSpan(resource, resLabel(resource))} を ${amount}${resUnit(resource)} 見つけた`;
-}
-
-// まだ一度も入手していない(discoveredResourcesに無い)素材は名前を伏せて「???」で表示する。
-// 解放条件にしか出てこない未知の素材のネタバレを防ぐ
-function _maskedResLabel(resource, state) {
-  if (state && !(state.discoveredResources ?? []).includes(resource)) return '???';
-  return resLabel(resource);
-}
-
-function formatCostLabel(costs, state) {
-  return costs.map(c => `${_maskedResLabel(c.resource, state)} ×${c.amount}`).join(', ');
-}
-
 // 解放済み段落数(unlockedParas)から「表示可能なページ数」を算出
 function computeRevealedPages(pages, unlockedParas) {
   let revealedPages = 1;
@@ -191,12 +116,12 @@ function actionDisplayLabel(action, sep = ' / ') {
   return loc?.label ? `${loc.label}${sep}${action.label}` : action.label;
 }
 
-function makeRandomRewardHandler() {
+function makeRandomRewardHandler(actionId) {
   return ({ resource, amount }) => {
     if (RESOURCES[resource]?.highlight) {
       addLog(`【！】${resourceSpan(resource, resLabel(resource))} +${amount} を入手した`, true, true, false, 'log-rare');
     } else {
-      addLog(`<span class="log-companion-reward">${resourceLog(resource, amount)}</span>`, false, true);
+      addLog(`<span class="log-companion-reward">${resourceLog(resource, amount, actionId)}</span>`, false, true);
     }
     const recordEntry = Object.entries(WORLD_CHRONICLE_ENTRIES)
       .find(([, entry]) => entry.recordResource === resource);
@@ -208,17 +133,35 @@ function makeRandomRewardHandler() {
   };
 }
 
-function makeCompanionRandomRewardHandler() {
+let _pendingCompanionRewards = new Map();
+const COMPANION_LOG_MODE_KEY = 'fr_companion_log_mode';
+let _companionLogMode = (() => {
+  try { return localStorage.getItem(COMPANION_LOG_MODE_KEY) || 'detailed'; }
+  catch { return 'detailed'; }
+})();
+
+function _resetPendingCompanionRewards() {
+  _pendingCompanionRewards = new Map();
+}
+
+function makeCompanionRandomRewardHandler(actionId) {
   return ({ companionId, resource, amount }) => {
-    const name = COMPANION_DATA[companionId]?.name ?? companionId;
-    addLog(`<span class="log-companion-reward">${name}が ${resourceLog(resource, amount)}</span>`, false, true);
+    if (_companionLogMode === 'detailed') {
+      const name = COMPANION_DATA[companionId]?.name ?? companionId;
+      addLog(`<span class="log-companion-reward">${name}が${resourceLog(resource, amount, actionId)}</span>`, false, true);
+      return;
+    }
+    _pendingCompanionRewards.set(
+      resource,
+      (_pendingCompanionRewards.get(resource) ?? 0) + amount,
+    );
   };
 }
 
 function makeActionCallbacks(actionId) {
   return {
-    onRandomReward: makeRandomRewardHandler(),
-    onCompanionRandomReward: makeCompanionRandomRewardHandler(),
+    onRandomReward: makeRandomRewardHandler(actionId),
+    onCompanionRandomReward: makeCompanionRandomRewardHandler(actionId),
     onComplete: (result) => _handleActionComplete(actionId, result),
     onEncounter: (result) => _handleEncounter(actionId, result),
   };
@@ -344,7 +287,7 @@ function _buildUnlockButton(currentCost, state) {
     const offset = CIRC * (1 - ratio);
     const enough = have >= need;
     const ringColor = enough ? 'var(--accent)' : 'var(--muted)';
-    const label = _maskedResLabel(c.resource, state);
+    const label = maskedResLabel(c.resource, state);
     return `
       <span class="memory-cost-item${enough ? ' enough' : ''}">
         <svg class="memory-ring" viewBox="0 0 36 36">
@@ -1075,6 +1018,25 @@ function renderQuestList(state) {
     title.textContent = quest.title;
     card.appendChild(title);
 
+    if (status === QUEST_STATUS.AVAILABLE) {
+      const unlockCosts = quest.unlock?.requirements ?? [];
+      const canUnlock = unlockCosts.every(requirement =>
+        (state.resources?.[requirement.resource] ?? 0) >= requirement.amount
+      );
+      if (canUnlock) {
+        const button = document.createElement('button');
+        button.className = 'quest-turnin-btn';
+        button.textContent = `${unlockCosts.map(cost => `${resLabel(cost.resource)} ${cost.amount}`).join('、')}で調べる`;
+        button.addEventListener('click', () => {
+          const result = unlockQuest(quest.id);
+          if (result.ok) addLog(`【依頼】「${quest.title}」の詳細が判明した`, true, false, false, 'log-rare');
+        });
+        card.appendChild(button);
+      }
+      list.appendChild(card);
+      continue;
+    }
+
     const requester = document.createElement('div');
     requester.className = 'quest-requester';
     requester.textContent = quest.requester;
@@ -1210,6 +1172,7 @@ function _interruptForPartyChange(companionId, makeActive) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     _cancelled = true;
     cancelAction();
+    _resetPendingCompanionRewards();
     addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
   }
   setActiveCompanion(companionId, makeActive);
@@ -1291,10 +1254,16 @@ function _renderWorldLvPopup() {
   const cur = state.totalFragments ?? 0;
   const prevThresh = lv > 0 ? WORLD_LV_THRESHOLDS[lv - 1] : 0;
   const nextThresh = WORLD_LV_THRESHOLDS[lv] ?? null;
+  const popup = document.getElementById('worldlv-popup');
+  const isStoryCapped = lv >= 10 && !state.allCompanionsMetDone;
   document.getElementById('worldlv-popup-lv').textContent = `worldLv ${lv}`;
   const fill = document.getElementById('worldlv-popup-bar-fill');
   const label = document.getElementById('worldlv-popup-label');
-  if (nextThresh == null) {
+  popup.classList.toggle('is-capped', isStoryCapped);
+  if (isStoryCapped) {
+    fill.style.width = '100%';
+    label.textContent = '再生が停滞している...導きに従ってみよう';
+  } else if (nextThresh == null) {
     fill.style.width = '100%';
     label.textContent = '最大';
   } else {
@@ -1307,6 +1276,30 @@ function _renderWorldLvPopup() {
 function initRefreshButton() {
   const btn = document.getElementById('refresh-btn');
   btn.addEventListener('click', () => window.location.reload());
+}
+
+function initSettings() {
+  const button = document.getElementById('settings-btn');
+  const popup = document.getElementById('settings-popup');
+  const modeButtons = [...popup.querySelectorAll('[data-log-mode]')];
+
+  function renderMode() {
+    modeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.logMode === _companionLogMode));
+  }
+
+  button.addEventListener('click', () => {
+    renderMode();
+    popup.classList.add('open');
+  });
+  popup.addEventListener('click', (event) => {
+    if (event.target === popup) popup.classList.remove('open');
+  });
+  modeButtons.forEach(btn => btn.addEventListener('click', () => {
+    _companionLogMode = btn.dataset.logMode;
+    try { localStorage.setItem(COMPANION_LOG_MODE_KEY, _companionLogMode); } catch {}
+    _resetPendingCompanionRewards();
+    renderMode();
+  }));
 }
 
 function initWorldLvPopup() {
@@ -1488,11 +1481,15 @@ function _startActionById(actionId) {
     if (stopFlavor) { stopFlavor(); stopFlavor = null; }
     _cancelled = true;
     cancelAction();
+    _resetPendingCompanionRewards();
     addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
   }
   selectedActionId = actionId;
   els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
-  if (!_storyLogPlaying) startAction(actionId, makeActionCallbacks(actionId));
+  if (!_storyLogPlaying) {
+    _resetPendingCompanionRewards();
+    startAction(actionId, makeActionCallbacks(actionId));
+  }
 }
 
 // 施設に入店する。メインパネルに専用メニュー(行動を選ぶ/買い物する/出る)を表示する
@@ -1708,9 +1705,27 @@ function _handleActionComplete(actionId, result) {
   const normalRewards = (allRewards ?? []).filter(r => !RESOURCES[r.resource]?.highlight);
   const highlightRewards = (allRewards ?? []).filter(r => RESOURCES[r.resource]?.highlight);
   const rewardsHtml = normalRewards.map(r => _rewardHtml(r)).join(', ');
-  const companionRewardsHtml = (companionRewards ?? []).map(r => _rewardHtml(r, 'log-companion-reward')).join(', ');
-  const fullRewardsHtml = companionRewardsHtml ? `${rewardsHtml} / ${companionRewardsHtml}` : rewardsHtml;
-  addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewardsHtml}`, true, true);
+  if (_companionLogMode === 'detailed') {
+    const companionHtml = (companionRewards ?? [])
+      .map(reward => _rewardHtml(reward, 'log-companion-reward'))
+      .join(', ');
+    const fullRewards = companionHtml ? `${rewardsHtml} / ${companionHtml}` : rewardsHtml;
+    addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewards}`, true, true);
+    _resetPendingCompanionRewards();
+  } else {
+    addLog(`【${actionDisplayLabel(act)}】完了 — ${rewardsHtml}`, true, true);
+    const companionTotals = new Map(_pendingCompanionRewards);
+    for (const { resource, amount } of companionRewards ?? []) {
+      companionTotals.set(resource, (companionTotals.get(resource) ?? 0) + amount);
+    }
+    _resetPendingCompanionRewards();
+    if (companionTotals.size > 0) {
+      const summary = [...companionTotals]
+        .map(([resource, amount]) => _rewardHtml({ resource, amount }, 'log-companion-reward'))
+        .join(' / ');
+      addLog(`【同行者の成果】${summary}`, false, true);
+    }
+  }
   for (const r of highlightRewards) {
     addLog(`【！】${resourceSpan(r.resource, resLabel(r.resource))} +${r.amount} を入手した`, true, true);
   }
@@ -1747,6 +1762,7 @@ function _handleActionComplete(actionId, result) {
 // 自動再開(autoRepeat)はせず完全停止する。_cancelledを立てることで、render()内の自動再開判定を素通りさせる
 function _handleEncounter(actionId, { evaded, enemyLabel } = {}) {
   _cancelled = true;
+  _resetPendingCompanionRewards();
   const label = enemyLabel ?? '何か';
   addLog(evaded ? `【！】${label}に遭遇したが、難を逃れた` : `【！】${label}に遭遇した！探索は中断した…`, true, true);
   render(getState());
@@ -2291,14 +2307,6 @@ function showTabToast(targetTabSelector, text) {
 //   - 固有ドロップ品の説明
 //   - 装備品(とりあえず1個だけ)
 //   - 関連する記憶一覧(STORIES内のcompanionIdフィールドで絞り込んで取得できる、Lvアップ判定と同じ仕組みを再利用)
-const COMPANION_DATA = {
-  yuya:  { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
-  rabi:   { name: 'ラビ',   desc: '盲目の剣士。' },
-  shizuku:{ name: 'シズク', desc: '寡黙な青年。' },
-  kaoru:  { name: 'カオル', desc: 'いつも笑顔のお姉さん。' },
-  yukika: { name: '雪架',   desc: 'なにか秘密を知っているようだ。' },
-};
-
 function openEquipPopup(companionId) {
   const popup = document.getElementById('equip-popup');
   const list = document.getElementById('equip-popup-list');
@@ -2871,7 +2879,7 @@ function _attachPartyDragHandlers(handle, card, companionId) {
   });
 }
 
-function renderCharTab(state) {
+function _legacyRenderCharTab(state) {
   const view = document.getElementById('view-chars');
   view.innerHTML = '<div class="sub-title">同行</div>';
 
@@ -3002,6 +3010,16 @@ function renderCharTab(state) {
   _prevUnlockedCompanions = [...unlocked];
 }
 
+const renderCharTab = createCompanionTabRenderer({
+  getState,
+  rewards: COMPANION_REWARDS,
+  resLabel,
+  levelTagHtml: companionLvTagHtml,
+  buildDetail: _buildCompanionDetail,
+  attachDragHandlers: _attachPartyDragHandlers,
+  showTabToast,
+});
+
 function initDevTools() {
   const modeBtn = document.getElementById('dev-mode-btn');
   const modeDesc = document.getElementById('dev-mode-desc');
@@ -3060,6 +3078,7 @@ export function init() {
   initDevTools();
   initWorldLvPopup();
   initRefreshButton();
+  initSettings();
 
   if (!initialState.tutorialDone) {
     // スプラッシュ(TAP画面)が無い場合は即時、ある場合はタップで消えるのを待ってから開始
@@ -3084,6 +3103,7 @@ export function init() {
       if (stopFlavor) { stopFlavor(); stopFlavor = null; }
       _cancelled = true;
       cancelAction();
+      _resetPendingCompanionRewards();
       addLog(`【${label}】中断`, true);
     } else {
       if (!_storyLogPlaying) _startActionById(selectedActionId);
