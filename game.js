@@ -766,6 +766,7 @@ const INITIAL_STATE = {
   flowerHelpUnlocked: false,
   flowerEncyclopediaUnlocked: false,
   questStatus: {},
+  allCompanionsMetDone: false,
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -810,7 +811,8 @@ function _markDiscovered(resourceId) {
 function _addTotalFragments(amount) {
   const newTotal = state.totalFragments + amount;
   let newLv = state.worldLv;
-  while (newLv < WORLD_LV_THRESHOLDS.length && newTotal >= WORLD_LV_THRESHOLDS[newLv]) {
+  const lvCap = state.allCompanionsMetDone ? WORLD_LV_THRESHOLDS.length : 10;
+  while (newLv < lvCap && newTotal >= WORLD_LV_THRESHOLDS[newLv]) {
     newLv++;
   }
   state = { ...state, totalFragments: newTotal, worldLv: newLv };
@@ -1461,6 +1463,7 @@ function init() {
     flowerHelpUnlocked: saved.flowerHelpUnlocked ?? INITIAL_STATE.flowerHelpUnlocked,
     flowerEncyclopediaUnlocked: saved.flowerEncyclopediaUnlocked ?? INITIAL_STATE.flowerEncyclopediaUnlocked,
     questStatus: saved.questStatus ?? INITIAL_STATE.questStatus,
+    allCompanionsMetDone: saved.allCompanionsMetDone ?? INITIAL_STATE.allCompanionsMetDone,
   };
 
   // 仮商品だった押し花を正式商品へ移行し、既存セーブの所持数を失わないようにする
@@ -1514,6 +1517,13 @@ function unlockWorldChronicle() {
 function unlockFlowerHelp() {
   if (state.flowerHelpUnlocked) return;
   state = { ...state, flowerHelpUnlocked: true };
+  saveToStorage(state);
+  notify();
+}
+
+function setAllCompanionsMetDone() {
+  if (state.allCompanionsMetDone) return;
+  state = { ...state, allCompanionsMetDone: true };
   saveToStorage(state);
   notify();
 }
@@ -1644,4 +1654,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

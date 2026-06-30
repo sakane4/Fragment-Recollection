@@ -1,10 +1,10 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
 import { startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
 import { QUEST_STATUS, getQuestDefinition, getVisibleQuests } from './quests.js';
@@ -738,7 +738,7 @@ function _buildStoryItem(story, state) {
       sub.textContent = total ? `${progress} / ${total}` : progress > 0 ? `${progress} / ?` : '未読';
       if (total && progress < total) {
         const nextCost = getCostForParagraph(story, progress);
-        const nextCostLabel = formatCostLabel(nextCost);
+        const nextCostLabel = formatCostLabel(nextCost, state);
         sub.textContent += `  ·  ${nextCostLabel}`;
       }
     } else {
@@ -768,7 +768,7 @@ function _buildStoryItem(story, state) {
         if (result.ok) {
           openStory(story.id, { prevProgress: 0 });
         } else if (result.reason === 'insufficient_resources') {
-          addLog(`フラグメントが足りません (${costLabel} 必要)`);
+          addLog(`まだ思い出せない…（${costLabel} 必要）`);
         }
       });
       item.appendChild(btn);
@@ -1049,6 +1049,7 @@ function render(state) {
     startLogSt_4,
     startWorldChronicleIntro,
     startFlowerHelpIntro,
+    startAllCompanionsMet,
     unlockLocation,
     unlockAction,
     unlockGuide,
@@ -1782,7 +1783,7 @@ function _handleActionComplete(actionId, result) {
   for (const questId of receivedQuests) {
     const quest = getQuestDefinition(questId);
     if (!quest) continue;
-    addLog(`【！】依頼「${quest.title}」を受けた`, true);
+    addLog(`【！】依頼「${quest.title}」を受けた`, true, false, false, 'log-rare');
   }
   if (receivedQuests.length > 0) {
     renderQuestList(getState());
@@ -2231,6 +2232,20 @@ function startWorldChronicleIntro() {
       onComplete: () => {
         unlockWorldChronicle();
         addLog('【図書館】大陸誌の復元が可能になった', true);
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
+  });
+}
+
+function startAllCompanionsMet() {
+  if (getState().allCompanionsMetDone) return;
+  enqueueLogStory('all_companions_met', (finish) => {
+    let cleanup = null;
+    cleanup = runAllCompanionsMet(els.mainPanel, {
+      onComplete: () => {
+        setAllCompanionsMetDone();
+        addLog('【仲間】5人が揃い、世界の再生が新たな段階へ進んだ', true);
         finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
       },
     });

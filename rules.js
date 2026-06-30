@@ -83,6 +83,14 @@ export const UNLOCK_RULES = [
     action: (ctx) => ctx.startFlowerHelpIntro(),
   },
   {
+    id: 'all_companions_met',
+    requireViewerClosed: true,
+    condition: (state) =>
+      ['yuya', 'rabi', 'shizuku', 'kaoru', 'yukika'].every(id => state.unlockedCompanions.includes(id)) &&
+      !state.allCompanionsMetDone,
+    action: (ctx) => ctx.startAllCompanionsMet(),
+  },
+  {
     // ログストーリー004以降 ＆ 再生された世界(wherever)のLvが各ステップの閾値に達したら発見イベントを提示
     // repeatable: ステップが進むたびに次の閾値で再提示される（詳細スケジュールは game.js）
     id: 'discover_location_choice',

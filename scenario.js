@@ -348,15 +348,22 @@ function runLogSt_2(mainPanel, opts) { return runLogSt(LOG_STORY_2_STEPS, mainPa
 function runLogSt_3(mainPanel, opts) { return runLogSt(LOG_STORY_3_STEPS, mainPanel, opts); }
 function runWorldChronicleIntro(mainPanel, opts) { return runLogSt(WORLD_CHRONICLE_INTRO_STEPS, mainPanel, opts); }
 
+// 5人全員が揃ったときの顔合わせシーン(仮文。あとで本文を書き直す)
+const ALL_COMPANIONS_MET_STEPS = parseScript(`
+「」
+[end: 再生を続ける]
+`);
+function runAllCompanionsMet(mainPanel, opts) { return runLogSt(ALL_COMPANIONS_MET_STEPS, mainPanel, opts); }
+
 // 花屋で何度か買い物をしたあと、「手伝う」が解放されるきっかけになる小イベント
 const FLOWER_HELP_INTRO_STEPS = parseScript(`
 「お客さん、よくお花を買ってくれますよね」
-花を渡しながら、店員がそう声をかけてきた。
+あなたに花を渡しながら、店員がそう声をかけてきた。
 「実は”喪失”以来、花の記録が失われて」
 「お花の世話の方法が分からなくなってしまったんです」
 「それで人手が足りなくて……」
-「お花が好きなら、少し店を手伝ってくれませんか？」
-「もちろん、お金は払いますし、時間のある時だけで構いませんから！」
+「もし、よろしければ、少し店を手伝ってくれませんか？」
+「もちろん、お礼は払いますし、時間のある時だけで構いませんから！」
 [end: 引き受ける]
 `);
 function runFlowerHelpIntro(mainPanel, opts) { return runLogSt(FLOWER_HELP_INTRO_STEPS, mainPanel, opts); }
@@ -845,4 +852,4 @@ function runFacilityMenu(mainPanel, {
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runLocationChoice, runCompanionJoin, runFacilityMenu };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu };
