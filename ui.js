@@ -7,7 +7,7 @@ import { createLogManager, startFlavorScheduler } from './logs.js';
 import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
-import { QUEST_STATUS, getQuestDefinition, getVisibleQuests } from './quests.js';
+import { QUEST_STATUS, getQuestDefinition, getQuestProgress, getVisibleQuests } from './quests.js';
 import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel, resColor, resCategory, resUnit, resourceSpan, resourceLog, maskedResLabel, formatCostLabel } from './resource.js';
 import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
 
@@ -787,6 +787,7 @@ function render(state) {
     quest.id,
     status,
     [...(quest.reveal?.requirements ?? []), ...(quest.unlock?.requirements ?? []), ...(quest.requirements ?? [])]
+      .concat(quest.objective?.requirements ?? [])
       .map(item => [item.resource, state.resources?.[item.resource] ?? 0]),
   ]));
   if (questSig !== _prevQuestSig) {
@@ -1023,8 +1024,25 @@ function _setQuestComment(element, text, key) {
   }, 28);
 }
 
-function _questRewardText(quest) {
-  return (quest.rewards ?? []).map(item => `${resLabel(item.resource)} ${item.amount}`).join('、');
+function _buildQuestResourceList(items, values = null, extraClass = '') {
+  const list = document.createElement('div');
+  list.className = `quest-resource-list ${extraClass}`.trim();
+  for (const item of items ?? []) {
+    const chip = document.createElement('span');
+    chip.className = 'quest-resource-chip';
+    chip.title = resLabel(item.resource);
+    const name = document.createElement('span');
+    name.className = 'quest-resource-name';
+    name.style.color = resColor(item.resource);
+    name.textContent = resLabel(item.resource);
+    const amount = document.createElement('span');
+    amount.textContent = values
+      ? `${Math.min(values[item.resource] ?? 0, item.amount)}/${item.amount}`
+      : String(item.amount);
+    chip.append(name, amount);
+    list.appendChild(chip);
+  }
+  return list;
 }
 
 // 依頼パネル。進行状況を表示し、条件を満たした依頼はここから直接納品できる
@@ -1154,53 +1172,58 @@ function renderQuestList(state) {
     left.appendChild(dialog);
     layout.appendChild(left);
 
-    const goal = document.createElement('div');
-    goal.className = 'quest-goal';
-    const goalMain = document.createElement('div');
-    goalMain.className = 'quest-goal-main';
-    goalMain.textContent = quest.goalLabel ?? quest.description;
-    goal.appendChild(goalMain);
-
-    if (status === QUEST_STATUS.REPORTED) {
-      const count = document.createElement('div');
-      count.className = 'quest-goal-count';
-      count.textContent = '達成';
-      goal.appendChild(count);
-      const rewardText = _questRewardText(quest);
-      if (rewardText) {
-        const reward = document.createElement('div');
-        reward.className = 'quest-goal-reward';
-        reward.textContent = `報酬受取済み　${rewardText}`;
-        goal.appendChild(reward);
-      }
-      const done = document.createElement('div');
-      done.className = 'quest-reported';
-      done.textContent = '報告済み';
-      goal.appendChild(done);
+    const rewardPanel = document.createElement('div');
+    rewardPanel.className = 'quest-reward-panel';
+    if (status === QUEST_STATUS.REPORTED) layout.classList.add('quest-layout--reported');
+    const rewardLabel = document.createElement('div');
+    rewardLabel.className = 'quest-reward-label';
+    rewardLabel.textContent = '— 報酬 —';
+    rewardPanel.appendChild(rewardLabel);
+    if ((quest.rewards ?? []).length > 0) {
+      rewardPanel.appendChild(_buildQuestResourceList(quest.rewards));
     } else {
-      const count = document.createElement('div');
-      count.className = 'quest-goal-count';
-      if ((quest.requirements ?? []).length > 0) {
-        count.textContent = quest.requirements.map(requirement => {
-          const have = state.resources?.[requirement.resource] ?? 0;
-          return `${Math.min(have, requirement.amount)} / ${requirement.amount}`;
-        }).join('、');
-      } else {
-        count.textContent = status === QUEST_STATUS.COMPLETED ? '発見済み' : '探索中';
-      }
-      goal.appendChild(count);
-      const rewardText = _questRewardText(quest);
-      if (rewardText) {
-        const reward = document.createElement('div');
-        reward.className = 'quest-goal-reward';
-        reward.textContent = `報酬　${rewardText}`;
-        goal.appendChild(reward);
-      }
+      const emptyReward = document.createElement('div');
+      emptyReward.className = 'quest-reward-empty';
+      emptyReward.textContent = '—';
+      rewardPanel.appendChild(emptyReward);
+    }
+    layout.appendChild(rewardPanel);
+
+    const actionRow = document.createElement('div');
+    actionRow.className = 'quest-action-row';
+    const actionGoal = document.createElement('div');
+    actionGoal.className = 'quest-action-goal';
+    actionGoal.textContent = quest.goalLabel ?? quest.description;
+    actionGoal.title = quest.goalLabel ?? quest.description;
+    actionRow.appendChild(actionGoal);
+
+    const actionProgress = document.createElement('div');
+    actionProgress.className = 'quest-action-progress';
+    if (status === QUEST_STATUS.REPORTED) {
+      actionProgress.classList.add('done');
+      actionProgress.textContent = '';
+    } else if ((quest.requirements ?? []).length > 0) {
+      actionProgress.appendChild(_buildQuestResourceList(quest.requirements, state.resources));
+    } else if (quest.objective?.type === 'resource_set') {
+      const progress = getQuestProgress(state, quest.id);
+      actionProgress.textContent = `${progress?.unitLabel ?? ''} ${progress?.current ?? 0}/${progress?.target ?? 0}`.trim();
+    } else {
+      actionProgress.textContent = status === QUEST_STATUS.COMPLETED ? '発見済み' : '探索中';
+    }
+    actionRow.appendChild(actionProgress);
+
+    const actionSlot = document.createElement('div');
+    actionSlot.className = 'quest-action-slot';
+    if (status === QUEST_STATUS.REPORTED) {
+      const check = document.createElement('div');
+      check.className = 'quest-inline-check';
+      check.textContent = '✓';
+      check.title = '報告済み';
+      actionSlot.appendChild(check);
+    } else {
       const turnIn = document.createElement('button');
       turnIn.className = 'quest-turnin-btn';
-      turnIn.textContent = status === QUEST_STATUS.COMPLETED
-        ? (quest.turnInLabel ?? '納品する')
-        : (quest.activeLabel ?? '素材が足りない');
+      turnIn.textContent = (quest.turnInLabel ?? '納品する').replace(/する$/, '');
       turnIn.disabled = status !== QUEST_STATUS.COMPLETED;
       turnIn.addEventListener('click', () => {
         const result = turnInQuest(quest.id);
@@ -1208,9 +1231,10 @@ function renderQuestList(state) {
         const rewards = result.rewards.map(item => `${resLabel(item.resource)} +${item.amount}`).join('、');
         addLog(`【依頼】「${quest.title}」を達成した${rewards ? ` — ${rewards}` : ''}`, true);
       });
-      goal.appendChild(turnIn);
+      actionSlot.appendChild(turnIn);
     }
-    layout.appendChild(goal);
+    actionRow.appendChild(actionSlot);
+    layout.appendChild(actionRow);
     syncCollapsed();
     card.appendChild(layout);
     list.appendChild(card);
@@ -2335,7 +2359,7 @@ function startWorldChronicleIntro() {
     cleanup = runWorldChronicleIntro(els.mainPanel, {
       onComplete: () => {
         unlockWorldChronicle();
-        addLog('【図書館】大陸誌の復元が可能になった', true);
+        addLog('【依頼】「大陸誌の復元」を引き受けた', true, false, false, 'log-rare');
         finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
       },
     });
