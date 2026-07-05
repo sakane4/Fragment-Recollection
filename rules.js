@@ -30,7 +30,7 @@ export const UNLOCK_RULES = [
     requireViewerClosed: true,
     condition: (state) =>
       !state.logSt4Done &&
-      (state.storyProgress['yuya_1'] ?? 0) >= 13,
+      !!state.logSt4Ready,
     action: (ctx) => ctx.startLogSt_4(),
   },
 

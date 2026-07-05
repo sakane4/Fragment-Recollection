@@ -56,6 +56,41 @@ export function parseStoryCostOverrides(text) {
   return map;
 }
 
+// 本文テキストから [milestone: flagName] マーカーを解析する
+// Returns: { [paragraphIndex: number]: string }
+export function parseMilestones(text) {
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const map = {};
+  let paraIndex = 0;
+  const allBlocks = text
+    .split(/^-----$/m)
+    .flatMap(page => page.split(/^---$/m))
+    .map(b => b.replace(/^\n+|\n+$/g, ''))
+    .filter(b => b.length > 0);
+
+  for (const block of allBlocks) {
+    if (/^\[pagecost:/i.test(block)) continue; // pagecostはカウントしない
+    const match = block.match(/^\[milestone:\s*(.+)\]$/i);
+    if (match) {
+      map[paraIndex] = match[1].trim();
+      // マーカー自体は段落カウントに含めない
+    } else {
+      paraIndex++;
+    }
+  }
+  return map;
+}
+
+const _runtimeMilestoneMaps = {};
+
+export function setStoryMilestoneMap(storyId, milestoneMap) {
+  _runtimeMilestoneMaps[storyId] = milestoneMap;
+}
+
+export function getMilestoneAtParagraph(storyId, paragraphIndex) {
+  return _runtimeMilestoneMaps[storyId]?.[paragraphIndex] ?? null;
+}
+
 // 段落インデックスに対応するコストを返す
 // ランタイムコストマップ → pageCostRules → pageCost の優先順で解決
 export function getCostForParagraph(story, paragraphIndex) {

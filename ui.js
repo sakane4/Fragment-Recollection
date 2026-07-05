@@ -1,10 +1,10 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
-import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph } from './stories.js';
+import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu, runNostalgiaDiscovery } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
 import { QUEST_STATUS, getQuestDefinition, getQuestProgress, getQuestStatus, getVisibleQuests } from './quests.js';
@@ -225,11 +225,12 @@ function openStory(storyId, { prevProgress } = {}) {
   let parsed = _parsedStoryCache.get(storyId);
   if (!parsed) {
     const text = story.body ?? '';
-    parsed = { pages: parseStoryPages(text), costMap: parseStoryCostOverrides(text) };
+    parsed = { pages: parseStoryPages(text), costMap: parseStoryCostOverrides(text), milestoneMap: parseMilestones(text) };
     _parsedStoryCache.set(storyId, parsed);
   }
   const pages = parsed.pages;
   setStoryCostMap(storyId, parsed.costMap);
+  setStoryMilestoneMap(storyId, parsed.milestoneMap);
 
   if (pages.length === 0) {
     addLog('【エラー】この記憶にはまだ本文がありません');
@@ -1291,7 +1292,7 @@ function renderGuideList(state) {
 
   const guides = getActiveGuides(state, {
     discoveryStepLv: DISCOVERY_STEP_LV,
-    nostalgiaFacilities: TOUTO_FACILITIES,
+    nostalgiaFacilities: NOSTALGIA_FACILITIES,
     actions: ACTIONS,
     locations: LOCATIONS,
     companionRelics: COMPANION_RELICS,
@@ -2044,6 +2045,8 @@ function renderActionList() {
 
   for (const location of Object.values(LOCATIONS)) {
     if (!state.unlockedLocations.includes(location.id)) continue;
+    // nostalgia解放後はwhereverを非表示（ノスタルジアにすり替わった）
+    if (location.id === 'wherever' && state.unlockedLocations.includes('nostalgia')) continue;
     const actions = Object.values(ACTIONS).filter(a =>
       a.locationId === location.id && state.unlockedActions.includes(a.id)
     ).map(a => ({ ...a, _kind: 'action' }));
@@ -2454,10 +2457,12 @@ function showDiscovery() {
     );
   };
 
-  if (pending.kind === 'fixed') {
+  if (pending.kind === 'fixed' && pending.locationId === 'nostalgia') {
+    cleanup = runNostalgiaDiscovery(els.mainPanel, { onComplete: () => finish('nostalgia') });
+  } else if (pending.kind === 'fixed') {
     cleanup = runLocationChoice(els.mainPanel, {
-      prompt: '高くそびえる白亜の塔が見えてきた・・・',
-      options: [{ id: pending.locationId, label: `${DISCOVERY_LABELS[pending.locationId] ?? '塔都'}へ向かう` }],
+      prompt: '新しい場所が見つかりそうだ・・・',
+      options: [{ id: pending.locationId, label: DISCOVERY_LABELS[pending.locationId] ?? pending.locationId }],
       onPick: finish,
     });
   } else {

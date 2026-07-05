@@ -873,4 +873,17 @@ function runFacilityMenu(mainPanel, {
   return cleanup;
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu };
+// ── ノスタルジア発見シーン ──
+// 「再生された世界」が「ノスタルジア」へと変化する瞬間の演出
+const NOSTALGIA_DISCOVERY_STEPS = parseScript(`
+（仮）気がつくと、街の輪郭が滲んでいた。
+（仮）ここはどこだろう。なにもなかったはずなのに。
+（仮）石畳。路地。明かりのない窓。
+（仮）まるで、誰かがここにいたことを、世界が覚えているようだ。
+（仮）―― ノスタルジア。
+[end: 先へ進む]
+`);
+
+function runNostalgiaDiscovery(mainPanel, opts) { return runLogSt(NOSTALGIA_DISCOVERY_STEPS, mainPanel, opts); }
+
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu, runNostalgiaDiscovery };

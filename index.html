@@ -2939,7 +2939,7 @@
 
   document.getElementById('dev-reset-btn').addEventListener('click', () => {
     if (!confirm('セーブデータをすべて削除してリセットしますか？')) return;
-    localStorage.removeItem('fr_save_v1');
+    localStorage.clear();
     location.reload();
   });
 </script>

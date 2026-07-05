@@ -71,6 +71,8 @@ export default {
 ---
 [pagecost: red_fragment×5]
 ---
+[milestone: logSt4Ready]
+---
 「立て」
 短くそう言って、その人は俺をひっぱり起こそうとする。
 「無理だよ……」

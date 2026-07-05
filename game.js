@@ -1,5 +1,5 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
-import { STORIES, getCostForParagraph } from './stories.js';
+import { STORIES, getCostForParagraph, getMilestoneAtParagraph } from './stories.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { QUEST_STATUS, getQuestDefinition, getVisibleQuests, getDiscoverableQuests, canTurnInQuest, canUnlockQuest, getActionObjectiveQuests } from './quests.js';
 import { RESOURCES } from './resource.js';
@@ -88,6 +88,65 @@ function resolveTable(tableNameOrArray, locationId, actionId) {
 
 // 場所・行動の定義（行動は場所にネスト）
 const LOCATION_DEFS = [
+  {
+    id: 'nostalgia',
+    label: 'ノスタルジア',
+    description: '宵闇の都　ノスタルジア。静かな街だ。',
+    // 拠点エリア。探索を進める(ActionLvが上がる)ごとに施設をランダムな順で発見する。
+    // 4施設(宿屋/花屋/図書館/骨董屋)は通常の行動ではなく「施設」(FACILITIES参照)。
+    // 入店するとメインパネルに専用メニューが開き、そこから個別の行動(下記)や買い物を選ぶ
+    actions: [
+      {
+        id: 'nostalgia_explore',
+        label: '探索',
+        description: 'ノスタルジアの街を歩き回る。',
+        duration: 15000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: ['fragment_random', 'nostalgia_coin_random', 'nostalgia_rumor_random', 'chronicle_record_random'],
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
+      // 宿屋(nostalgia_inn)のメニューから選べる行動。30分かかる代わりに、完了後REST_BUFF_STACKS回分の
+      // 「報酬2倍」バフ(restBuffStacks)を付与する(他の行動の完了時に1スタックずつ消費・2倍)
+      {
+        id: 'nostalgia_inn_rest',
+        label: '休む',
+        description: '旅の宿でゆっくり休む。(30分かかるが、完了後しばらく報酬が2倍になる)',
+        duration: 1800000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'fragment_random',
+        rewards: [{ resource: 'dream_fragment', amount: 1 }],
+        randomRewards: [],
+        discoveries: [],
+      },
+      // 花屋(nostalgia_flower)のメニューから選べる行動
+      {
+        id: 'nostalgia_flower_help',
+        label: '手伝う',
+        description: '花屋を手伝い、マグコインを得る。',
+        duration: 15000,
+        rewardTable: 'magcoin_fixed',
+        rewardTableRandom: 'magcoin_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+        noCompanionReward: true,
+      },
+      // 図書館(nostalgia_library)のメニューから選べる行動
+      {
+        id: 'nostalgia_library_research',
+        label: '調査',
+        description: '図書館で調査を行う。',
+        duration: 15000,
+        rewardTable: 'fragment_fixed',
+        rewardTableRandom: 'library_random',
+        rewards: [],
+        randomRewards: [],
+        discoveries: [],
+      },
+    ],
+  },
   {
     id: 'wherever',
     label: '再生された世界',
@@ -238,65 +297,6 @@ const LOCATION_DEFS = [
       },
     ],
   },
-  {
-    id: 'nostalgia',
-    label: 'ノスタルジア',
-    description: '宵闇の都　ノスタルジア。静かな街だ。',
-    // 拠点エリア。探索を進める(ActionLvが上がる)ごとに施設をランダムな順で発見する。
-    // 4施設(宿屋/花屋/図書館/骨董屋)は通常の行動ではなく「施設」(FACILITIES参照)。
-    // 入店するとメインパネルに専用メニューが開き、そこから個別の行動(下記)や買い物を選ぶ
-    actions: [
-      {
-        id: 'nostalgia_explore',
-        label: '探索',
-        description: 'ノスタルジアの街を歩き回る。',
-        duration: 15000,
-        rewardTable: 'fragment_fixed',
-        rewardTableRandom: ['fragment_random', 'nostalgia_coin_random', 'nostalgia_rumor_random', 'chronicle_record_random'],
-        rewards: [],
-        randomRewards: [],
-        discoveries: [],
-      },
-      // 宿屋(nostalgia_inn)のメニューから選べる行動。30分かかる代わりに、完了後REST_BUFF_STACKS回分の
-      // 「報酬2倍」バフ(restBuffStacks)を付与する(他の行動の完了時に1スタックずつ消費・2倍)
-      {
-        id: 'nostalgia_inn_rest',
-        label: '休む',
-        description: '旅の宿でゆっくり休む。(30分かかるが、完了後しばらく報酬が2倍になる)',
-        duration: 1800000,
-        rewardTable: 'fragment_fixed',
-        rewardTableRandom: 'fragment_random',
-        rewards: [{ resource: 'dream_fragment', amount: 1 }],
-        randomRewards: [],
-        discoveries: [],
-      },
-      // 花屋(nostalgia_flower)のメニューから選べる行動
-      {
-        id: 'nostalgia_flower_help',
-        label: '手伝う',
-        description: '花屋を手伝い、マグコインを得る。',
-        duration: 15000,
-        rewardTable: 'magcoin_fixed',
-        rewardTableRandom: 'magcoin_random',
-        rewards: [],
-        randomRewards: [],
-        discoveries: [],
-        noCompanionReward: true,
-      },
-      // 図書館(nostalgia_library)のメニューから選べる行動
-      {
-        id: 'nostalgia_library_research',
-        label: '調査',
-        description: '図書館で調査を行う。',
-        duration: 15000,
-        rewardTable: 'fragment_fixed',
-        rewardTableRandom: 'library_random',
-        rewards: [],
-        randomRewards: [],
-        discoveries: [],
-      },
-    ],
-  },
 ];
 
 // 既存コードが参照するフラットな lookup map を生成
@@ -373,11 +373,14 @@ function getDiscoveryOptions(state, step) {
 // いま発生すべき発見イベントを返す。なければ null
 // { step, kind: 'choice'|'fixed', options?: string[], locationId?: string }
 function getPendingDiscovery(state) {
-  if (!state.logSt4Done) return null;
   const step = state.discoveryStep ?? 0;
   if (step >= DISCOVERY_STEP_LV.length) return null;
-  if ((state.LocationLv?.['wherever'] ?? 0) < DISCOVERY_STEP_LV[step]) return null;
-  if (step === 1) return { step, kind: 'fixed', locationId: 'nostalgia' };
+  // step0(nostalgia)はlogSt4不要、step1以降はlogSt4完了後のみ
+  if (step > 0 && !state.logSt4Done) return null;
+  // step0はwhereverのLvで判定、step1以降はnostalgiaのLvで判定
+  const baseLoc = step === 0 ? 'wherever' : 'nostalgia';
+  if ((state.LocationLv?.[baseLoc] ?? 0) < DISCOVERY_STEP_LV[step]) return null;
+  if (step === 0) return { step, kind: 'fixed', locationId: 'nostalgia' };
   const options = getDiscoveryOptions(state, step);
   if (options.length === 0) return null;
   return { step, kind: 'choice', options };
@@ -392,13 +395,18 @@ function resolveDiscovery(chosenLocationId) {
     : [...state.unlockedLocations, chosenLocationId];
   const newActions = [...state.unlockedActions];
   for (const a of actions) if (!newActions.includes(a)) newActions.push(a);
-  // 塔都(step1)を解決した時点で、step2に出す終盤の場所を1/2で抽選・固定
+  // step1以降の終盤場所抽選（旧step1→現step1: 序盤2択解決時）
   let latePick = state.discoveryLatePick;
   if (step === 1 && !latePick) latePick = DISCOVERY_LATE[Math.random() < 0.5 ? 0 : 1];
   // このロケーションが解放された時点の再生Lv(=このステップの閾値)を、LocationLvコスト換算の
   // オフセットとして記録する(_locationLvCostOffset参照)
   const newDiscoveryLv = { ...state.locationDiscoveryLv };
   if (newDiscoveryLv[chosenLocationId] == null) newDiscoveryLv[chosenLocationId] = DISCOVERY_STEP_LV[step] ?? 0;
+  // nostalgia発見時(step0)：whereverのLocationLvを引き継いで開始
+  const newLocationLv = { ...state.LocationLv };
+  if (chosenLocationId === 'nostalgia' && newLocationLv['nostalgia'] == null) {
+    newLocationLv['nostalgia'] = newLocationLv['wherever'] ?? 0;
+  }
   state = {
     ...state,
     unlockedLocations: newLocations,
@@ -406,6 +414,7 @@ function resolveDiscovery(chosenLocationId) {
     discoveryStep: step + 1,
     discoveryLatePick: latePick,
     locationDiscoveryLv: newDiscoveryLv,
+    LocationLv: newLocationLv,
   };
   saveToStorage(state);
   notify();
@@ -721,6 +730,7 @@ const INITIAL_STATE = {
   logSt2Done: false,
   logSt3Done: false,
   logSt4Done: false,
+  logSt4Ready: false,
   guideUnlocked: false,
   effectsUnlocked: false,
   playerName: '',
@@ -1431,10 +1441,13 @@ function unlockNextPage(storyId) {
     }
     newResources[c.resource] -= c.amount;
   }
+  const newProgress = current + 1;
+  const milestone = getMilestoneAtParagraph(storyId, newProgress);
   state = {
     ...state,
     resources: newResources,
-    storyProgress: { ...state.storyProgress, [storyId]: current + 1 },
+    storyProgress: { ...state.storyProgress, [storyId]: newProgress },
+    ...(milestone ? { [milestone]: true } : {}),
   };
   saveToStorage(state);
   notify();
