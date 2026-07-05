@@ -53,17 +53,17 @@ export const GUIDES = [
     },
   },
   {
-    id: 'discover_touto_facilities',
-    title: '塔都の施設を探す',
-    completed: (state, ctx) => ctx.toutoFacilities.every(id => state.unlockedActions?.includes(id)),
+    id: 'discover_nostalgia_facilities',
+    title: 'ノスタルジアの施設を探す',
+    completed: (state, ctx) => ctx.nostalgiaFacilities.every(id => state.unlockedActions?.includes(id)),
     select: (state, ctx) => {
-      if (!state.unlockedLocations?.includes('touto')) return null;
-      const found = ctx.toutoFacilities.filter(id => state.unlockedActions?.includes(id)).length;
-      if (found >= ctx.toutoFacilities.length) return null;
+      if (!state.unlockedLocations?.includes('nostalgia')) return null;
+      const found = ctx.nostalgiaFacilities.filter(id => state.unlockedActions?.includes(id)).length;
+      if (found >= ctx.nostalgiaFacilities.length) return null;
       return {
-        text: '【塔都】を探索してみよう…まだ見つけていない施設がありそうだ',
+        text: '【ノスタルジア】を探索してみよう…まだ見つけていない施設がありそうだ',
         progress: found,
-        target: ctx.toutoFacilities.length,
+        target: ctx.nostalgiaFacilities.length,
       };
     },
   },
@@ -72,10 +72,10 @@ export const GUIDES = [
     title: '読めない本',
     completed: (state) => !!state.worldChronicleUnlocked,
     select: (state) => {
-      if (!state.unlockedActions?.includes('touto_library') || state.worldChronicleUnlocked) return null;
+      if (!state.unlockedActions?.includes('nostalgia_library') || state.worldChronicleUnlocked) return null;
       return {
-        text: '【塔都図書館】で調査を続けてみよう…読めない本が気にかかる',
-        progress: Math.min(state.actionCount?.touto_library_research ?? 0, 3),
+        text: '【ノスタルジア図書館】で調査を続けてみよう…読めない本が気にかかる',
+        progress: Math.min(state.actionCount?.nostalgia_library_research ?? 0, 3),
         target: 3,
       };
     },
@@ -85,7 +85,7 @@ export const GUIDES = [
     title: '花屋の常連',
     completed: (state) => !!state.flowerHelpUnlocked,
     select: (state) => {
-      if (!state.unlockedActions?.includes('touto_flower') || state.flowerHelpUnlocked) return null;
+      if (!state.unlockedActions?.includes('nostalgia_flower') || state.flowerHelpUnlocked) return null;
       return {
         text: '【花屋 竜の鱗】で花を買ってみよう…何度か通えば、店員と親しくなれるかもしれない',
         progress: Math.min(state.shopPurchaseCount?.flower ?? 0, 3),

@@ -99,23 +99,23 @@ const ACTION_LOGS = {
     '持ちきれなくなってきました...',
     'はやくかえりたいです...',
   ],
-  touto_explore: [
+  nostalgia_explore: [
     '石畳の街路を歩いています...',
     '人々の声が聞こえます...',
     '塔の影が長く伸びています...',
     '露店の呼び込みが響いています...',
   ],
-  touto_inn_rest: [
+  nostalgia_inn_rest: [
     '暖炉のそばで一息ついた...',
     '料理のいい匂いがする...',
     'まどろみに身をあずける...',
   ],
-  touto_flower_help: [
+  nostalgia_flower_help: [
     '花の水やりを手伝った...',
     '店先の花を並べ替えた...',
     '客の相手をしている...',
   ],
-  touto_library_research: [
+  nostalgia_library_research: [
     '古い書架をめくっている...',
     'インクと紙の匂いがする...',
     '気になる一節を書き写した...',

@@ -70,7 +70,7 @@ export const UNLOCK_RULES = [
     id: 'unlock_world_chronicle',
     requireViewerClosed: true,
     condition: (state) =>
-      (state.actionCount?.touto_library_research ?? 0) >= 3 &&
+      (state.actionCount?.nostalgia_library_research ?? 0) >= 3 &&
       !state.worldChronicleUnlocked,
     action: (ctx) => ctx.startWorldChronicleIntro(),
   },

@@ -42,11 +42,11 @@ const REWARD_TABLES = {
   magcoin_random: (_state, _locationLv, actionLv) => [
     { resource: 'magcoin', minAmount: 1, maxAmount: 2 + actionLv, minMs: 5000, maxMs: 12000 },
   ],
-  touto_coin_random: () => [
+  nostalgia_coin_random: () => [
     { resource: 'magcoin', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 14000, chance: 0.12 },
   ],
-  touto_rumor_random: () => [
-    { resource: 'touto_rumor', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 13000, chance: 0.25 },
+  nostalgia_rumor_random: () => [
+    { resource: 'nostalgia_rumor', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 13000, chance: 0.25 },
   ],
   chronicle_record_random: (state, _locationLv, _actionLv, locationId) => {
     const entry = WORLD_CHRONICLE_ENTRIES[locationId];
@@ -239,28 +239,28 @@ const LOCATION_DEFS = [
     ],
   },
   {
-    id: 'touto',
-    label: '塔都',
-    description: 'どこまでも空へ伸びる、白亜の塔をとりまく街。さまざまな施設がある。',
+    id: 'nostalgia',
+    label: 'ノスタルジア',
+    description: '宵闇の都　ノスタルジア。静かな街だ。',
     // 拠点エリア。探索を進める(ActionLvが上がる)ごとに施設をランダムな順で発見する。
     // 4施設(宿屋/花屋/図書館/骨董屋)は通常の行動ではなく「施設」(FACILITIES参照)。
     // 入店するとメインパネルに専用メニューが開き、そこから個別の行動(下記)や買い物を選ぶ
     actions: [
       {
-        id: 'touto_explore',
+        id: 'nostalgia_explore',
         label: '探索',
-        description: '塔都の街を歩き回る。',
+        description: 'ノスタルジアの街を歩き回る。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: ['fragment_random', 'touto_coin_random', 'touto_rumor_random', 'chronicle_record_random'],
+        rewardTableRandom: ['fragment_random', 'nostalgia_coin_random', 'nostalgia_rumor_random', 'chronicle_record_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
       },
-      // 宿屋(touto_inn)のメニューから選べる行動。30分かかる代わりに、完了後REST_BUFF_STACKS回分の
+      // 宿屋(nostalgia_inn)のメニューから選べる行動。30分かかる代わりに、完了後REST_BUFF_STACKS回分の
       // 「報酬2倍」バフ(restBuffStacks)を付与する(他の行動の完了時に1スタックずつ消費・2倍)
       {
-        id: 'touto_inn_rest',
+        id: 'nostalgia_inn_rest',
         label: '休む',
         description: '旅の宿でゆっくり休む。(30分かかるが、完了後しばらく報酬が2倍になる)',
         duration: 1800000,
@@ -270,9 +270,9 @@ const LOCATION_DEFS = [
         randomRewards: [],
         discoveries: [],
       },
-      // 花屋(touto_flower)のメニューから選べる行動
+      // 花屋(nostalgia_flower)のメニューから選べる行動
       {
-        id: 'touto_flower_help',
+        id: 'nostalgia_flower_help',
         label: '手伝う',
         description: '花屋を手伝い、マグコインを得る。',
         duration: 15000,
@@ -283,9 +283,9 @@ const LOCATION_DEFS = [
         discoveries: [],
         noCompanionReward: true,
       },
-      // 図書館(touto_library)のメニューから選べる行動
+      // 図書館(nostalgia_library)のメニューから選べる行動
       {
-        id: 'touto_library_research',
+        id: 'nostalgia_library_research',
         label: '調査',
         description: '図書館で調査を行う。',
         duration: 15000,
@@ -343,7 +343,7 @@ const DISCOVERY_LABELS = {
   renril:   '翼竜の都 レンリル',
   mephisto: '魔界王都 メフィスト',
   knights:  '王立騎士団本部',
-  touto:    '塔都',
+  nostalgia:    'ノスタルジア',
 };
 // 各場所を解放したとき同時に解放する行動
 const DISCOVERY_LOCATION_ACTIONS = {
@@ -351,11 +351,11 @@ const DISCOVERY_LOCATION_ACTIONS = {
   renril:   ['renril_explore'],
   mephisto: ['mephisto_explore'],
   knights:  ['knights_explore'],
-  touto:    ['touto_explore'],
+  nostalgia:    ['nostalgia_explore'],
 };
 
-// 塔都の施設。ActionLv(touto_exploreの実行回数レベル)が上がるたびランダムな順で1つずつ発見される
-const TOUTO_FACILITIES = ['touto_inn', 'touto_flower', 'touto_library', 'touto_antique'];
+// 塔都の施設。ActionLv(nostalgia_exploreの実行回数レベル)が上がるたびランダムな順で1つずつ発見される
+const NOSTALGIA_FACILITIES = ['nostalgia_inn', 'nostalgia_flower', 'nostalgia_library', 'nostalgia_antique'];
 
 // 指定ステップで提示する選択肢（まだ解放していない場所IDの配列）
 function getDiscoveryOptions(state, step) {
@@ -377,13 +377,13 @@ function getPendingDiscovery(state) {
   const step = state.discoveryStep ?? 0;
   if (step >= DISCOVERY_STEP_LV.length) return null;
   if ((state.LocationLv?.['wherever'] ?? 0) < DISCOVERY_STEP_LV[step]) return null;
-  if (step === 1) return { step, kind: 'fixed', locationId: 'touto' };
+  if (step === 1) return { step, kind: 'fixed', locationId: 'nostalgia' };
   const options = getDiscoveryOptions(state, step);
   if (options.length === 0) return null;
   return { step, kind: 'choice', options };
 }
 
-// 発見イベントを解決する：選んだ場所（固定時は'touto'）を解放し、ステップを進める
+// 発見イベントを解決する：選んだ場所（固定時は'nostalgia'）を解放し、ステップを進める
 function resolveDiscovery(chosenLocationId) {
   const step = state.discoveryStep ?? 0;
   const actions = DISCOVERY_LOCATION_ACTIONS[chosenLocationId] ?? [];
@@ -448,44 +448,44 @@ const FLOWER_ENCYCLOPEDIA_DISCOVERY_CHANCE = 0.15;
 // ── 施設(FACILITIES) ──
 // 通常の行動(時間経過)とは別の概念。入店すると専用メニューが開き、そこから個別の行動を選んだり、
 // 買い物(SHOP)をしたりする。FACILITIES自体のidはLOCATION_DEFSの行動解放(unlockedActions)と
-// 同じ仕組みで解放される(TOUTO_FACILITIES参照)が、ACTIONSには登録しない
+// 同じ仕組みで解放される(NOSTALGIA_FACILITIES参照)が、ACTIONSには登録しない
 const FACILITIES = {
-  touto_inn: {
-    id: 'touto_inn',
+  nostalgia_inn: {
+    id: 'nostalgia_inn',
     label: '宿屋 尻尾亭',
-    locationId: 'touto',
+    locationId: 'nostalgia',
     description: '料理がおいしい旅の宿。',
     enterText: '宿屋 尻尾亭に入った。',
     options: [
-      { id: 'rest', label: '休む', type: 'action', actionId: 'touto_inn_rest' },
+      { id: 'rest', label: '休む', type: 'action', actionId: 'nostalgia_inn_rest' },
     ],
   },
-  touto_flower: {
-    id: 'touto_flower',
+  nostalgia_flower: {
+    id: 'nostalgia_flower',
     label: '花屋 竜の鱗',
-    locationId: 'touto',
+    locationId: 'nostalgia',
     description: '花や雑貨を扱う店。',
     enterText: '花屋 竜の鱗に入った。',
     options: [
       { id: 'shop', label: '買い物', type: 'shop', shopId: 'flower' },
       { id: 'talk', label: '店員と話す', type: 'talk' },
-      { id: 'help', label: '手伝う', type: 'action', actionId: 'touto_flower_help' },
+      { id: 'help', label: '手伝う', type: 'action', actionId: 'nostalgia_flower_help' },
     ],
   },
-  touto_library: {
-    id: 'touto_library',
-    label: '塔都図書館',
-    locationId: 'touto',
+  nostalgia_library: {
+    id: 'nostalgia_library',
+    label: 'ノスタルジア図書館',
+    locationId: 'nostalgia',
     description: '本に埋もれた静かな図書館。',
-    enterText: '塔都図書館に入った。',
+    enterText: 'ノスタルジア図書館に入った。',
     options: [
-      { id: 'research', label: '調査', type: 'action', actionId: 'touto_library_research' },
+      { id: 'research', label: '調査', type: 'action', actionId: 'nostalgia_library_research' },
     ],
   },
-  touto_antique: {
-    id: 'touto_antique',
+  nostalgia_antique: {
+    id: 'nostalgia_antique',
     label: '道具屋 リーリエ',
-    locationId: 'touto',
+    locationId: 'nostalgia',
     description: '道具や掘り出し物が並ぶ店。',
     enterText: '道具屋 リーリエに入った。',
     options: [
@@ -593,7 +593,7 @@ const UNIQUE_FRAGMENTS = Object.values(COMPANION_REWARDS).map(r => r[0].resource
 // 育っていく数値。現状は「育つ・表示される」までが範囲(効果は未定、後で肉付けする)
 // growBy: この行動IDが完了したとき、その同行者が同行中(activeCompanions)なら+1される
 const COMPANION_TRAITS = {
-  shizuku: { id: 'knowledge',     label: '知識', growBy: 'touto_library_research' },
+  shizuku: { id: 'knowledge',     label: '知識', growBy: 'nostalgia_library_research' },
   rabi:    { id: 'swordsmanship', label: '剣術', growBy: 'knights_explore' },
 };
 
@@ -741,7 +741,7 @@ const INITIAL_STATE = {
   discoveryStep: 0,
   discoveryLatePick: null,
   locationDiscoveryLv: {},
-  toutoFacilityOrder: null,
+  nostalgiaFacilityOrder: null,
   companionTasks: {},
   lastCompanionTaskResult: null,
   encounterStreak: {},
@@ -1227,7 +1227,7 @@ function completeAction(actionId, onComplete) {
     if (reward.resource === 'fragment') fragmentsGained += gained;
   }
   let newRestBuffStacks = (state.restBuffStacks ?? 0) - (hadRestBuff ? 1 : 0);
-  if (actionId === 'touto_inn_rest') newRestBuffStacks += REST_BUFF_STACKS;
+  if (actionId === 'nostalgia_inn_rest') newRestBuffStacks += REST_BUFF_STACKS;
 
   // 同行者固有報酬(noCompanionRewardフラグが立っている行動はスキップ)
   const companionRewardsList = [];
@@ -1288,7 +1288,7 @@ function completeAction(actionId, onComplete) {
     unlockedActions: newActions,
     discoveredResources: newDiscovered,
     restBuffStacks: newRestBuffStacks,
-    effectsUnlocked: state.effectsUnlocked || actionId === 'touto_inn_rest',
+    effectsUnlocked: state.effectsUnlocked || actionId === 'nostalgia_inn_rest',
   };
   const prevLv = state.worldLv;
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
@@ -1305,19 +1305,19 @@ function completeAction(actionId, onComplete) {
   }
 
   // 塔都の探索: 現在のActionLvに応じた確率で、ランダムな順に施設を発見する
-  if (actionId === 'touto_explore') {
-    let order = state.toutoFacilityOrder;
+  if (actionId === 'nostalgia_explore') {
+    let order = state.nostalgiaFacilityOrder;
     if (!order) {
-      order = [...TOUTO_FACILITIES];
+      order = [...NOSTALGIA_FACILITIES];
       for (let i = order.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [order[i], order[j]] = [order[j], order[i]];
       }
-      state = { ...state, toutoFacilityOrder: order };
+      state = { ...state, nostalgiaFacilityOrder: order };
     }
     const next = order.find(id => !state.unlockedActions.includes(id));
     if (next) {
-      const actionLv = state.ActionLv['touto_explore'] ?? 0;
+      const actionLv = state.ActionLv['nostalgia_explore'] ?? 0;
       const chance = Math.min(0.05 + actionLv * 0.1, 0.5);
       if (Math.random() < chance) {
         state = {
@@ -1332,7 +1332,7 @@ function completeAction(actionId, onComplete) {
   // 花屋で世話を手伝えるようになった後、図書館を調査すると花の図鑑を確率で発見する
   let flowerEncyclopediaFound = false;
   if (
-    actionId === 'touto_library_research' &&
+    actionId === 'nostalgia_library_research' &&
     state.flowerHelpUnlocked &&
     !state.flowerEncyclopediaUnlocked &&
     Math.random() < FLOWER_ENCYCLOPEDIA_DISCOVERY_CHANCE
@@ -1473,7 +1473,7 @@ function init() {
     discoveryStep: saved.discoveryStep ?? INITIAL_STATE.discoveryStep,
     discoveryLatePick: saved.discoveryLatePick ?? INITIAL_STATE.discoveryLatePick,
     locationDiscoveryLv: saved.locationDiscoveryLv ?? INITIAL_STATE.locationDiscoveryLv,
-    toutoFacilityOrder: saved.toutoFacilityOrder ?? INITIAL_STATE.toutoFacilityOrder,
+    nostalgiaFacilityOrder: saved.nostalgiaFacilityOrder ?? INITIAL_STATE.nostalgiaFacilityOrder,
     companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
     lastCompanionTaskResult: saved.lastCompanionTaskResult ?? INITIAL_STATE.lastCompanionTaskResult,
     encounterStreak: saved.encounterStreak ?? INITIAL_STATE.encounterStreak,
@@ -1660,4 +1660,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };

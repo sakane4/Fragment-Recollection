@@ -1119,7 +1119,7 @@ function renderQuestList(state) {
       rumorMain.className = 'quest-rumor-main';
       const kicker = document.createElement('div');
       kicker.className = 'quest-rumor-kicker';
-      kicker.textContent = '塔都の噂';
+      kicker.textContent = 'ノスタルジアの噂';
       rumorMain.appendChild(kicker);
       const title = document.createElement('div');
       title.className = 'quest-title';
@@ -1291,7 +1291,7 @@ function renderGuideList(state) {
 
   const guides = getActiveGuides(state, {
     discoveryStepLv: DISCOVERY_STEP_LV,
-    toutoFacilities: TOUTO_FACILITIES,
+    nostalgiaFacilities: TOUTO_FACILITIES,
     actions: ACTIONS,
     locations: LOCATIONS,
     companionRelics: COMPANION_RELICS,
@@ -1696,8 +1696,8 @@ function _formatShopItemLabel(item) {
 
 // 施設メニューの選択肢が「？？？」表示のロック中かどうか(イベント経由で解放される選択肢のみ対象)
 function _isFacilityOptionLocked(facilityId, optionId, state) {
-  if (facilityId === 'touto_flower' && optionId === 'help') return !state.flowerHelpUnlocked;
-  if (facilityId === 'touto_flower' && optionId === 'talk') return getQuestStatus(state, 'flower_shop_help') !== QUEST_STATUS.REPORTED;
+  if (facilityId === 'nostalgia_flower' && optionId === 'help') return !state.flowerHelpUnlocked;
+  if (facilityId === 'nostalgia_flower' && optionId === 'talk') return getQuestStatus(state, 'flower_shop_help') !== QUEST_STATUS.REPORTED;
   return false;
 }
 
@@ -1716,14 +1716,14 @@ function _enterFacility(facility) {
     icon: actionIconSvg(o.label),
     locked: _isFacilityOptionLocked(facility.id, o.id, state),
   }));
-  if (facility.id === 'touto_flower') {
+  if (facility.id === 'nostalgia_flower') {
     const talk = options.find(option => option.id === 'talk');
     if (talk) {
       talk.speaker = '花屋の店員';
       talk.dialogue = _flowerClerkDialogue(state);
     }
   }
-  if (facility.id === 'touto_library') {
+  if (facility.id === 'nostalgia_library') {
     options.push({
       id: 'restore_books',
       label: '復元',
@@ -2012,7 +2012,7 @@ const ACTION_ICONS = {
   '木こり':        _ICON_AXE,
   '宿屋 尻尾亭':    _ICON_BED,
   '花屋 竜の鱗':    _ICON_FLOWER,
-  '塔都図書館':     _ICON_BOOK,
+  'ノスタルジア図書館': _ICON_BOOK,
   '道具屋 リーリエ': _ICON_GEM,
   '調査':          _ICON_SEARCH,
   '復元':          _ICON_BOOK,

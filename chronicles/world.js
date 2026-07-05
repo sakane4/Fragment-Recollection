@@ -20,9 +20,9 @@ export const WORLD_CHRONICLE_ENTRIES = {
     recordResource: 'survey_knights',
     required: 3,
   },
-  touto: {
+  nostalgia: {
     body: 'どこまでも空へ伸びる、白亜の塔をとりまく街。さまざまな施設がある。',
-    recordResource: 'survey_touto',
+    recordResource: 'survey_nostalgia',
     required: 3,
   },
 };
