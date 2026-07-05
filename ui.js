@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
@@ -10,6 +10,7 @@ import { getActiveGuides } from './guides.js';
 import { QUEST_STATUS, getQuestDefinition, getQuestProgress, getQuestStatus, getVisibleQuests } from './quests.js';
 import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel, resColor, resCategory, resUnit, resourceSpan, resourceLog, maskedResLabel, formatCostLabel } from './resource.js';
 import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
+import { CONSTELLATIONS } from './constellations.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
 
@@ -925,7 +926,7 @@ function render(state) {
   if (storySig !== _prevStorySig) { renderStoryList(state); _prevStorySig = storySig; }
   _updateStoriesBadge(state);
 
-  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.ELv, state.bondLv, state.companionTraits, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources, state.appearedStories, state.unlockedStories, state.storyProgress, state.titleRevealed]);
+  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.discoveredConstellations, state.constellationProgress, state.ELv, state.bondLv, state.companionTraits, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources, state.appearedStories, state.unlockedStories, state.storyProgress, state.titleRevealed]);
   if (charSig !== _prevCharSig) { renderCharTab(state); _prevCharSig = charSig; }
 
   const actionSig = JSON.stringify([state.unlockedLocations, state.unlockedActions, state.activeAction?.actionId ?? null, state.ActionLv, state.LocationLv, state.resources.fragment, state.worldLv]);
@@ -1371,6 +1372,38 @@ function _interruptForPartyChange(companionId, makeActive) {
   renderCharTab(getState());
 }
 
+function _changeCompanionFromChart(companionId, makeActive) {
+  const state = getState();
+  if (makeActive && state.companionTasks?.[companionId]) {
+    addLog('作業中は同行させられません', true);
+    return;
+  }
+  if (makeActive && (state.activeCompanions ?? []).length >= 5) {
+    addLog('同行できるのは5人までです', true);
+    return;
+  }
+  const apply = () => _interruptForPartyChange(companionId, makeActive);
+  if (state.activeAction) showConfirm('現在の行動を中断して編成を変更しますか？', apply);
+  else apply();
+}
+
+function _replacePartyFromChart(ids) {
+  const apply = () => {
+    const running = getState().activeAction;
+    if (running) {
+      if (stopFlavor) { stopFlavor(); stopFlavor = null; }
+      _cancelled = true;
+      cancelAction();
+      _resetPendingCompanionRewards();
+    }
+    const result = setActiveCompanions(ids);
+    if (!result.ok) addLog('この編成には切り替えられません', true);
+    renderCharTab(getState());
+  };
+  if (getState().activeAction) showConfirm('現在の行動を中断して星座の編成へ切り替えますか？', apply);
+  else apply();
+}
+
 // ── プログレスバー ──
 function tick() {
   if (_storyLogPlaying) return;
@@ -1397,46 +1430,6 @@ function initTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.view));
   });
-  _attachSubPanelSwipe();
-}
-
-// サブパネル(記憶/地図/持ち物/同行)を横フリックで切り替える(開発タブはスワイプ対象外)
-const _SUB_PANEL_SWIPE_ORDER = ['view-stories', 'view-actions', 'view-items', 'view-chars', 'view-gallery'];
-const _SUB_PANEL_SWIPE_THRESHOLD = 50;
-
-function _attachSubPanelSwipe() {
-  const panel = document.getElementById('sub-panel');
-  let startX = 0, startY = 0;
-  let lastX = 0, lastY = 0;
-  let tracking = false;
-
-  function finish() {
-    if (!tracking) return;
-    tracking = false;
-    const dx = lastX - startX;
-    const dy = lastY - startY;
-    if (Math.abs(dx) < _SUB_PANEL_SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
-    const current = document.querySelector('.sub-view.active')?.id;
-    const idx = _SUB_PANEL_SWIPE_ORDER.indexOf(current);
-    if (idx === -1) return;
-    const nextIdx = dx < 0 ? idx + 1 : idx - 1;
-    if (nextIdx < 0 || nextIdx >= _SUB_PANEL_SWIPE_ORDER.length) return;
-    switchTab(_SUB_PANEL_SWIPE_ORDER[nextIdx]);
-  }
-
-  panel.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('button, input, .companion-detail')) return;
-    startX = lastX = e.clientX;
-    startY = lastY = e.clientY;
-    tracking = true;
-  });
-  panel.addEventListener('pointermove', (e) => {
-    if (!tracking) return;
-    lastX = e.clientX;
-    lastY = e.clientY;
-  });
-  panel.addEventListener('pointerup', finish);
-  panel.addEventListener('pointercancel', finish);
 }
 
 // ── worldLv 進捗ポップアップ ──
@@ -1895,7 +1888,11 @@ function openFlowerEncyclopedia() {
 }
 
 function _handleActionComplete(actionId, result) {
-  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [] } = result;
+  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], discoveredConstellations = [] } = result;
+  for (const id of discoveredConstellations) {
+    const constellation = CONSTELLATIONS.find(item => item.id === id);
+    addLog(`【星座発見】${constellation?.name ?? id}`, true, false, false, 'log-rare');
+  }
   const act = ACTIONS[actionId];
 
   if (act?.stub) {
@@ -3055,6 +3052,8 @@ function _attachPartyDragHandlers(handle, card, companionId) {
         const name = COMPANION_DATA[companionId]?.name ?? '';
         if (makeActive && getState().companionTasks?.[companionId]) {
           addLog('作業中は同行させられません', true);
+        } else if (makeActive && (getState().activeCompanions ?? []).length >= 5) {
+          addLog('同行できるのは5人までです', true);
         } else if (getState().activeAction) {
           // 行動中はいきなり中断せず、確認をとってから中断＆編成変更する
           const verb = makeActive ? '同行させ' : '別行動にし';
@@ -3235,6 +3234,8 @@ const renderCharTab = createCompanionTabRenderer({
   buildDetail: _buildCompanionDetail,
   attachDragHandlers: _attachPartyDragHandlers,
   showTabToast,
+  changeCompanion: _changeCompanionFromChart,
+  replaceParty: _replacePartyFromChart,
 });
 
 function initDevTools() {

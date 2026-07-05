@@ -1,11 +1,13 @@
 // companion-ui.js — 同行タブの一覧表示
+import { CONSTELLATIONS, sameMembers } from './constellations.js';
+import { createStarChart } from './star-chart.js';
 
 const COMPANION_DATA = {
-  yuya:   { name: 'ユウヤ', desc: '記憶を失った少年。何かを探している。' },
-  rabi:   { name: 'ラビ', desc: '盲目の剣士。' },
-  shizuku:{ name: 'シズク', desc: '寡黙な青年。' },
-  kaoru:  { name: 'カオル', desc: 'いつも笑顔のお姉さん。' },
-  yukika: { name: '雪架', desc: 'なにか秘密を知っているようだ。' },
+  yuya:   { name: 'ユウヤ', mark:'✧', desc: '記憶を失った少年。何かを探している。' },
+  rabi:   { name: 'ラビ', mark:'◇', desc: '盲目の剣士。' },
+  shizuku:{ name: 'シズク', mark:'□', desc: '寡黙な青年。' },
+  kaoru:  { name: 'カオル', mark:'○', desc: 'いつも笑顔のお姉さん。' },
+  yukika: { name: '雪架', mark:'△', desc: 'なにか秘密を知っているようだ。' },
 };
 
 function createCompanionTabRenderer({
@@ -16,97 +18,86 @@ function createCompanionTabRenderer({
   buildDetail,
   attachDragHandlers,
   showTabToast,
+  changeCompanion,
+  replaceParty,
 }) {
   let previousUnlocked = null;
-  const expandedIds = new Set();
-
-  function createCard(id, state, active) {
-    const data = COMPANION_DATA[id];
-    if (!data) return null;
-    const card = document.createElement('div');
-    card.className = active ? 'companion-card companion-card--active' : 'companion-card';
-    card.innerHTML = `<div class="companion-name">${data.name}${levelTagHtml(state.ELv?.[id] ?? 0)}</div><div class="companion-desc">${data.desc}</div>`;
-
-    if (!active) {
-      const detailBtn = document.createElement('button');
-      detailBtn.className = 'companion-btn companion-btn--skill';
-      detailBtn.textContent = '詳細';
-      detailBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        expandedIds.add(id);
-        renderCharTab(getState());
-      });
-      card.appendChild(detailBtn);
-    }
-
-    const handle = document.createElement('div');
-    handle.className = 'party-drag-handle';
-    handle.textContent = '⠿';
-    card.appendChild(handle);
-    attachDragHandlers(handle, card, id);
-    card.addEventListener('click', () => {
-      if (expandedIds.has(id)) expandedIds.delete(id);
-      else expandedIds.add(id);
-      renderCharTab(getState());
-    });
-    return card;
-  }
-
-  function appendCompanions(section, ids, state, active) {
-    for (const id of ids) {
-      const card = createCard(id, state, active);
-      if (!card) continue;
-      section.appendChild(card);
-      if (expandedIds.has(id)) section.appendChild(buildDetail(id, state));
-    }
-  }
+  let openSection = null;
+  let selectedRecordId = null;
 
   function renderCharTab(state) {
     const view = document.getElementById('view-chars');
-    view.innerHTML = '<div class="sub-title">同行</div>';
-    const active = state.activeCompanions ?? [];
+    const active = (state.activeCompanions ?? []).slice(0, 5);
     const unlocked = state.unlockedCompanions ?? [];
-    const bench = unlocked.filter(id => !active.includes(id));
+    const discovered = CONSTELLATIONS.filter(item => state.discoveredConstellations?.includes(item.id));
 
-    const activeSection = document.createElement('div');
-    activeSection.className = 'party-section';
-    activeSection.dataset.partyZone = 'active';
-    activeSection.innerHTML = '<div class="party-label">同行中</div>';
-    const playerCard = document.createElement('div');
-    playerCard.className = 'companion-card companion-card--fixed';
-    playerCard.innerHTML = `<div class="companion-name">${state.playerName || 'あなた'}</div><div class="companion-desc">（あなた）</div>`;
-    activeSection.appendChild(playerCard);
-    appendCompanions(activeSection, active, state, true);
+    view.innerHTML = '';
 
-    if (active.length > 0) {
-      const bonusLines = [`探索報酬 ×${1 + active.length}`];
-      for (const id of active) {
-        for (const reward of rewards[id] ?? []) {
-          const discovered = (state.discoveredResources ?? []).includes(reward.resource);
-          bonusLines.push(discovered ? `${resLabel(reward.resource)} ` : '???');
+    const chart = createStarChart({
+      companions: COMPANION_DATA,
+      unlocked,
+      active,
+      constellations: discovered,
+      onToggle: (id, makeActive) => changeCompanion(id, makeActive),
+    });
+    view.appendChild(chart);
+
+    const tabs = document.createElement('div');
+    tabs.className = 'companion-lower-tabs';
+    tabs.innerHTML = `
+      <button type="button" data-section="constellations" class="${openSection === 'constellations' ? 'active' : ''}">発見した星座 <small>${discovered.length}</small></button>
+      <button type="button" data-section="records" class="${openSection === 'records' ? 'active' : ''}">人物記録</button>`;
+    tabs.querySelectorAll('button').forEach(button => {
+      button.addEventListener('click', () => {
+        const next = button.dataset.section;
+        openSection = openSection === next ? null : next;
+        const mainPanelWrap = document.getElementById('main-panel-wrap');
+        if (openSection) {
+          if (mainPanelWrap) mainPanelWrap.style.height = '60px';
+        } else if (mainPanelWrap) {
+          const app = document.getElementById('app');
+          mainPanelWrap.style.height = `${(app?.clientHeight ?? window.innerHeight) * 0.45}px`;
         }
-      }
-      const bonus = document.createElement('div');
-      bonus.className = 'party-bonus';
-      bonus.innerHTML = bonusLines.map((line, index) =>
-        index === 0 ? line : `<span class="party-bonus-extra">${line}</span>`
-      ).join('<span class="party-bonus-sep"> / </span>');
-      activeSection.appendChild(bonus);
-    }
-    view.appendChild(activeSection);
+        renderCharTab(getState());
+        document.getElementById('sub-panel')?.scrollTo({ top:0, behavior:'auto' });
+      });
+    });
+    view.appendChild(tabs);
 
-    const benchSection = document.createElement('div');
-    benchSection.className = 'party-section';
-    benchSection.dataset.partyZone = 'bench';
-    benchSection.innerHTML = '<div class="party-label">別行動</div>';
-    if (bench.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'party-empty';
-      empty.textContent = unlocked.length === 0 ? 'まだ誰もいない' : '全員が同行中';
-      benchSection.appendChild(empty);
+    if (openSection === 'constellations') {
+      const list = document.createElement('div');
+      list.className = 'star-chart-discovered-list companion-lower-content';
+      if (!discovered.length) list.innerHTML = '<div class="party-empty">まだ星座は見つかっていない</div>';
+      for (const constellation of discovered) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `star-chart-preset${sameMembers(active,constellation.members) ? ' active' : ''}`;
+        const names = constellation.members.map(id => COMPANION_DATA[id]?.name ?? id).join('・');
+        button.innerHTML = `<span class="star-chart-preset-mark">${constellation.mark}</span><span><b>${constellation.name}</b><small>${constellation.description}</small></span><em>${names}</em>`;
+        button.addEventListener('click', () => replaceParty(constellation.members));
+        list.appendChild(button);
+      }
+      view.appendChild(list);
+    } else if (openSection === 'records') {
+      const records = document.createElement('div');
+      records.className = 'companion-record-list companion-lower-content';
+      if (!unlocked.length) records.innerHTML = '<div class="party-empty">まだ誰も記録されていない</div>';
+      for (const id of unlocked) {
+        const data = COMPANION_DATA[id];
+        if (!data) continue;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `companion-record-card${selectedRecordId === id ? ' active' : ''}`;
+        button.innerHTML = `<span class="companion-record-mark">${data.mark}</span><span><b>${data.name}${levelTagHtml(state.ELv?.[id] ?? 0)}</b><small>${data.desc}</small></span>`;
+        button.addEventListener('click', () => {
+          selectedRecordId = selectedRecordId === id ? null : id;
+          renderCharTab(getState());
+        });
+        records.appendChild(button);
+        if (selectedRecordId === id) records.appendChild(buildDetail(id, state));
+      }
+      view.appendChild(records);
     }
-    appendCompanions(benchSection, bench, state, false);
-    view.appendChild(benchSection);
 
     if (previousUnlocked !== null) {
       const newlyUnlocked = unlocked.filter(id => !previousUnlocked.includes(id));
