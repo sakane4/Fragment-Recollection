@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>星図盤 — 同行メニューモック</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#080b12;
+    --panel:#101621;
+    --line:#263247;
+    --text:#d8e0ec;
+    --muted:#77849a;
+    --blue2:#a8ceff;
+    --violet:#a996ff;
+    font-family:"Yu Gothic UI","Hiragino Kaku Gothic ProN",sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 50% -20%,#172038 0,transparent 48%),
+      var(--bg);
+    color:var(--text);
+  }
+  button { font:inherit; }
+  .stage {
+    width:min(100%,540px);
+    min-height:100vh;
+    margin:auto;
+    border-inline:1px solid #1b2434;
+    background:rgba(8,11,18,.78);
+  }
+  .topbar {
+    position:sticky;
+    top:0;
+    z-index:20;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    height:54px;
+    padding:0 16px;
+    border-bottom:1px solid var(--line);
+    background:rgba(8,11,18,.92);
+    backdrop-filter:blur(12px);
+  }
+  .back { color:var(--muted); font-size:20px; }
+  .title { flex:1; letter-spacing:.08em; }
+  .title small { display:block; margin-top:2px; color:var(--muted); font-size:10px; letter-spacing:.12em; }
+  .preset {
+    padding:6px 9px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--blue2);
+    background:var(--panel);
+    font-size:11px;
+  }
+  .content { padding:14px; }
+  .board-layout {
+    display:grid;
+    grid-template-columns:minmax(0,85fr) minmax(54px,15fr);
+    gap:7px;
+    align-items:stretch;
+  }
+  .section-head {
+    display:flex;
+    align-items:end;
+    justify-content:space-between;
+    margin:0 2px 8px;
+  }
+  .section-head h2 {
+    margin:0;
+    color:#aeb9c9;
+    font-size:12px;
+    font-weight:500;
+    letter-spacing:.12em;
+  }
+  .section-head span { color:var(--muted); font-size:10px; }
+  .chart {
+    position:relative;
+    height:310px;
+    overflow:hidden;
+    border:1px solid #27344a;
+    border-radius:16px;
+    background:#070b13;
+    box-shadow:inset 0 0 42px rgba(0,0,0,.55);
+    touch-action:none;
+    cursor:grab;
+  }
+  .chart.is-panning { cursor:grabbing; }
+  .sky-scene {
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(ellipse at 54% 47%,rgba(50,72,111,.2),transparent 45%),
+      #090e18;
+  }
+  .sky-canvas {
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+  }
+  .reserve-rail {
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    border:1px solid #27344a;
+    border-radius:12px;
+    background:rgba(10,15,25,.82);
+  }
+  .reserve-list {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    padding:6px 4px;
+    overflow-y:auto;
+    scrollbar-width:none;
+  }
+  .reserve-list::-webkit-scrollbar { display:none; }
+  .reserve-star {
+    position:relative;
+    min-height:49px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:3px;
+    padding:5px 2px;
+    border:1px solid #2b3850;
+    border-radius:8px;
+    opacity:.3;
+    color:#566174;
+    background:#0a0f17;
+    cursor:grab;
+    touch-action:none;
+    box-shadow:none;
+    filter:grayscale(1);
+  }
+  .reserve-star:active { cursor:grabbing; }
+  .reserve-star:hover,
+  .reserve-star:focus-visible {
+    border-color:#4d73a5;
+    color:#bbd4f7;
+    outline:none;
+  }
+  .reserve-star.is-active {
+    opacity:1;
+    border-color:#4d73a5;
+    color:#bbd4f7;
+    background:#111d2c;
+    box-shadow:
+      inset 0 0 12px rgba(77,115,165,.14),
+      0 0 8px rgba(81,133,202,.16);
+    filter:none;
+    cursor:default;
+  }
+  .reserve-mark {
+    color:var(--blue2);
+    font-size:15px;
+    line-height:1;
+  }
+  .reserve-star.is-active .reserve-mark {
+    color:#c4ddff;
+    text-shadow:0 0 7px rgba(137,180,250,.75);
+  }
+  .reserve-name {
+    max-width:100%;
+    overflow:hidden;
+    color:inherit;
+    font-size:8px;
+    line-height:1.1;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+  }
+  .chart::after {
+    content:"";
+    position:absolute;
+    inset:0;
+    background:
+      linear-gradient(to top,rgba(3,6,11,.92) 0,rgba(7,11,18,.46) 7%,transparent 24%),
+      radial-gradient(ellipse at 50% 116%,transparent 0 58%,rgba(2,4,8,.72) 72%,rgba(2,4,8,.96) 100%),
+      linear-gradient(115deg,transparent 30%,rgba(135,172,226,.025) 50%,transparent 70%);
+    pointer-events:none;
+  }
+  .chart::before {
+    content:"";
+    position:absolute;
+    left:-12%;
+    right:-12%;
+    bottom:-27%;
+    z-index:4;
+    height:34%;
+    border-radius:50% 50% 0 0;
+    background:#03060b;
+    box-shadow:0 -10px 34px rgba(19,31,52,.42);
+    pointer-events:none;
+  }
+  .sky-main-star {
+    position:absolute;
+    z-index:3;
+    width:54px;
+    height:54px;
+    padding:4px;
+    border:0;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:transparent;
+    cursor:pointer;
+    transition:filter .28s,transform .28s;
+  }
+  .sky-main-star:hover,
+  .sky-main-star:focus-visible {
+    outline:none;
+  }
+  .sky-main-star.active {
+    transform:translate(-50%,-50%) scale(1.16);
+  }
+  .sky-main-light {
+    position:absolute;
+    left:50%;
+    top:50%;
+    display:block;
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:#65758c;
+    box-shadow:0 0 5px rgba(122,151,190,.35);
+    transition:width .28s,height .28s,background .28s,box-shadow .28s;
+  }
+  .sky-main-star:hover .sky-main-light,
+  .sky-main-star:focus-visible .sky-main-light {
+    background:#91acd0;
+    box-shadow:0 0 8px rgba(137,180,250,.55);
+  }
+  .sky-main-star.active .sky-main-light {
+    width:10px;
+    height:10px;
+    background:#e1efff;
+    box-shadow:
+      0 0 3px #fff,
+      0 0 8px rgba(137,180,250,.88),
+      0 0 17px rgba(88,146,224,.62);
+  }
+  .sky-main-name {
+    position:absolute;
+    left:0;
+    top:calc(50% + 9px);
+    display:block;
+    width:100%;
+    overflow:hidden;
+    font-size:8px;
+    line-height:1;
+    text-align:center;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    opacity:0;
+    color:#7890ae;
+    transition:opacity .25s,color .25s;
+  }
+  .sky-main-star.active .sky-main-name {
+    opacity:1;
+    color:#b9d6fa;
+  }
+  .chart-caption {
+    position:absolute;
+    left:50%; bottom:10px;
+    transform:translateX(-50%);
+    color:#536278;
+    font-size:9px;
+    letter-spacing:.15em;
+  }
+  .bond-card {
+    display:none;
+    align-items:center;
+    gap:10px;
+    margin-top:9px;
+    padding:10px 12px;
+    border:1px solid rgba(110,174,255,.26);
+    border-radius:9px;
+    background:linear-gradient(90deg,rgba(58,100,160,.12),rgba(113,87,170,.1));
+  }
+  .bond-card.show { display:flex; }
+  .bond-icon { color:var(--blue2); font-size:18px; }
+  .bond-copy { flex:1; }
+  .bond-copy b { display:block; color:#bccfff; font-size:12px; font-weight:500; letter-spacing:.06em; }
+  .bond-copy span { color:var(--muted); font-size:10px; }
+  .bond-level { color:var(--violet); font-size:10px; }
+  .discovered-head {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin:15px 2px 7px;
+    color:#8d9bb0;
+    font-size:10px;
+    letter-spacing:.12em;
+  }
+  .discovered-head span {
+    color:#56657b;
+    font-size:9px;
+    letter-spacing:.05em;
+  }
+  .discovered-list {
+    display:grid;
+    gap:7px;
+  }
+  .discovered-card {
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border:1px solid #304765;
+    border-radius:9px;
+    color:#9eb8da;
+    background:linear-gradient(100deg,rgba(44,76,118,.18),rgba(63,48,96,.12));
+    text-align:left;
+    cursor:pointer;
+  }
+  .discovered-card:hover,
+  .discovered-card:focus-visible {
+    border-color:#527eb5;
+    outline:none;
+  }
+  .discovered-card.active {
+    border-color:#689bd7;
+    box-shadow:inset 0 0 16px rgba(82,126,181,.13),0 0 8px rgba(82,126,181,.12);
+  }
+  .discovered-mark {
+    color:#c0dcff;
+    font-size:18px;
+    text-shadow:0 0 8px rgba(110,174,255,.65);
+  }
+  .discovered-copy { flex:1; min-width:0; }
+  .discovered-copy b {
+    display:block;
+    color:#bed4ef;
+    font-size:11px;
+    font-weight:500;
+  }
+  .discovered-copy small {
+    color:#66768d;
+    font-size:8px;
+  }
+  .discovered-party {
+    color:#7187a4;
+    font-size:9px;
+  }
+  .footnote {
+    margin:12px 2px 0;
+    color:#526077;
+    font-size:9px;
+    line-height:1.6;
+  }
+  .sheet-backdrop {
+    position:fixed;
+    inset:0;
+    z-index:70;
+    opacity:0;
+    pointer-events:none;
+    background:rgba(2,4,9,.66);
+    transition:opacity .22s;
+  }
+  .sheet-backdrop.open {
+    opacity:1;
+    pointer-events:auto;
+  }
+  .detail-sheet {
+    position:fixed;
+    left:50%;
+    bottom:0;
+    z-index:80;
+    width:min(100%,540px);
+    max-height:72vh;
+    padding:8px 14px 16px;
+    border:1px solid #35445d;
+    border-bottom:0;
+    border-radius:18px 18px 0 0;
+    background:
+      radial-gradient(circle at 22% 0,rgba(75,113,171,.14),transparent 35%),
+      #101722;
+    box-shadow:0 -14px 36px rgba(0,0,0,.55);
+    transform:translate(-50%,105%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  .detail-sheet.open { transform:translate(-50%,0); }
+  .sheet-grip {
+    width:38px;
+    height:3px;
+    margin:0 auto 11px;
+    border-radius:3px;
+    background:#3d4a5e;
+  }
+  .sheet-head {
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .sheet-star {
+    width:38px;
+    height:38px;
+    display:grid;
+    place-items:center;
+    border:1px solid #4b6d9b;
+    border-radius:50%;
+    color:var(--blue2);
+    background:radial-gradient(circle,rgba(110,174,255,.2),transparent 72%);
+    font-size:19px;
+  }
+  .sheet-identity { flex:1; min-width:0; }
+  .sheet-name { color:#b9d6ff; font-size:16px; }
+  .sheet-desc { margin-top:2px; color:var(--muted); font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheet-close {
+    width:32px;
+    height:32px;
+    border:0;
+    color:#78869a;
+    background:transparent;
+    font-size:20px;
+    cursor:pointer;
+  }
+  .sheet-tabs {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:4px;
+    margin-top:13px;
+    padding-bottom:8px;
+    border-bottom:1px solid #27344a;
+  }
+  .sheet-tab {
+    padding:7px 2px;
+    border:0;
+    border-radius:6px;
+    color:#718096;
+    background:transparent;
+    font-size:9px;
+    cursor:pointer;
+  }
+  .sheet-tab.active { color:#afd0ff; background:#18263a; }
+  .sheet-body {
+    min-height:106px;
+    padding:13px 3px 10px;
+    color:#aab5c5;
+    font-size:11px;
+    line-height:1.75;
+  }
+  .sheet-body b { color:#d0d9e6; font-weight:500; }
+  .sheet-stats {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px;
+    margin-top:8px;
+  }
+  .sheet-stat {
+    padding:7px 9px;
+    border:1px solid #29364b;
+    border-radius:7px;
+    color:#77869b;
+    background:#0d141f;
+    font-size:9px;
+  }
+  .sheet-stat span { float:right; color:#adbed6; }
+  .sheet-action {
+    width:100%;
+    padding:10px;
+    border:1px solid #416997;
+    border-radius:8px;
+    color:#b8d7ff;
+    background:#17273b;
+    font-size:11px;
+    cursor:pointer;
+  }
+  .sheet-action.remove {
+    border-color:#59445f;
+    color:#c6b4d6;
+    background:#251d2b;
+  }
+  @media (max-width:720px) {
+    .stage { border:0; }
+  }
+  @media (max-width:420px) {
+    .content { padding:12px 10px 18px; }
+    .board-layout { grid-template-columns:minmax(0,85fr) minmax(50px,15fr); gap:5px; }
+    .chart { height:340px; }
+    .sky-main-star { width:48px; height:48px; }
+    .sky-main-star.active .sky-main-light { width:10px; height:10px; }
+    .bond-copy b { font-size:11px; }
+    .bond-copy span { font-size:9px; }
+  }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header class="topbar">
+    <span class="back">‹</span>
+    <div class="title">同行<small>COMPANIONS</small></div>
+    <button class="preset">星座記録 2</button>
+  </header>
+
+  <div class="content">
+    <div class="section-head">
+      <h2>星図盤</h2>
+      <span id="count-label">2 / 5</span>
+    </div>
+
+    <div class="board-layout">
+      <section class="chart" id="chart">
+        <div class="sky-scene">
+          <canvas class="sky-canvas" id="sky-canvas" aria-hidden="true"></canvas>
+          <div id="main-stars"></div>
+        </div>
+        <div class="chart-caption" id="chart-caption">THE UNFINISHED SKY</div>
+      </section>
+      <aside class="reserve-rail" aria-label="控え">
+        <div class="reserve-list" id="bench"></div>
+      </aside>
+    </div>
+
+    <div class="bond-card show" id="bond-card">
+      <div class="bond-icon">✦</div>
+      <div class="bond-copy"><b id="constellation-name">双星座</b><span id="constellation-desc">ユウヤとラビの光が、ひとつの導きを描いている</span></div>
+      <div class="bond-level" id="constellation-level">発見済</div>
+    </div>
+
+    <div class="discovered-head">発見した星座 <span>2座</span></div>
+    <div class="discovered-list">
+      <button class="discovered-card" id="preset-twin-stars" type="button">
+        <span class="discovered-mark">✦</span>
+        <span class="discovered-copy"><b>双星座</b><small>星座を選んで同行編成を呼び出す</small></span>
+        <span class="discovered-party">ユウヤ・ラビ</span>
+      </button>
+      <button class="discovered-card" id="preset-snow-rabbit" type="button">
+        <span class="discovered-mark">△</span>
+        <span class="discovered-copy"><b>雪うさぎ座</b><small>三つの光が雪原を跳ねる姿</small></span>
+        <span class="discovered-party">ユウヤ・ラビ・雪架</span>
+      </button>
+    </div>
+
+    <p class="footnote">空の主星をタップして同行を切り替えます。右の控えをタップすると人物の詳細を開きます。特別な組み合わせは、空に新しい星座を描きます。</p>
+  </div>
+</main>
+
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<section class="detail-sheet" id="detail-sheet" aria-label="同行者詳細">
+  <div class="sheet-grip"></div>
+  <div class="sheet-head">
+    <div class="sheet-star" id="sheet-star">✧</div>
+    <div class="sheet-identity">
+      <div class="sheet-name" id="sheet-name">ユウヤ</div>
+      <div class="sheet-desc" id="sheet-desc"></div>
+    </div>
+    <button class="sheet-close" id="sheet-close" aria-label="閉じる">×</button>
+  </div>
+  <nav class="sheet-tabs">
+    <button class="sheet-tab active" data-detail-tab="profile">プロフィール</button>
+    <button class="sheet-tab" data-detail-tab="items">持ち物</button>
+    <button class="sheet-tab" data-detail-tab="skill">異能</button>
+    <button class="sheet-tab" data-detail-tab="memory">記憶</button>
+  </nav>
+  <div class="sheet-body" id="sheet-body"></div>
+  <button class="sheet-action" id="sheet-action">同行させる</button>
+</section>
+
+<script>
+const characters = [
+  { id:'yuya', name:'ユウヤ', mark:'✧', lon:-18, lat:55, desc:'記憶を失った少年。何かを探している。' },
+  { id:'rabi', name:'ラビ', mark:'◇', lon:18, lat:34, desc:'盲目の剣士。静かな気配をまとう。' },
+  { id:'shizuku', name:'シズク', mark:'□', lon:43, lat:62, desc:'寡黙な青年。色の記憶を追っている。' },
+  { id:'kaoru', name:'カオル', mark:'○', lon:61, lat:48, desc:'いつも笑顔を絶やさない女性。' },
+  { id:'yukika', name:'雪架', mark:'△', lon:35, lat:51, desc:'空の向こうの秘密を知る少女。' }
+];
+let active = ['yuya','rabi'];
+let selectedCharacter = null;
+let selectedTab = 'profile';
+const skyView = { yaw:0, pitch:48, zoom:1 };
+const skyPointers = new Map();
+let skyGesture = null;
+function seededRandom(seed) {
+  let value = seed >>> 0;
+  return () => {
+    value += 0x6D2B79F5;
+    let mixed = value;
+    mixed = Math.imul(mixed ^ mixed >>> 15,mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ mixed >>> 7,mixed | 61);
+    return ((mixed ^ mixed >>> 14) >>> 0) / 4294967296;
+  };
+}
+const starRandom = seededRandom(0x51A7C0DE);
+const ambientStars = Array.from({ length:520 },() => {
+  const sphereY = starRandom()*2 - 1;
+  const lon = starRandom()*360 - 180;
+  const lat = Math.asin(sphereY)*180/Math.PI;
+  return {
+    vector:sphereVector(lon,lat),
+    size:.4 + starRandom()*1.15,
+    alpha:.18 + starRandom()*.62
+  };
+});
+const unrevealedMainStars = [
+  { lon:-142,lat:31 }, { lon:-108,lat:68 },
+  { lon:-76,lat:44 },  { lon:-12,lat:76 },
+  { lon:67,lat:38 },   { lon:104,lat:71 },
+  { lon:139,lat:49 },  { lon:172,lat:24 }
+].map(star => sphereVector(star.lon,star.lat));
+
+const tabBodies = {
+  profile: character => `<b>${character.name}</b>の横顔。<br>${character.desc}<div class="sheet-stats"><div class="sheet-stat">絆 <span>Lv 0</span></div><div class="sheet-stat">状態 <span>${active.includes(character.id) ? '同行中' : '待機中'}</span></div></div>`,
+  items: () => `身につけているレリックや、贈ることのできる品を確認します。<div class="sheet-stats"><div class="sheet-stat">装備 <span>なし</span></div><div class="sheet-stat">贈り物 <span>選択</span></div></div>`,
+  skill: () => `同行者の異能と、その成長を確認します。<div class="sheet-stats"><div class="sheet-stat">ELv <span>0</span></div><div class="sheet-stat">異能 <span>未解放</span></div></div>`,
+  memory: character => `${character.name}に結びついた記憶を確認します。<div class="sheet-stats"><div class="sheet-stat">記憶 <span>1件</span></div><div class="sheet-stat">断章 <span>0件</span></div></div>`
+};
+
+function openDetails(character) {
+  selectedCharacter = character;
+  selectedTab = 'profile';
+  document.getElementById('sheet-star').textContent = character.mark;
+  document.getElementById('sheet-name').textContent = character.name;
+  document.getElementById('sheet-desc').textContent = character.desc;
+  updateSheet();
+  document.getElementById('sheet-backdrop').classList.add('open');
+  document.getElementById('detail-sheet').classList.add('open');
+}
+
+function closeDetails() {
+  document.getElementById('sheet-backdrop').classList.remove('open');
+  document.getElementById('detail-sheet').classList.remove('open');
+}
+
+function applySkyView() {
+  const canvas = document.getElementById('sky-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const frame = createProjectionFrame(rect.width,rect.height);
+  drawSky(canvas,frame);
+  positionMainStars(frame);
+}
+
+function sphereVector(lon,lat) {
+  const lambda = lon * Math.PI / 180;
+  const phi = lat * Math.PI / 180;
+  const cosPhi = Math.cos(phi);
+  return {
+    x:cosPhi * Math.sin(lambda),
+    y:Math.sin(phi),
+    z:cosPhi * Math.cos(lambda)
+  };
+}
+
+function createProjectionFrame(width,height) {
+  const yaw = skyView.yaw * Math.PI / 180;
+  const pitch = skyView.pitch * Math.PI / 180;
+  return {
+    width:Math.max(1,width),
+    height:Math.max(1,height),
+    radiusScale:Math.min(width,height) * .53 * skyView.zoom,
+    forward:{
+      x:Math.cos(pitch) * Math.sin(yaw),
+      y:Math.sin(pitch),
+      z:Math.cos(pitch) * Math.cos(yaw)
+    },
+    right:{ x:Math.cos(yaw), y:0, z:-Math.sin(yaw) },
+    up:{
+      x:-Math.sin(pitch) * Math.sin(yaw),
+      y:Math.cos(pitch),
+      z:-Math.sin(pitch) * Math.cos(yaw)
+    }
+  };
+}
+
+function projectVector(point,frame) {
+  const { width,height,forward,right,up } = frame;
+  const depth = point.x*forward.x + point.y*forward.y + point.z*forward.z;
+  const horizontal = point.x*right.x + point.y*right.y + point.z*right.z;
+  const vertical = point.x*up.x + point.y*up.y + point.z*up.z;
+  const angle = Math.acos(Math.max(-1,Math.min(1,depth)));
+  if (angle > 1.92) return null;
+  const tangentLength = Math.hypot(horizontal,vertical);
+  const radius = frame.radiusScale * angle;
+  const directionX = tangentLength ? horizontal/tangentLength : 0;
+  const directionY = tangentLength ? vertical/tangentLength : 0;
+  return {
+    x:width/2 + radius*directionX,
+    y:height/2 - radius*directionY,
+    depth
+  };
+}
+
+function projectStar(lon,lat,frame) {
+  return projectVector(sphereVector(lon,lat),frame);
+}
+
+function drawSky(canvas,frame) {
+  const ratio = window.devicePixelRatio || 1;
+  const { width,height } = frame;
+  if (canvas.width !== Math.round(width*ratio) || canvas.height !== Math.round(height*ratio)) {
+    canvas.width = Math.round(width*ratio);
+    canvas.height = Math.round(height*ratio);
+  }
+  const context = canvas.getContext('2d');
+  context.setTransform(ratio,0,0,ratio,0,0);
+  context.clearRect(0,0,width,height);
+
+  ambientStars.forEach(star => {
+    const point = projectVector(star.vector,frame);
+    if (!point || point.x < -4 || point.x > width+4 || point.y < -4 || point.y > height+4) return;
+    const radius = star.size * (.7 + point.depth*.5);
+    context.beginPath();
+    context.arc(point.x,point.y,radius,0,Math.PI*2);
+    context.fillStyle = `rgba(190,215,250,${star.alpha})`;
+    context.fill();
+  });
+
+  unrevealedMainStars.forEach(star => {
+    const point = projectVector(star,frame);
+    if (!point || point.x < -8 || point.x > width+8 || point.y < -8 || point.y > height+8) return;
+    context.beginPath();
+    context.arc(point.x,point.y,2.3,0,Math.PI*2);
+    context.fillStyle = 'rgba(122,151,190,.52)';
+    context.shadowColor = 'rgba(110,160,225,.4)';
+    context.shadowBlur = 7;
+    context.fill();
+    context.shadowBlur = 0;
+  });
+
+  const selected = active.map(id => characters.find(character => character.id === id)).filter(Boolean);
+  for (let index=1;index<selected.length;index++) {
+    drawGreatCircle(context,selected[index-1],selected[index],frame);
+  }
+  if ([...active].sort().join('|') === 'rabi|yukika|yuya') {
+    drawGreatCircle(context,selected[selected.length-1],selected[0],frame);
+  }
+}
+
+function drawGreatCircle(context,a,b,frame) {
+  const start = projectStar(a.lon,a.lat,frame);
+  const end = projectStar(b.lon,b.lat,frame);
+  if (!start || !end) return;
+  context.beginPath();
+  context.moveTo(start.x,start.y);
+  context.lineTo(end.x,end.y);
+  context.strokeStyle = 'rgba(158,199,255,.96)';
+  context.lineWidth = 2;
+  context.shadowColor = 'rgba(100,160,240,.9)';
+  context.shadowBlur = 10;
+  context.stroke();
+  context.shadowBlur = 0;
+}
+
+function positionMainStars(frame) {
+  const { width,height } = frame;
+  document.querySelectorAll('[data-sky-character]').forEach(button => {
+    const character = characters.find(item => item.id === button.dataset.skyCharacter);
+    const point = character && projectStar(character.lon,character.lat,frame);
+    const visible = point && point.x > -30 && point.x < width+30 && point.y > -30 && point.y < height+30;
+    button.hidden = !visible;
+    if (visible) {
+      button.style.left = `${point.x}px`;
+      button.style.top = `${point.y}px`;
+    }
+  });
+}
+
+function pointerDistance() {
+  const points = [...skyPointers.values()];
+  if (points.length < 2) return 0;
+  return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+}
+
+function updateSheet() {
+  if (!selectedCharacter) return;
+  document.querySelectorAll('.sheet-tab').forEach(button => {
+    button.classList.toggle('active', button.dataset.detailTab === selectedTab);
+  });
+  document.getElementById('sheet-body').innerHTML = tabBodies[selectedTab](selectedCharacter);
+  const placed = active.includes(selectedCharacter.id);
+  const action = document.getElementById('sheet-action');
+  action.textContent = placed ? '同行から外す' : '同行させる';
+  action.classList.toggle('remove', placed);
+  action.disabled = !placed && active.length >= 5;
+  if (action.disabled) action.textContent = '同行枠は満員です';
+}
+
+function constellationFor(ids) {
+  const key = [...ids].sort().join('|');
+  if (key === 'rabi|yukika|yuya') return {
+    name:'雪うさぎ座',
+    desc:'ユウヤ、ラビ、雪架の光が、雪原を跳ねるうさぎを描く',
+    level:'発見済',
+    named:true
+  };
+  if (key === 'rabi|yuya') return {
+    name:'双星座',
+    desc:'ユウヤとラビの光が、ひとつの導きを描いている',
+    level:'発見済',
+    named:true
+  };
+  return {
+    name:'まだ名のない星列',
+    desc:ids.length === 2 ? '二つの光は結ばれたが、星座の名はまだ見つかっていない' : '同行者を選ぶと、対応する星が灯る',
+    level:'',
+    named:false
+  };
+}
+
+function render() {
+  const constellation = constellationFor(active);
+  const activeKey = [...active].sort().join('|');
+  document.getElementById('count-label').textContent = `${active.length} / 5`;
+  document.getElementById('bond-card').classList.toggle('show', active.length > 0);
+  document.getElementById('constellation-name').textContent = constellation.name;
+  document.getElementById('constellation-desc').textContent = constellation.desc;
+  document.getElementById('constellation-level').textContent = constellation.level;
+  document.getElementById('chart-caption').textContent = constellation.named ? 'CONSTELLATION DISCOVERED' : 'THE UNFINISHED SKY';
+  document.getElementById('preset-twin-stars').classList.toggle('active',activeKey === 'rabi|yuya');
+  document.getElementById('preset-snow-rabbit').classList.toggle('active',activeKey === 'rabi|yukika|yuya');
+
+  const mainStars = document.getElementById('main-stars');
+  mainStars.innerHTML = characters.map(character => `
+    <button class="sky-main-star ${active.includes(character.id) ? 'active' : ''}"
+      data-sky-character="${character.id}"
+      title="${character.name}の星">
+      <span class="sky-main-light"></span>
+      <span class="sky-main-name">${character.name}</span>
+    </button>`).join('');
+  mainStars.querySelectorAll('[data-sky-character]').forEach(button => {
+    button.addEventListener('pointerdown', event => event.stopPropagation());
+    button.addEventListener('click', () => {
+      const character = characters.find(c => c.id === button.dataset.skyCharacter);
+      if (!character) return;
+      if (active.includes(character.id)) {
+        active = active.filter(id => id !== character.id);
+      } else if (active.length < 5) {
+        active.push(character.id);
+      }
+      render();
+    });
+  });
+
+  const bench = document.getElementById('bench');
+  bench.innerHTML = characters.map(character => {
+    const placed = active.includes(character.id);
+    return `<button class="reserve-star ${placed ? 'is-active' : ''}" data-character="${character.id}"
+      title="${character.name}の詳細">
+      <span class="reserve-mark">${character.mark}</span>
+      <span class="reserve-name">${character.name}</span>
+    </button>`;
+  }).join('');
+  bench.querySelectorAll('[data-character]').forEach(button => {
+    button.addEventListener('click', () => {
+      const character = characters.find(c => c.id === button.dataset.character);
+      if (character) openDetails(character);
+    });
+  });
+  applySkyView();
+}
+
+document.getElementById('preset-twin-stars').addEventListener('click',() => {
+  active = ['yuya','rabi'];
+  render();
+});
+document.getElementById('preset-snow-rabbit').addEventListener('click',() => {
+  active = ['yuya','rabi','yukika'];
+  render();
+});
+document.querySelectorAll('.sheet-tab').forEach(button => {
+  button.addEventListener('click', () => {
+    selectedTab = button.dataset.detailTab;
+    updateSheet();
+  });
+});
+document.getElementById('sheet-close').addEventListener('click', closeDetails);
+document.getElementById('sheet-backdrop').addEventListener('click', closeDetails);
+document.getElementById('sheet-action').addEventListener('click', () => {
+  if (!selectedCharacter) return;
+  const placed = active.includes(selectedCharacter.id);
+  if (placed) active = active.filter(id => id !== selectedCharacter.id);
+  else if (active.length < 5) active.push(selectedCharacter.id);
+  render();
+  updateSheet();
+});
+const chartElement = document.getElementById('chart');
+chartElement.addEventListener('pointerdown', event => {
+  chartElement.setPointerCapture(event.pointerId);
+  skyPointers.set(event.pointerId,{ x:event.clientX, y:event.clientY });
+  chartElement.classList.add('is-panning');
+  if (skyPointers.size === 1) {
+    skyGesture = { type:'pan', startX:event.clientX, startY:event.clientY, yaw:skyView.yaw, pitch:skyView.pitch };
+  } else if (skyPointers.size === 2) {
+    skyGesture = { type:'pinch', distance:pointerDistance(), zoom:skyView.zoom };
+  }
+});
+chartElement.addEventListener('pointermove', event => {
+  if (!skyPointers.has(event.pointerId) || !skyGesture) return;
+  skyPointers.set(event.pointerId,{ x:event.clientX, y:event.clientY });
+  if (skyPointers.size >= 2) {
+    const distance = pointerDistance();
+    if (skyGesture.type !== 'pinch') {
+      skyGesture = { type:'pinch', distance, zoom:skyView.zoom };
+      return;
+    }
+    skyView.zoom = Math.max(.65,Math.min(2.2,skyGesture.zoom * distance / Math.max(1,skyGesture.distance)));
+  } else if (skyGesture.type === 'pan') {
+    const dx = event.clientX - skyGesture.startX;
+    const dy = event.clientY - skyGesture.startY;
+    skyView.yaw = ((skyGesture.yaw - dx*.32 + 540) % 360) - 180;
+    skyView.pitch = Math.max(5,Math.min(88,skyGesture.pitch + dy*.24));
+  }
+  applySkyView();
+});
+function finishSkyPointer(event) {
+  skyPointers.delete(event.pointerId);
+  if (skyPointers.size === 0) {
+    chartElement.classList.remove('is-panning');
+    skyGesture = null;
+  } else if (skyPointers.size === 1) {
+    const point = [...skyPointers.values()][0];
+    skyGesture = { type:'pan', startX:point.x, startY:point.y, yaw:skyView.yaw, pitch:skyView.pitch };
+  }
+}
+chartElement.addEventListener('pointerup',finishSkyPointer);
+chartElement.addEventListener('pointercancel',finishSkyPointer);
+render();
+window.addEventListener('resize',applySkyView);
+</script>
+</body>
+</html>

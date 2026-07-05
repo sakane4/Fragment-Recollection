@@ -3,6 +3,7 @@ import { STORIES, getCostForParagraph } from './stories.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { QUEST_STATUS, getQuestDefinition, getVisibleQuests, getDiscoverableQuests, canTurnInQuest, canUnlockQuest, getActionObjectiveQuests } from './quests.js';
 import { RESOURCES } from './resource.js';
+import { advanceConstellations } from './constellations.js';
 
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
@@ -726,6 +727,8 @@ const INITIAL_STATE = {
   playerName: '',
   unlockedCompanions: [],
   activeCompanions: [],
+  constellationProgress: {},
+  discoveredConstellations: [],
   ELv: {},
   bondLv: {},
   companionTraits: {},
@@ -1216,7 +1219,7 @@ function completeAction(actionId, onComplete) {
   const newResources = { ...state.resources };
   // 宿屋の休息バフ: 残っていれば1スタック消費して報酬2倍(このactionId自身が休息で新たに付与する分は対象外)
   const hadRestBuff = (state.restBuffStacks ?? 0) > 0;
-  const multiplier = (1 + state.activeCompanions.length) * (hadRestBuff ? 2 : 1);
+  const multiplier = hadRestBuff ? 2 : 1;
   const allRewards = [...resolveTable(action.rewardTable, action.locationId, action.id), ...(action.rewards ?? [])];
   const appliedRewards = [];
   let fragmentsGained = 0;
@@ -1362,9 +1365,12 @@ function completeAction(actionId, onComplete) {
     progressedQuests.push(quest.id);
   }
 
+  const constellationResult = advanceConstellations(state, actionId);
+  state = constellationResult.state;
+
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests, discoveredConstellations: constellationResult.newlyDiscovered };
   onComplete?.(result);
   // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
   notify();
@@ -1453,7 +1459,9 @@ function init() {
     storyProgress: { ...INITIAL_STATE.storyProgress, ...saved.storyProgress },
     unlockedLocations: saved.unlockedLocations ?? INITIAL_STATE.unlockedLocations,
     unlockedActions: saved.unlockedActions ?? INITIAL_STATE.unlockedActions,
-    activeCompanions: saved.activeCompanions ?? INITIAL_STATE.activeCompanions,
+    activeCompanions: (saved.activeCompanions ?? INITIAL_STATE.activeCompanions).slice(0, 5),
+    constellationProgress: saved.constellationProgress ?? INITIAL_STATE.constellationProgress,
+    discoveredConstellations: saved.discoveredConstellations ?? INITIAL_STATE.discoveredConstellations,
     ELv:  saved.ELv  ?? INITIAL_STATE.ELv,
     companionTraits: saved.companionTraits ?? INITIAL_STATE.companionTraits,
     companionEquipment: saved.companionEquipment ?? INITIAL_STATE.companionEquipment,
@@ -1599,10 +1607,23 @@ function levelUpLocation(locationId, prepaid = 0, { silent = false } = {}) {
 function setActiveCompanion(id, active) {
   if (active && state.companionTasks?.[id]) return { ok: false };
   const current = state.activeCompanions;
+  if (active && !current.includes(id) && current.length >= 5) {
+    return { ok: false, reason: 'party_full' };
+  }
   const next = active
     ? (current.includes(id) ? current : [...current, id])
     : current.filter(c => c !== id);
   state = { ...state, activeCompanions: next };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
+
+function setActiveCompanions(ids) {
+  const unique = [...new Set(ids)].slice(0, 5);
+  if (unique.some(id => !state.unlockedCompanions.includes(id))) return { ok: false, reason: 'locked' };
+  if (unique.some(id => state.companionTasks?.[id])) return { ok: false, reason: 'busy' };
+  state = { ...state, activeCompanions: unique };
   saveToStorage(state);
   notify();
   return { ok: true };
@@ -1655,9 +1676,9 @@ function jumpToLogSt(n) {
 }
 
 function resetTutorial() {
-  state = { ...state, tutorialDone: false, logSt1Done: false, logSt2Done: false, logSt3Done: false, logSt4Done: false, guideUnlocked: false, playerName: '', unlockedCompanions: [], activeCompanions: [] };
+  state = { ...state, tutorialDone: false, logSt1Done: false, logSt2Done: false, logSt3Done: false, logSt4Done: false, guideUnlocked: false, playerName: '', unlockedCompanions: [], activeCompanions: [], constellationProgress: {}, discoveredConstellations: [] };
   saveToStorage(state);
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, TOUTO_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt };
