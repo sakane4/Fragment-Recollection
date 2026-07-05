@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fragment Recollection</title>
-  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho&family=Cormorant+Garamond:ital@1&display=swap" rel="stylesheet">
   <style>
     @font-face {
       font-family: 'KoburiMincho';
@@ -113,12 +113,15 @@
       gap: 0.5rem;
       overflow-y: auto;
     }
+    #main-panel-wrap {
+      --tab-h: clamp(18px, calc((var(--panel-h, 300px) - 20px) / 3), 64px);
+    }
     #guide-tab-btn {
       position: absolute;
-      top: 14px;
+      top: 4px;
       left: -28px;
       width: 28px;
-      height: 64px;
+      height: var(--tab-h);
       background: rgba(126, 200, 216, 0.14);
       border: 1px solid rgba(126, 200, 216, 0.5);
       border-right: none;
@@ -180,10 +183,10 @@
     }
     #effect-tab-btn {
       position: absolute;
-      top: 86px;
+      top: calc(var(--tab-h) * 2 + 16px);
       left: -28px;
       width: 28px;
-      height: 64px;
+      height: var(--tab-h);
       background: rgba(61, 220, 132, 0.16);
       border: 1px solid rgba(61, 220, 132, 0.45);
       border-right: none;
@@ -253,10 +256,10 @@
     }
     #quest-tab-btn {
       position: absolute;
-      top: 158px;
+      top: calc(var(--tab-h) + 8px);
       left: -28px;
       width: 28px;
-      height: 64px;
+      height: var(--tab-h);
       background: rgba(232, 192, 122, 0.14);
       border: 1px solid rgba(232, 192, 122, 0.5);
       border-right: none;
@@ -274,6 +277,13 @@
     @keyframes quest-glow {
       0%, 100% { box-shadow: -1px 0 4px rgba(232,192,122,0.25); }
       50%      { box-shadow: -2px 0 12px 2px rgba(232,192,122,0.65); }
+    }
+    #main-panel-wrap.compact-side-tabs .side-panel-tab {
+      padding: 0;
+      writing-mode: horizontal-tb;
+      letter-spacing: 0;
+      font-size: 0.55rem;
+      line-height: var(--tab-h);
     }
     #quest-panel-header {
       font-size: 0.85rem;
@@ -359,11 +369,6 @@
       padding: 0;
       border-bottom: none;
       font-size: 0.68rem;
-    }
-    .quest-rumor-actions .quest-progress::before {
-      content: '手がかり';
-      color: #5f657e;
-      margin-right: 0.35rem;
     }
     .quest-rumor-actions .quest-turnin-btn {
       width: auto;
@@ -2473,13 +2478,15 @@
       background: #65758c; box-shadow: 0 0 5px rgba(122,151,190,.35);
     }
     .star-chart-main-star.active .star-chart-light {
-      width: 10px; height: 10px; background: #e1efff;
-      box-shadow: 0 0 3px #fff,0 0 8px rgba(137,180,250,.88),0 0 17px rgba(88,146,224,.62);
+      width: 10px; height: 10px;
+      background: #fff;
+      box-shadow: 0 0 4px #fff, 0 0 12px var(--star-color, rgba(137,180,250,1)), 0 0 28px var(--star-color, rgba(88,146,224,.8)), 0 0 48px var(--star-color, rgba(88,146,224,.4));
     }
     .star-chart-name {
       position: absolute; left: 0; top: calc(50% + 9px);
       width: 100%; overflow: hidden;
-      opacity: 0; font-size: 0.58rem; white-space: nowrap; text-overflow: ellipsis;
+      opacity: 0; font-size: 0.72rem; white-space: nowrap; text-overflow: ellipsis;
+      font-family: 'Cormorant Garamond', serif; font-style: italic; letter-spacing: 0.04em;
     }
     .star-chart-main-star.active .star-chart-name { opacity: 1; color: #b9d6fa; }
     .star-chart-caption {
@@ -2507,6 +2514,13 @@
       opacity: 1; color: #bbd4f7; border-color: #4d73a5;
       background: #111d2c; filter: none;
       box-shadow: inset 0 0 12px rgba(77,115,165,.14),0 0 8px rgba(81,133,202,.16);
+    }
+    .star-chart-rail-person.locked {
+      opacity: .22;
+      border-style: dashed;
+      color: #657084;
+      cursor: default;
+      filter: none;
     }
     .star-chart-rail-person small { max-width: 100%; overflow: hidden; font-size: 0.55rem; text-overflow: ellipsis; }
     .star-chart-layout.compact .star-chart-rail { gap: 1px; padding: 1px; }
@@ -3190,6 +3204,11 @@
   for (const panel of sidePanels) {
     const tab = panel.querySelector('.side-panel-tab');
     tab.addEventListener('click', () => {
+      if (mainPanelWrap.getBoundingClientRect().height < 240) {
+        const app = document.getElementById('app');
+        mainPanelWrap.style.height = `${app.clientHeight * 0.45}px`;
+        document.dispatchEvent(new CustomEvent('fr:close-companion-lower'));
+      }
       const willOpen = !panel.classList.contains('open');
       for (const other of sidePanels) other.classList.remove('open');
       panel.classList.toggle('open', willOpen);
@@ -3210,6 +3229,11 @@
   const mainPanel = document.getElementById('main-panel');
   const mainPanelWrap = document.getElementById('main-panel-wrap');
   const MIN_H = 60;
+  new ResizeObserver(() => {
+    const h = mainPanelWrap.getBoundingClientRect().height;
+    mainPanelWrap.style.setProperty('--panel-h', `${h}px`);
+    mainPanelWrap.classList.toggle('compact-side-tabs', h < 130);
+  }).observe(mainPanelWrap);
 
   let startY = 0;
   let startH = 0;

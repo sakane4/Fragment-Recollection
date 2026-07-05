@@ -1,5 +1,32 @@
-Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-07-01）
+Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-07-05）
 ============================================
+2026-07-05: 同行タブを星図盤UIに刷新。サイドタブのリサイズ追尾を改善。
+  - companion-ui.js / star-chart.js / constellations.js を新規作成し、同行タブを全面刷新。
+    - 星図盤(天球儀): キャンバスに520個の背景星と未来の星を描画。ドラッグで天球を回転、
+      ピンチ操作でズーム(0.65x〜2.2x)。仲間になったキャラクターの星がSTAR_POSITIONSに
+      配置され、アクティブ時にキャラクターカラーで発光する(白い中心点＋外側に広がる色付きグロー)。
+    - 星座システム(CONSTELLATIONS): 特定メンバーで指定回数探索すると星座を発見。現在はtwin_stars
+      (双星座: ユウヤ+ラビ)とsnow_rabbit(雪うさぎ座: ユウヤ+ラビ+雪架)の2種を定義。星座のメンバーで
+      編成すると天球上に接続線が描画され、キャプションが星座名に変わる。
+    - 下部タブで「発見した星座」と「人物記録」を切り替え可能。星座一覧からワンタップで編成を再現できる。
+    - 右のレール(サイドバー)にキャラ名表示、天球上の星には誕生花由来の固有星名を斜体で表示
+      (フォント: Cormorant Garamond)。星名は仲間になった時点で表示される(未解放時は非表示)。
+    - 各キャラクターの星名・固有カラーをCOMPANION_DATAに追加:
+      ユウヤ=salvus(#3a8fff)、ラビ=Salvis(#ff3f3f)、シズク=Helianthus(#b0bac4)、
+      カオル=pensée(#ff6fa8)、雪架=Pieris(#3fd4ff)。
+    - sameMembers関数がstar-chart.jsとconstellations.jsで重複していたのをconstellations.jsに統一。
+    - 天球を同行タブに挿入した直後に canvas.getBoundingClientRect()がゼロを返すため、
+      requestAnimationFrame(draw)での初回描画がタップするまで反映されない問題を修正。
+      canvasにResizeObserverを設定し、DOM挿入・サイズ確定のタイミングで自動描画するように変更。
+  - ノスタルジアをLOCATION_DEFSの先頭に移動し、地図一覧の一番上に表示されるよう変更。
+  - サイドタブ(導き/依頼/効果)のリサイズ追尾を改善。
+    - 従来: パネル高さが240px未満になった瞬間にcompact-side-tabsクラスが付き、一気に最小サイズに
+      切り替わっていたため、少しだけ高さが足りない場合でも全部最小化されて違和感があった。
+    - 修正: ResizeObserverで--panel-h CSS変数をmain-panel-wrapに随時セット。各タブの高さを
+      clamp(18px, calc((var(--panel-h) - 20px) / 3), 64px)で3分割しパネル高に追尾する形に変更。
+      topもcalc(var(--tab-h) * n)で自動連動。compact切り替え(横書き化)の閾値は240px→130pxに引き下げ。
+  - サイドタブの並び順を 導き→効果→依頼 から 導き→依頼→効果 に変更。
+
 2026-07-01: 噂から受注する依頼フローと、依頼パネルの本番UIを実装。
   - 塔都探索で得られる「塔都の噂話」を使い、依頼の詳細をプレイヤーが任意に解放する仕組みを追加。
     解放前は仮の噂文・必要数・「引き受ける」ボタンだけを表示し、消費前に見えていた噂は別依頼の解放後も
@@ -687,6 +714,9 @@ guides.js     — 導きの定義・メタな助言と進行目標(GUIDES / getA
 quests.js     — 人物から受ける依頼の定義・状態モデル(QUESTS / QUEST_STATUS)
 logs.js       — フレーバーテキスト定義・スケジューラー
 scenario.js   — シナリオフロー・タイプライターエンジン(runLogSt_1〜4 / runLocationChoice)
+companion-ui.js — 同行タブのUI一式(星図盤・星座リスト・人物記録)
+star-chart.js   — 天球(星図盤)の描画エンジン。ドラッグ回転・ピンチズーム・キャラ星の配置・発光
+constellations.js — 星座の定義(CONSTELLATIONS)・発見判定・sameMembers
 stories/      — 1ストーリー＝1ファイル(メタデータ＋body本文)。.txt は廃止
   index.js      — STORIES エクスポートまとめ
   prologue.js   — プロローグ(メタデータ＋body)

@@ -3,11 +3,11 @@ import { CONSTELLATIONS, sameMembers } from './constellations.js';
 import { createStarChart } from './star-chart.js';
 
 const COMPANION_DATA = {
-  yuya:   { name: 'ユウヤ', mark:'✧', desc: '記憶を失った少年。何かを探している。' },
-  rabi:   { name: 'ラビ', mark:'◇', desc: '盲目の剣士。' },
-  shizuku:{ name: 'シズク', mark:'□', desc: '寡黙な青年。' },
-  kaoru:  { name: 'カオル', mark:'○', desc: 'いつも笑顔のお姉さん。' },
-  yukika: { name: '雪架', mark:'△', desc: 'なにか秘密を知っているようだ。' },
+  yuya:   { name: 'ユウヤ', starName: 'salvus',     mark:'✧', color: '#3a8fff', desc: '記憶を失った少年。何かを探している。' },
+  rabi:   { name: 'ラビ',   starName: 'Salvis',     mark:'◇', color: '#ff3f3f', desc: '盲目の剣士。' },
+  shizuku:{ name: 'シズク', starName: 'Helianthus', mark:'□', color: '#b0bac4', desc: '寡黙な青年。' },
+  kaoru:  { name: 'カオル', starName: 'pensée',     mark:'○', color: '#ff6fa8', desc: 'いつも笑顔のお姉さん。' },
+  yukika: { name: '雪架',   starName: 'Pieris',     mark:'△', color: '#3fd4ff', desc: 'なにか秘密を知っているようだ。' },
 };
 
 function createCompanionTabRenderer({
@@ -24,6 +24,11 @@ function createCompanionTabRenderer({
   let previousUnlocked = null;
   let openSection = null;
   let selectedRecordId = null;
+  document.addEventListener('fr:close-companion-lower', () => {
+    if (!openSection) return;
+    openSection = null;
+    renderCharTab(getState());
+  });
 
   function renderCharTab(state) {
     const view = document.getElementById('view-chars');

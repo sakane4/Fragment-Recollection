@@ -1,4 +1,5 @@
 // star-chart.js — 同行画面の天球描画
+import { sameMembers } from './constellations.js';
 
 const STAR_POSITIONS = {
   yuya: { lon:-18, lat:55 }, rabi: { lon:18, lat:34 },
@@ -34,9 +35,6 @@ const BACKGROUND_STARS=Array.from({length:520},() => {
 });
 const FUTURE_VECTORS=FUTURE_STARS.map(([lon,lat])=>vector(lon,lat));
 
-function sameMembers(left,right) {
-  return left.length===right.length && left.every(id=>right.includes(id));
-}
 
 function createStarChart({ companions, unlocked, active, constellations, onToggle }) {
   const root=document.createElement('div');
@@ -69,7 +67,8 @@ function createStarChart({ companions, unlocked, active, constellations, onToggl
     button.type='button';
     button.className=`star-chart-main-star${active.includes(id)?' active':''}`;
     button.dataset.companion=id;
-    button.innerHTML=`<span class="star-chart-light"></span><span class="star-chart-name">${companion.name}</span>`;
+    if(companion.color) button.style.setProperty('--star-color', companion.color);
+    button.innerHTML=`<span class="star-chart-light"></span><em class="star-chart-name">${companion.starName ?? companion.name}</em>`;
     button.addEventListener('click',()=>{
       if(Date.now()<suppressStarClickUntil)return;
       onToggle(id,!active.includes(id));
@@ -82,6 +81,14 @@ function createStarChart({ companions, unlocked, active, constellations, onToggl
     railButton.innerHTML=`<span>${companion.mark??'✦'}</span><small>${companion.name}</small>`;
     railButton.addEventListener('click',()=>onToggle(id,!active.includes(id)));
     rail.appendChild(railButton);
+  }
+  for(let index=unlocked.filter(id=>companions[id]&&STAR_POSITIONS[id]).length;index<5;index+=1){
+    const placeholder=document.createElement('button');
+    placeholder.type='button';
+    placeholder.disabled=true;
+    placeholder.className='star-chart-rail-person locked';
+    placeholder.innerHTML='<span>？</span><small>？？？</small>';
+    rail.appendChild(placeholder);
   }
 
   function frame() {
@@ -178,18 +185,25 @@ function createStarChart({ companions, unlocked, active, constellations, onToggl
   }
   sky.addEventListener('pointerup',finish);sky.addEventListener('pointercancel',finish);
   const subPanel=document.getElementById('sub-panel');
-  if(subPanel&&globalThis.ResizeObserver){
-    const observer=new ResizeObserver(()=>{
-      if(!root.isConnected){observer.disconnect();return;}
-      const available=Math.max(64,Math.min(269,subPanel.clientHeight-24));
-      root.style.setProperty('--star-chart-height',`${available}px`);
-      root.classList.toggle('compact',available<180);
-      root.classList.toggle('ultra-compact',available<105);
+  if(globalThis.ResizeObserver){
+    const canvasObserver=new ResizeObserver(()=>{
+      if(!root.isConnected){canvasObserver.disconnect();return;}
       draw();
     });
-    observer.observe(subPanel);
+    canvasObserver.observe(canvas);
+
+    if(subPanel){
+      const panelObserver=new ResizeObserver(()=>{
+        if(!root.isConnected){panelObserver.disconnect();return;}
+        const available=Math.max(64,Math.min(269,subPanel.clientHeight-24));
+        root.style.setProperty('--star-chart-height',`${available}px`);
+        root.classList.toggle('compact',available<180);
+        root.classList.toggle('ultra-compact',available<105);
+        draw();
+      });
+      panelObserver.observe(subPanel);
+    }
   }
-  requestAnimationFrame(draw);
   return root;
 }
 
