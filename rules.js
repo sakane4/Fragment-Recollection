@@ -75,14 +75,6 @@ export const UNLOCK_RULES = [
     action: (ctx) => ctx.startWorldChronicleIntro(),
   },
   {
-    id: 'unlock_flower_help',
-    requireViewerClosed: true,
-    condition: (state) =>
-      (state.shopPurchaseCount?.flower ?? 0) >= 3 &&
-      !state.flowerHelpUnlocked,
-    action: (ctx) => ctx.startFlowerHelpIntro(),
-  },
-  {
     id: 'all_companions_met',
     requireViewerClosed: true,
     condition: (state) =>

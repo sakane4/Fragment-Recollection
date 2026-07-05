@@ -83,8 +83,28 @@ export const QUESTS = [
       target: 10,
       unitLabel: '回',
     },
-    // この依頼のreported状態は、将来の花屋店員個人ストーリーの発生条件として使う。
+    // 報告後は花屋で「店員と話す」が解放される(_isFacilityOptionLocked、ui.js)。
+    // その初回の会話を最後まで見る(markFlowerClerkTalkSeen)と、続く花クエストが自動で受注状態になる。
     rewards: [{ resource: 'magcoin', amount: 30 }],
+    turnIn: 'quest_ui',
+    turnInLabel: '報告する',
+  },
+  {
+    // 象徴花(flowers.js)を1種ずつ店に増やしていく依頼群の第1弾。今後の花も同じ型
+    // (花屋店員との会話を見る→autoStartで依頼が始まる→探索先でgrantResourceの種を発見→
+    // 報告で店頭に並ぶ)で追加していく想定。会話の内容(_flowerClerkDialogue、ui.js)は別途執筆する。
+    id: 'orsis_seed_request',
+    title: '雪架に届けたい花',
+    requester: '花屋の店員',
+    description: '雪架のために、魔界王都メフィストでオルシスの種を探してほしいと頼まれた。',
+    requestComment: '「雪架さんが、魔界王都に咲く花を欲しがっていて……よかったら、探してきてもらえませんか？」',
+    completeComment: '「見つけてくれたんですね……！　これで雪架さんにも渡せます。お店にも並べさせていただきますね」',
+    goalLabel: 'オルシスの種を見つける',
+    autoStart: { stateFlag: 'flowerClerkTalkSeen' },
+    objective: { type: 'action_chance', actionId: 'mephisto_explore', chance: 0.15, grantResource: 'orsis_seed' },
+    progressLog: 'オルシスの種を見つけた',
+    reportLog: '【花屋】オルシスが店頭に並ぶようになった',
+    rewards: [{ resource: 'magcoin', amount: 20 }],
     turnIn: 'quest_ui',
     turnInLabel: '報告する',
   },

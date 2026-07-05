@@ -355,19 +355,6 @@ const ALL_COMPANIONS_MET_STEPS = parseScript(`
 `);
 function runAllCompanionsMet(mainPanel, opts) { return runLogSt(ALL_COMPANIONS_MET_STEPS, mainPanel, opts); }
 
-// 花屋で何度か買い物をしたあと、「手伝う」が解放されるきっかけになる小イベント
-const FLOWER_HELP_INTRO_STEPS = parseScript(`
-「お客さん、よくお花を買ってくれますよね」
-あなたに花を渡しながら、店員がそう声をかけてきた。
-「実は”喪失”以来、花の記録が失われて」
-「お花の世話の方法が分からなくなってしまったんです」
-「それで人手が足りなくて……」
-「もし、よろしければ、少し店を手伝ってくれませんか？」
-「もちろん、お礼は払いますし、時間のある時だけで構いませんから！」
-[end: 引き受ける]
-`);
-function runFlowerHelpIntro(mainPanel, opts) { return runLogSt(FLOWER_HELP_INTRO_STEPS, mainPanel, opts); }
-
 const LOG_STORY_4_STEPS =parseScript(`
 004
 森の中、あなたはユウヤと足を止める。
@@ -756,6 +743,7 @@ function runFacilityMenu(mainPanel, {
     tw = typewriter(dialogue, option.dialogue ?? '「……」', {
       speed: 38,
       onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
+      onDone: () => option.onDone?.(),
     });
   }
 
@@ -812,9 +800,9 @@ function runFacilityMenu(mainPanel, {
     const grid = document.createElement('div');
     grid.className = 'facility-list';
     body.appendChild(grid);
-    const note = document.createElement('div');
-    note.className = 'log-entry story-log center';
-    body.appendChild(note);
+    // 購入するたびに1行ずつ積み重ねる(上書きすると連続購入時に直前の結果が見えなくなるため)
+    const noteList = document.createElement('div');
+    body.appendChild(noteList);
     _setExit(exitLabel, onExit);
 
     // 購入してもパネルを作り直さず、残高・商品リストだけをその場で更新する
@@ -848,7 +836,12 @@ function runFacilityMenu(mainPanel, {
           grid.appendChild(btn);
         }
       }
-      note.textContent = message;
+      if (message) {
+        const line = document.createElement('div');
+        line.className = 'log-entry story-log center';
+        line.textContent = message;
+        noteList.appendChild(line);
+      }
       mainPanel.scrollTop = mainPanel.scrollHeight;
     }
 
@@ -886,4 +879,4 @@ const NOSTALGIA_DISCOVERY_STEPS = parseScript(`
 
 function runNostalgiaDiscovery(mainPanel, opts) { return runLogSt(NOSTALGIA_DISCOVERY_STEPS, mainPanel, opts); }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runFlowerHelpIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu, runNostalgiaDiscovery };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu, runNostalgiaDiscovery };

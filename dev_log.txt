@@ -1,5 +1,110 @@
 Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-07-05）
 ============================================
+2026-07-05(続き5): 不具合修正: 花屋で3回目の買い物をすると店が閉じてしまう問題。複数購入時に
+  購入結果が上書きされ見えなくなる問題も合わせて修正。
+  - 原因1: 「話す」解放の起点を会話ベースに移した際(続き3)、旧仕様(3回購入で直接flowerHelpUnlocked
+    → カットシーン開始)のためにonBuyへ残っていた closeFacility/trigger: 'flower_help_intro' の
+    分岐を消し忘れていた。3回目購入のたびにこの分岐がtrueになり、パネルを区切り線へ畳んで
+    (collapsePanelToDivider)施設を閉じてしまっていた。
+  - 修正1: onBuy(ui.js)からflowerHelpReady/closeFacility/trigger分岐を削除。代わりに購入前後の
+    shopPurchaseCount.flowerを比較し、2→3の瞬間だけメインログに「【花屋】店員と話ができるようになった！」
+    を出力(addLog)。店は閉じない。runFacilityMenu呼び出し側の未使用になったonTriggerハンドラも削除
+    (scenario.js側の汎用closeFacility/onTrigger機構自体は他施設で使う可能性があるため残置)。
+  - 原因2: 買い物メニューの購入結果メッセージ(note)が同じ1つのdivのtextContentを毎回上書きしていたため、
+    連続で複数種類・複数個買うと直前の結果しか見えなかった。
+  - 修正2: renderShop(scenario.js)を、購入のたびに新しい行を追加していく方式に変更(noteList div配下に
+    購入ごとの.log-entry.story-log.centerを積み重ねる、textContent上書きではなく子要素追加)。
+  - ブラウザpreviewで動作確認済み: 花屋でモンド/レスキュア/ベリルーンを1個ずつ連続購入→3件とも
+    ログに残って見える、3回目到達時に店を閉じずメインログへ解放メッセージが出る、4回目以降は
+    再発火しないことを確認。コンソールエラーなし。
+
+2026-07-05(続き4): 不具合修正: 開発メニュー「ログストーリー004へジャンプ」が発火しなくなっていた。
+  - 原因: 004の発火条件は以前「yuya_1のstoryProgress≥13」という直接判定だったが、その後
+    stories/yuya_1.js側に[milestone: logSt4Ready]マーカーを埋め込み、unlockNextPage内で該当段落
+    (13段落目、算出済み・ズレなし)に到達した瞬間にstate.logSt4Readyを立てる方式に変更されていた
+    (rules.jsのlog_st_4ルールも!!state.logSt4Ready判定に追従済み)。しかしgame.jsのjumpToLogSt(n)は
+    旧仕様のまま「storyProgress.yuya_1を13にする」ことしかしておらず、logSt4Ready自体を直接
+    立てていなかった(ジャンプは1段落ずつ進めるunlockNextPageを経由しないため、milestone処理が
+    一切走らない)。結果、開発メニューでn=4以上にジャンプしても004が自動発火しなくなっていた。
+  - 修正: jumpToLogSt内のn>=4分岐に next.logSt4Ready = true を追加(game.js)。
+  - ブラウザpreviewで動作確認済み: セーブ削除後jumpToLogSt(4)を呼ぶと、notify()経由でevaluateRulesが
+    即座にlog_st_4ルールを発火し、logSt4Done: trueまで進むことを確認。コンソールエラーなし。
+
+2026-07-05(続き3): 花屋店員との会話を「解放イベントの起点」として並び替え(ユーザー指摘による順序修正)。
+  - 修正前の順序(誤り): 買い物3回→自動カットシーン(FLOWER_HELP_INTRO_STEPS)で「手伝う」即解放→
+    手伝い10回→依頼「花屋のお手伝い」を報告→「話す」解放→初回の会話で花クエストautoStart。
+  - 修正後の順序: 買い物3回→「話す」が解放(会話内容は段階1)→その会話を最後まで読むと「手伝う」解放→
+    手伝い10回→会話内容が段階2に更新→その会話を最後まで読むと雪架の花クエスト(orsis_seed_request)
+    がautoStart。強制カットシーンを廃止し、常に「店員と話す」を能動的に選んで読む形に統一。
+  - 廃止: rules.jsのunlock_flower_helpルール、ui.jsのstartFlowerHelpIntro、scenario.jsの
+    FLOWER_HELP_INTRO_STEPS/runFlowerHelpIntro(および関連import/export/ctx登録)。
+    カットシーンの台詞(「お客さん、よくお花を買ってくれますよね」〜)はそのまま段階1の会話文として
+    _flowerClerkDialogue(ui.js)に移設・再利用。
+  - _isFacilityOptionLocked: talkのロック条件を「花屋のお手伝い報告済み」から「shopPurchaseCount.flower
+    ≥3」に変更(旧unlock_flower_helpルールと同じ閾値を、素材そのものの判定として使うだけに変更)。
+  - _flowerClerkDialogue(state)を段階制に変更: ①flowerHelpUnlocked前=段階1(手伝いを頼む内容、仮でなく
+    正式に移設済みの文面)、②手伝い10回未満=つなぎの仮台詞、③10回以上かつflowerClerkTalkSeen前=段階2
+    (雪架の花の話を切り出す仮台詞)、④それ以降=落ち着いた仮台詞。②③④の文面はいずれも仮で今後執筆。
+  - talk.onDoneのハンドラを、会話を読み終えた瞬間のstateを見て「まだ手伝い未解放なら解放」「手伝い済み
+    かつ10回以上かつ未読なら花クエストをautoStartする対象フラグを立てる」の分岐に変更(ui.js)。
+  - talk.dialogueをObject.definePropertyでgetter化(ui.js)。同じ施設セッション内(入店から退店まで)で
+    段階が進んだ直後にもう一度「話す」を選んだ場合でも、次にクリックした時点の最新state基準の文面が
+    出るように修正(修正前は入店時に固定した文字列のまま更新されなかった)。
+  - ブラウザpreviewで動作確認済み: 買い物0回時は「話す」ロック→3回購入で解放→会話(段階1)を最後まで
+    見ると「手伝う」ができるようになった、のログが出て解放→手伝い10回に達した状態で再度「話す」を
+    選ぶと会話が段階2の文面に切り替わっており、最後まで見た時点でオルシスの花クエストが自動受注→
+    もう一度話すと段階4(落ち着いた定型文)に切り替わることを確認。コンソールエラーなし。
+
+2026-07-05(続き2): 花屋の依頼→花発見クエストの連鎖第1弾として、雪架の象徴花「オルシス」を実装。
+  - 設計方針(ユーザー確認済み): 新キャラ加入とは別ルート。既存の依頼と同じ体裁(NPCから頼まれる)で、
+    「花屋の手伝い」完了後に花屋の「店員と話す」が解放(既存の_isFacilityOptionLocked判定)→その初回の
+    会話を最後まで見る(スキップ含む)と、続けて「〇〇に行ってオルシスの種を探してきてほしい」という
+    依頼が自動受注される→受注中は指定した場所の探索で確率的に種を入手→報告すると店頭にその花が並ぶ、
+    という循環。「10回手伝い報告」の時点では直接次の依頼を始めず、必ず会話を挟む。
+  - state.flowerClerkTalkSeen(初期false)を新設。markFlowerClerkTalkSeen()で一度だけtrueにする
+    (game.js、flowerHelpUnlockedと同じ形のシンプルなフラグ)。
+  - typewriter()のonDoneコールバックをscenario.jsのrenderTalk(施設内「話す」表示)に配線
+    (自然完了・スキップどちらでも発火)。ui.jsの_enterFacilityでnostalgia_flowerのtalkオプションに
+    onDone: markFlowerClerkTalkSeen を設定。会話内容(_flowerClerkDialogue)は現状仮のままで、
+    正式な文面は今後ユーザーが執筆する。
+  - 新依頼「雪架に届けたい花」(orsis_seed_request)を追加。autoStart.stateFlag: 'flowerClerkTalkSeen'
+    (既存パターンをそのまま流用、questReported的な新機構は不要だったため導入せず)。
+    objective.type: 'action_chance'(missing_catと同じ機構)にactionId: mephisto_explore、chance: 0.15、
+    新設のgrantResource: 'orsis_seed' を指定。
+  - action_chance判定(completeAction内)にgrantResource対応を追加: 抽選成功時、quest完了フラグだけでなく
+    指定リソースを1個inventoryへ実際に加える(discoveredResourcesにも追加)よう汎用化。今後の花クエストは
+    この仕組みを流用してactionId/chance/grantResourceを差し替えるだけで追加できる。
+  - オルシス(FLOWER_SHOP_ITEMSのunlockedByQuest)を'orsis_seed_request'に設定。種を報告してはじめて
+    店に並ぶ(それまでは花屋で買えない)。
+  - resource.jsに「オルシスの種」(orsis_seed)を追加。種自体は消費されず、発見の実感を出す収集アイテム。
+  - ブラウザpreviewで動作確認済み: 花屋手伝い報告直後はorsis_seed_request未受注→「店員と話す」の
+    会話を最後まで見た瞬間に自動受注(「依頼」タブに表示)→mephisto_explore完了時に確率成功で種を
+    1個取得・依頼が完了状態に→報告でマグコイン20獲得＋花屋にオルシスが並ぶ、を一通り確認。
+    コンソールエラーなし。
+
+2026-07-05(続き): 象徴花システムの土台を実装(flowers.js新設)。
+  - 正典データ: 各キャラクターの誕生日の誕生花に由来する象徴花12種(双子は1種を共有)をFLOWERSに定義。
+    誕生日順(1月→12月)。誕生日・誕生花(realFlower)・フレーバー説明(desc)・対応同行者IDを持つ。
+    現5人との対応: 郁=カオル(1/16 パンジー→レスキュア)、雪架(4/4 馬酔木→オルシス)、雫=シズク
+    (7/6 ヒマワリ→ベリルーン)、あかる双子=ユウヤ+ラビ(12/18 セージ→モンド、ユーザー確認済み)。
+    未登場8人分(イリア/アンドルシア/灰冷花/こがね草/千年草/ダークリリー/ミルキース/クリスタルリリー)は
+    companions空欄で先行定義し、加入時に追記する。星名(COMPANION_DATA.starName)も誕生花由来なので
+    今後のキャラ追加時はこの表から引ける。
+  - リソース: 新しい花9種をresource.jsに追加(iria/andorsia/orsis/hairenka/koganegusa/sennengusa/
+    dark_lily/milkys/crystal_lily)。
+  - プレゼント(絆Lv): 対応する象徴花を渡すと+2、それ以外の花は+1(giveGift、上限でクリップ)。
+    GIFT_ITEMSはFLOWERS全種から自動生成。贈り物リストは一度でも入手した花(discoveredResources)のみ
+    表示し、未知の花は名前も出さない。渡した時に「【絆】○○との絆が(大きく)深まった (絆Lv N)」をログ出力。
+  - 花屋の品揃え拡張: FLOWER_SHOP_ITEMSにunlockedByQuestを導入。指定依頼が報告済みになると店頭に並ぶ。
+    第1弾としてオルシス(8マグコイン)を「花屋のお手伝い」報告で解放。報告時ログ(quest.reportLog)と、
+    completeCommentに仕入れた花を分ける旨の台詞を追加。商品説明はFLOWERS.descから引くよう一元化。
+  - 花の図鑑: 白紙だった中身を実装。FLOWERS12種を頁として一覧表示し、一度でも入手した花は花名(リソース色)
+    +説明を復元表示、未入手は「判読できない頁」でぼかす(大陸誌と同じchronicle-entry UIを流用)。
+  - ブラウザpreviewで動作確認済み: 依頼報告前は花屋3種/報告済セーブで4種、雪架にオルシスで絆Lv+2・
+    他の花で+1、贈り物リストが入手済みの花のみ表示、図鑑で入手済み2種だけ復元表示、コンソールエラーなし。
+  - 保留リストの「同行者13人の象徴花」を解決として削除。絆Lvの効果(報酬ボーナス等)と未登場キャラの花の
+    入手経路(それぞれ別の花屋依頼で解放予定)は引き続き保留。
+
 2026-07-05: 同行タブを星図盤UIに刷新。サイドタブのリサイズ追尾を改善。
   - companion-ui.js / star-chart.js / constellations.js を新規作成し、同行タブを全面刷新。
     - 星図盤(天球儀): キャンバスに520個の背景星と未来の星を描画。ドラッグで天球を回転、
@@ -691,7 +796,8 @@ Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-07-05）
 機能を先に作って、ゲームフロー(解放順・バランス)はあとから構築する方針のため、「実装はしたが効果や
 組み込み先が未定のまま保留している機能」をここに集めておく。実装するたびに1行追加・解決したら削除する。
 - COMPANION_TRAITS(知識・剣術): 育つ・表示されるのみ。報酬ボーナス等の効果は未定
-- 絆Lv(2026-06-29実装): 花屋の押し花をプレゼントして上げられる。育つ・表示されるのみで効果は未定
+- 絆Lv(2026-06-29実装、2026-07-05更新): 花のプレゼントで上げられる(象徴花+2/他+1)。育つ・表示される
+  のみでゲーム上の効果は未定
 - 夢の欠片(dream_fragment、2026-06-29実装): 宿屋「休む」の完了報酬。使い道は未定
 - 大陸誌(2026-06-30実装、コーデックス): 図書館「調査」3回完了で解放、各場所の探索で調査記録(survey_*)を
   集めて頁を復元できる図鑑的機能。閲覧できるだけで、復元の先の使い道(報酬等)は未定
@@ -699,8 +805,8 @@ Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-07-05）
 - 場所のレベルが上がるとフレーバーテキストが変化(*印、保留): logs.jsの[lv:n]タグ機構は実装済みなので、
   各場所にテキストを追加するだけで対応可能
 - 木材(wood)の使い道: 道具屋で斧を買うと木こりが解放され木材が手に入るが、使い道は未定(クラフト等？)
-- 同行者13人の象徴花: 各キャラクターに対応する花を1種ずつ追加し、絆Lv上昇や専用反応へ結びつける案。
-  花屋・花の図鑑との連動も想定。具体的な花名、入手経路、対応花以外を渡した時の扱いは今後設計する
+- 未登場キャラ8人分の象徴花の入手経路: flowers.jsに定義済みだが入手手段なし。花屋の依頼を追加するたびに
+  unlockedByQuestで1種ずつ店頭へ並べていく想定(オルシスと同じ方式)
 
 --------------------------------------------
 ■ ファイル構成
@@ -712,6 +818,7 @@ stories.js    — パーサー・コストマップ管理(parseStoryPages / pars
 rules.js      — アンロック条件の一元管理(UNLOCK_RULES / evaluateRules)
 guides.js     — 導きの定義・メタな助言と進行目標(GUIDES / getActiveGuides / isGuideCompleted)
 quests.js     — 人物から受ける依頼の定義・状態モデル(QUESTS / QUEST_STATUS)
+flowers.js    — 象徴花の正典データ(FLOWERS / getSymbolicFlower)。誕生日順12種、キャラ対応・図鑑説明を保持
 logs.js       — フレーバーテキスト定義・スケジューラー
 scenario.js   — シナリオフロー・タイプライターエンジン(runLogSt_1〜4 / runLocationChoice)
 companion-ui.js — 同行タブのUI一式(星図盤・星座リスト・人物記録)

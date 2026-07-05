@@ -1,7 +1,8 @@
 // game.js — ゲームロジック・状態管理 (DOM操作なし)
 import { STORIES, getCostForParagraph, getMilestoneAtParagraph } from './stories.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
-import { QUEST_STATUS, getQuestDefinition, getVisibleQuests, getDiscoverableQuests, canTurnInQuest, canUnlockQuest, getActionObjectiveQuests } from './quests.js';
+import { QUEST_STATUS, getQuestDefinition, getQuestStatus, getVisibleQuests, getDiscoverableQuests, canTurnInQuest, canUnlockQuest, getActionObjectiveQuests } from './quests.js';
+import { FLOWERS, getSymbolicFlower } from './flowers.js';
 import { RESOURCES } from './resource.js';
 import { advanceConstellations } from './constellations.js';
 
@@ -504,12 +505,15 @@ const FACILITIES = {
   },
 };
 
-// 花屋で買える、この世界に存在する花や葉。マグコイン消費・在庫無限
+// 花屋で買える、この世界に存在する花や葉。マグコイン消費・在庫無限。
+// unlockedByQuest: その依頼が報告済みになると店頭に並ぶ(花屋の依頼をこなすと品揃えが増えていく)。
+// 説明文は象徴花の正典データ(flowers.js)から引く
 const FLOWER_SHOP_ITEMS = [
-  { id: 'mondo_leaf', price: 5, description: 'モコモコとした葉' },
-  { id: 'rescure',    price: 5, description: '白く可憐な花' },
-  { id: 'berylune',   price: 5, description: '涼しげな香りを漂わせる花' },
-];
+  { id: 'mondo_leaf', price: 5 },
+  { id: 'rescure',    price: 5 },
+  { id: 'berylune',   price: 5 },
+  { id: 'orsis',      price: 8, unlockedByQuest: 'orsis_seed_request' },
+].map(it => ({ ...it, description: FLOWERS.find(f => f.id === it.id)?.desc }));
 
 // 道具屋で買える道具(マグコイン消費・1個だけ所持できる)。斧を買うと、はじまりの森で
 // 木こり(forest_woodcut)が解放される(条件判定はrules.js)
@@ -530,7 +534,9 @@ function getShopItems(shopId) {
     return [...tools, ...relics];
   }
   if (shopId === 'flower') {
-    return FLOWER_SHOP_ITEMS.map(it => ({ ...it }));
+    return FLOWER_SHOP_ITEMS
+      .filter(it => !it.unlockedByQuest || getQuestStatus(state, it.unlockedByQuest) === QUEST_STATUS.REPORTED)
+      .map(it => ({ ...it }));
   }
   return [];
 }
@@ -563,26 +569,29 @@ const ELV_MAX = 10;
 const ELV_COSTS = Array.from({ length: ELV_MAX }, (_, n) => 10 * (n + 1));
 
 // 絆Lv。花屋で買ったプレゼントを渡して上げる(同行者専用フラグメントではなく、誰にでも渡せる
-// 汎用アイテム)。上限・コスト曲線はELvと同じ仕様を流用。今は「育つ・表示される」のみで効果は未定
+// 汎用アイテム)。上限・コスト曲線はELvと同じ仕様を流用。
+// その同行者の象徴花(flowers.js)を渡すと+2、それ以外の花は+1
 const BOND_LV_MAX = 10;
 const BOND_LV_COSTS = ELV_COSTS;
-const GIFT_ITEMS = ['mondo_leaf', 'rescure', 'berylune'];
+const GIFT_ITEMS = FLOWERS.map(f => f.id);
 
-// 同行者にプレゼントを渡して絆Lvを1上げる。itemIdはGIFT_ITEMSのいずれか
+// 同行者にプレゼントを渡して絆Lvを上げる。itemIdはGIFT_ITEMSのいずれか
 function giveGift(companionId, itemId) {
   if (!GIFT_ITEMS.includes(itemId)) return { ok: false };
   const lv = state.bondLv?.[companionId] ?? 0;
   if (lv >= BOND_LV_MAX) return { ok: false };
   const cost = BOND_LV_COSTS[lv];
   if ((state.resources[itemId] ?? 0) < cost) return { ok: false };
+  const matched = getSymbolicFlower(companionId)?.id === itemId;
+  const newLv = Math.min(lv + (matched ? 2 : 1), BOND_LV_MAX);
   state = {
     ...state,
     resources: { ...state.resources, [itemId]: state.resources[itemId] - cost },
-    bondLv: { ...state.bondLv, [companionId]: lv + 1 },
+    bondLv: { ...state.bondLv, [companionId]: newLv },
   };
   saveToStorage(state);
   notify();
-  return { ok: true };
+  return { ok: true, matched, gained: newLv - lv, newLv };
 }
 
 // 同行者ごとの異能。ELvが指定Lvに達すると解放される
@@ -764,6 +773,7 @@ const INITIAL_STATE = {
   shopPurchaseCount: {},
   flowerHelpUnlocked: false,
   flowerEncyclopediaUnlocked: false,
+  flowerClerkTalkSeen: false,
   questStatus: {},
   allCompanionsMetDone: false,
 };
@@ -1368,8 +1378,18 @@ function completeAction(actionId, onComplete) {
   const progressedQuests = [];
   for (const quest of getActionObjectiveQuests(actionId, state)) {
     if (Math.random() >= (quest.objective?.chance ?? 0)) continue;
+    let resources = state.resources;
+    let discoveredResources = state.discoveredResources;
+    // grantResource: 発見の瞬間にその場でリソースを1つ手に入れる(花の種など、見つけたことを実感できる形にする)
+    const grantResource = quest.objective?.grantResource;
+    if (grantResource) {
+      resources = { ...resources, [grantResource]: (resources[grantResource] ?? 0) + 1 };
+      if (!discoveredResources.includes(grantResource)) discoveredResources = [...discoveredResources, grantResource];
+    }
     state = {
       ...state,
+      resources,
+      discoveredResources,
       questStatus: { ...state.questStatus, [quest.id]: QUEST_STATUS.COMPLETED },
     };
     progressedQuests.push(quest.id);
@@ -1503,6 +1523,7 @@ function init() {
     shopPurchaseCount: saved.shopPurchaseCount ?? INITIAL_STATE.shopPurchaseCount,
     flowerHelpUnlocked: saved.flowerHelpUnlocked ?? INITIAL_STATE.flowerHelpUnlocked,
     flowerEncyclopediaUnlocked: saved.flowerEncyclopediaUnlocked ?? INITIAL_STATE.flowerEncyclopediaUnlocked,
+    flowerClerkTalkSeen: saved.flowerClerkTalkSeen ?? INITIAL_STATE.flowerClerkTalkSeen,
     questStatus: saved.questStatus ?? INITIAL_STATE.questStatus,
     allCompanionsMetDone: saved.allCompanionsMetDone ?? INITIAL_STATE.allCompanionsMetDone,
   };
@@ -1544,6 +1565,15 @@ function unlockWorldChronicle() {
 function unlockFlowerHelp() {
   if (state.flowerHelpUnlocked) return;
   state = { ...state, flowerHelpUnlocked: true };
+  saveToStorage(state);
+  notify();
+}
+
+// 花屋店員との最初の会話(店員トークが解放されて以降の初回)を最後まで見た(スキップ含む)時に呼ぶ。
+// これをもって次の花クエスト(orsis_seed_requestなど)がautoStartする
+function markFlowerClerkTalkSeen() {
+  if (state.flowerClerkTalkSeen) return;
+  state = { ...state, flowerClerkTalkSeen: true };
   saveToStorage(state);
   notify();
 }
@@ -1681,6 +1711,9 @@ function jumpToLogSt(n) {
     if (!next.unlockedLocations.includes('forest')) next.unlockedLocations.push('forest');
     if (!next.unlockedActions.includes('forest_explore')) next.unlockedActions.push('forest_explore');
     next.storyProgress['yuya_1'] = Math.max(next.storyProgress['yuya_1'] ?? 0, 13);
+    // 004の発火条件は[milestone: logSt4Ready](yuya_1.js 13段落目)による判定に変更済みなので、
+    // storyProgressだけでなくこのフラグも直接立てる(unlockNextPage経由の通常フローを経ないため)
+    next.logSt4Ready = true;
   }
 
   state = next;
@@ -1694,4 +1727,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt };
