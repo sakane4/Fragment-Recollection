@@ -12,11 +12,8 @@ const COMPANION_DATA = {
 
 function createCompanionTabRenderer({
   getState,
-  rewards,
-  resLabel,
   levelTagHtml,
   buildDetail,
-  attachDragHandlers,
   showTabToast,
   changeCompanion,
   replaceParty,

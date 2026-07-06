@@ -2550,134 +2550,6 @@
     }
 
     /* ── 同行タブ ── */
-    .party-section {
-      margin-bottom: 0.75rem;
-    }
-    .party-label {
-      font-size: 0.72rem;
-      color: var(--muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 0.3rem;
-      padding-left: 0.2rem;
-    }
-    .party-section--board {
-      position: relative;
-    }
-    .companion-board {
-      position: relative;
-      height: 17rem;
-      margin: 0.4rem 0 0.65rem;
-      overflow: hidden;
-      border: 1px solid rgba(116, 151, 196, 0.22);
-      border-radius: 14px;
-      background:
-        radial-gradient(circle at 50% 48%, rgba(42, 58, 86, 0.32), transparent 24%),
-        radial-gradient(circle at 24% 24%, rgba(126, 168, 224, 0.08) 0 1px, transparent 2px),
-        radial-gradient(circle at 76% 70%, rgba(180, 205, 238, 0.08) 0 1px, transparent 2px),
-        rgba(5, 8, 15, 0.48);
-    }
-    .companion-board-orbit {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 13.5rem;
-      height: 8.4rem;
-      border: 1px solid rgba(126, 168, 224, 0.2);
-      border-radius: 50%;
-      transform: translate(-50%, -50%) rotate(-12deg);
-      box-shadow: 0 0 24px rgba(90, 130, 190, 0.05);
-    }
-    .companion-board-link {
-      position: absolute;
-      left: 24%;
-      right: 24%;
-      top: 50%;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(126, 168, 224, 0.2), transparent);
-      transform: rotate(-12deg);
-      transform-origin: center;
-      transition: background 0.3s, box-shadow 0.3s;
-    }
-    .companion-board--linked .companion-board-link {
-      background: linear-gradient(90deg, transparent, rgba(137, 180, 250, 0.78), transparent);
-      box-shadow: 0 0 8px rgba(137, 180, 250, 0.45);
-    }
-    .companion-board-core {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 3.2rem;
-      height: 3.2rem;
-      transform: translate(-50%, -50%);
-      border-radius: 50%;
-      background: radial-gradient(circle, #020308 0 37%, #0b101c 39% 55%, rgba(71, 94, 132, 0.28) 58%, transparent 70%);
-      box-shadow: 0 0 18px rgba(96, 128, 178, 0.2);
-    }
-    .companion-board-core-ring {
-      position: absolute;
-      inset: -0.35rem;
-      border: 1px solid rgba(164, 192, 230, 0.22);
-      border-radius: 50%;
-      transform: rotate(-18deg) scaleY(0.42);
-    }
-    .companion-board-core-dot {
-      position: absolute;
-      inset: 43%;
-      border-radius: 50%;
-      background: #000;
-    }
-    .companion-board-slot {
-      position: absolute;
-      z-index: 2;
-      width: min(10.5rem, 42%);
-      min-height: 4.3rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px dashed rgba(137, 180, 250, 0.32);
-      border-radius: 10px;
-      color: var(--muted);
-      background: rgba(10, 15, 25, 0.72);
-      transform: translate(-50%, -50%);
-    }
-    .companion-board-slot--1 {
-      left: 27%;
-      top: 35%;
-    }
-    .companion-board-slot--2 {
-      left: 73%;
-      top: 65%;
-    }
-    .companion-board-slot.is-filled {
-      border-style: solid;
-      border-color: rgba(137, 180, 250, 0.52);
-      box-shadow: 0 0 14px rgba(80, 120, 180, 0.1);
-    }
-    .companion-board-slot .companion-card {
-      width: 100%;
-      min-height: 4.3rem;
-      margin: 0;
-      border: none;
-      border-radius: 9px;
-      background: rgba(16, 23, 36, 0.92);
-      box-sizing: border-box;
-    }
-    .companion-board-slot .companion-desc {
-      display: none;
-    }
-    .companion-board-slot-mark {
-      margin-right: 0.4rem;
-      color: rgba(137, 180, 250, 0.55);
-    }
-    .companion-board-slot-empty {
-      font-size: 0.72rem;
-      letter-spacing: 0.08em;
-    }
-    .party-section--board.drop-target .companion-board {
-      outline: 2px dashed var(--accent);
-      outline-offset: -5px;
-    }
     .star-chart-heading,
     .star-chart-discovered-heading {
       display: flex;
@@ -2894,48 +2766,6 @@
       color: var(--muted);
       padding: 0.3rem 0.2rem;
     }
-    .party-bonus {
-      font-size: 0.78rem;
-      color: #7ec88a;
-      margin-top: 0.25rem;
-      padding-left: 0.2rem;
-      line-height: 1.5;
-    }
-    .party-bonus-extra {
-      color: #89b4fa;
-    }
-    .party-bonus-sep {
-      color: var(--muted);
-    }
-    .companion-card {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0.65rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      margin-bottom: 0.3rem;
-      background: var(--panel);
-      cursor: pointer;
-    }
-    .party-drag-handle {
-      flex-shrink: 0;
-      width: 1.4rem;
-      height: 1.4rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted);
-      font-size: 1rem;
-      line-height: 1;
-      touch-action: none;
-      cursor: grab;
-    }
-    .party-drag-handle:hover { color: var(--text); }
-    .companion-card--fixed {
-      opacity: 0.6;
-      cursor: default;
-    }
     .companion-detail {
       margin: -0.3rem 0 0.3rem;
       border: 1px solid var(--border);
@@ -2996,74 +2826,11 @@
       justify-content: space-between;
       gap: 0.5rem;
     }
-    .companion-card--active {
-      border-color: var(--accent-border);
-    }
-    .companion-card > div:first-child {
-      flex: 1;
-    }
-    .companion-name {
-      font-size: 0.92rem;
-      color: var(--accent);
-      margin-bottom: 0.2rem;
-    }
     .companion-lv {
       font-size: 0.72rem;
       color: var(--muted);
       margin-left: 0.4rem;
     }
-    .companion-desc {
-      font-size: 0.78rem;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-    .companion-btn {
-      flex-shrink: 0;
-      font-size: 0.75rem;
-      padding: 0.3rem 0.65rem;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-      background: transparent;
-      color: var(--text);
-    }
-    .companion-btn--add {
-      border-color: var(--accent-border);
-      color: var(--accent);
-    }
-    .companion-btn--add:hover { background: var(--accent-dim); }
-    .companion-btn--remove {
-      border-color: #5a3030;
-      color: #c08080;
-    }
-    .companion-btn--remove:hover { background: #3a1a1a; }
-    .companion-btn--skill {
-      border-color: var(--accent-border);
-      color: var(--accent);
-    }
-    .companion-btn--skill:hover { background: var(--accent-dim); }
-    .companion-card.dragging {
-      opacity: 0.4;
-    }
-    .party-section.drop-target {
-      outline: 2px dashed var(--accent);
-      outline-offset: 4px;
-      border-radius: 8px;
-    }
-    .party-drag-ghost {
-      position: fixed;
-      z-index: 300;
-      transform: translate(-50%, -50%);
-      padding: 0.4rem 0.8rem;
-      border-radius: 6px;
-      border: 1px solid var(--accent-border);
-      background: var(--panel);
-      color: var(--accent);
-      font-size: 0.85rem;
-      pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    }
-
     /* ── ログ内アイテム名 ── */
     .log-resource {
       color: #7ec8d8;
