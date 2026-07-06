@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
@@ -1895,6 +1895,7 @@ function _startActionById(actionId) {
     addLog(`【${actionDisplayHtml(curAction)}】中断`, true, true);
   }
   selectedActionId = actionId;
+  setSelectedActionId(actionId);
   setActionPickerLabel(action);
   if (!_storyLogPlaying) {
     _resetPendingCompanionRewards();
@@ -1942,6 +1943,7 @@ function _flowerClerkDialogue(state) {
 
 function _enterFacility(facility) {
   selectedActionId = facility.id;
+  setSelectedActionId(facility.id);
   setActionPickerLabel(facility);
   _pauseForStory();
   _storyLogPlaying = true;
@@ -2597,6 +2599,7 @@ function renderActionList() {
       row.addEventListener('click', (e) => {
         e.stopPropagation();
         selectedActionId = action.id;
+        setSelectedActionId(action.id);
         setActionPickerLabel(action);
         renderActionList();
       });
@@ -3616,7 +3619,18 @@ export function init() {
   restoreLogHistory();
   subscribe(render);
   const initialState = getState();
-  if (initialState.activeAction?.actionId) selectedActionId = initialState.activeAction.actionId;
+  if (initialState.activeAction?.actionId) {
+    selectedActionId = initialState.activeAction.actionId;
+  } else {
+    // 前回選んでいた行動を復元する。ただしノスタルジア発見後のwherever(再生された世界)のように
+    // 表示上すり替わって消えた場所を指している場合はnostalgia側へ読み替える
+    selectedActionId = initialState.selectedActionId ?? 'explore';
+    const currentLocationId = (ACTIONS[selectedActionId] ?? FACILITIES[selectedActionId])?.locationId;
+    if (currentLocationId === 'wherever' && initialState.unlockedLocations.includes('nostalgia')) {
+      selectedActionId = 'nostalgia_explore';
+    }
+  }
+  setActionPickerLabel(ACTIONS[selectedActionId] ?? FACILITIES[selectedActionId]);
   render(initialState);
   initTabs();
   initStoryViewer();

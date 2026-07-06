@@ -835,6 +835,7 @@ const INITIAL_STATE = {
   questProgress: {},
   allCompanionsMetDone: false,
   companionTutorialDone: false,
+  selectedActionId: 'explore',
 };
 
 const SAVE_KEY = 'fr_save_v1';
@@ -1670,6 +1671,7 @@ function init() {
     questProgress: saved.questProgress ?? INITIAL_STATE.questProgress,
     allCompanionsMetDone: saved.allCompanionsMetDone ?? INITIAL_STATE.allCompanionsMetDone,
     companionTutorialDone: saved.companionTutorialDone ?? INITIAL_STATE.companionTutorialDone,
+    selectedActionId: saved.selectedActionId ?? INITIAL_STATE.selectedActionId,
   };
 
   // 基準回数導入前の進行中セーブは、読み込んだ時点から3回を数え始める。
@@ -1778,6 +1780,13 @@ function resetQuestsAndFacilities() {
 function setCompanionTutorialDone() {
   if (state.companionTutorialDone) return;
   state = { ...state, companionTutorialDone: true };
+  saveToStorage(state);
+}
+
+// 行動ピッカーで選択中の行動/施設idを記憶する(リロード後も選んでいたものに復元するため)
+function setSelectedActionId(id) {
+  if (state.selectedActionId === id) return;
+  state = { ...state, selectedActionId: id };
   saveToStorage(state);
 }
 
@@ -1930,4 +1939,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, OBSERVATORY_RESEARCH_MS, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, OBSERVATORY_RESEARCH_MS, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId };
