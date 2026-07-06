@@ -48,6 +48,26 @@ export const QUESTS = [
     activeLabel: 'まだ猫は見つかっていない',
   },
   {
+    id: 'find_starlit_observatory',
+    title: '星空研究所を探す',
+    rumorText: 'ノスタルジアの外れ、丘の上に星空を研究する場所があるらしい……',
+    requester: 'ノスタルジアの噂',
+    description: '噂に聞いた星空研究所を探すため、ノスタルジアを調べてみよう。',
+    requestComment: '星空研究所について、もう少し詳しく調べてみよう。',
+    goalLabel: 'ノスタルジアを探索し、星空研究所を見つける',
+    reveal: { requirements: [{ resource: 'observatory_rumor', amount: 1 }] },
+    unlock: { requirements: [{ resource: 'observatory_rumor', amount: 1 }] },
+    hideProgress: true,
+    autoCompleteStory: 'starlit_observatory_discovery',
+    objective: {
+      type: 'state_count',
+      progressKey: 'find_starlit_observatory',
+      target: 3,
+      unitLabel: '回',
+    },
+    rewards: [],
+  },
+  {
     id: 'restore_continent_chronicle',
     title: '大陸誌の復元',
     requester: 'ノスタルジアの司書',
@@ -157,7 +177,12 @@ export function getQuestStatus(state, questId) {
     return ready ? QUEST_STATUS.COMPLETED : status;
   }
   if (quest.objective?.type === 'action_count') {
-    const count = state.actionCount?.[quest.objective.actionId] ?? 0;
+    const baseline = state.questActionBaselines?.[quest.id]?.[quest.objective.actionId] ?? 0;
+    const count = (state.actionCount?.[quest.objective.actionId] ?? 0) - baseline;
+    return count >= quest.objective.target ? QUEST_STATUS.COMPLETED : status;
+  }
+  if (quest.objective?.type === 'state_count') {
+    const count = state.questProgress?.[quest.objective.progressKey] ?? 0;
     return count >= quest.objective.target ? QUEST_STATUS.COMPLETED : status;
   }
   if (quest.objective) return status;
@@ -213,8 +238,17 @@ export function getQuestProgress(state, questId) {
     };
   }
   if (quest.objective?.type === 'action_count') {
+    const baseline = state.questActionBaselines?.[quest.id]?.[quest.objective.actionId] ?? 0;
+    const count = (state.actionCount?.[quest.objective.actionId] ?? 0) - baseline;
     return {
-      current: Math.min(state.actionCount?.[quest.objective.actionId] ?? 0, quest.objective.target),
+      current: Math.min(Math.max(0, count), quest.objective.target),
+      target: quest.objective.target,
+      unitLabel: quest.objective.unitLabel ?? '',
+    };
+  }
+  if (quest.objective?.type === 'state_count') {
+    return {
+      current: Math.min(state.questProgress?.[quest.objective.progressKey] ?? 0, quest.objective.target),
       target: quest.objective.target,
       unitLabel: quest.objective.unitLabel ?? '',
     };

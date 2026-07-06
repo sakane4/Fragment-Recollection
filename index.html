@@ -4,11 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fragment Recollection</title>
-  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho&family=Cormorant+Garamond:ital@1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPMincho:wght@400;700&family=Shippori+Mincho&family=Cormorant+Garamond:ital@1&display=swap" rel="stylesheet">
   <style>
     @font-face {
       font-family: 'KoburiMincho';
       src: url('font/小ぶり明朝.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'KokuGL';
+      src: url('font/font_1_kokugl_1.15_rls.ttf') format('truetype');
+      font-display: swap;
     }
   </style>
   <style>
@@ -235,6 +240,7 @@
       top: 0; right: 0; bottom: 0;
       width: 82%;
       max-width: 320px;
+      font-family: 'KokuGL', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
       background: var(--panel);
       border-left: 1px solid rgba(232, 192, 122, 0.5);
       box-shadow: -6px 0 16px rgba(0,0,0,0.4);
@@ -714,6 +720,109 @@
       color: var(--text);
     }
 
+    .log-entry.tutorial-log {
+      position: relative;
+      box-sizing: border-box;
+      flex: 0 0 auto;
+      overflow: hidden;
+      width: 70%;
+      margin: 0.7rem auto;
+      padding: 0.85rem 2.35rem 0.9rem 1rem;
+      border: 1px solid rgba(127, 206, 226, 0.48);
+      border-left: 1px solid rgba(127, 206, 226, 0.48);
+      border-radius: 9px;
+      background:
+        linear-gradient(135deg, rgba(109, 188, 211, 0.15), rgba(105, 123, 190, 0.07)),
+        rgba(16, 25, 43, 0.58);
+      color: var(--text);
+      box-shadow:
+        inset 0 0 18px rgba(123, 210, 232, 0.05),
+        0 0 14px rgba(70, 151, 185, 0.08);
+      backdrop-filter: blur(7px);
+      overflow-anchor: none;
+    }
+    .tutorial-log::before,
+    .tutorial-log::after {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: rgba(127, 206, 226, 0.72);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .tutorial-log::before { top: 0; }
+    .tutorial-log::after { bottom: 0; }
+    .tutorial-log-label {
+      margin-bottom: 0.15rem;
+      color: rgba(145, 215, 234, 0.72);
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+    }
+    .tutorial-log-title {
+      margin-bottom: 0.42rem;
+      color: #d7f3fa;
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+    }
+    .tutorial-log-body {
+      color: rgba(224, 234, 241, 0.86);
+      font-size: 0.78rem;
+      line-height: 1.75;
+    }
+    .tutorial-log-close {
+      position: absolute;
+      z-index: 3;
+      top: 0.45rem;
+      right: 0.55rem;
+      width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: rgba(187, 218, 228, 0.68);
+      font-size: 1.15rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .tutorial-log-close:hover {
+      color: #e7f8fc;
+    }
+    .tutorial-log.tutorial-log-closing {
+      pointer-events: none;
+      background: transparent;
+      border-color: transparent;
+      transition: background 0.3s ease, border-color 0.3s ease;
+    }
+    .tutorial-log.tutorial-log-closing::before {
+      top: calc(50% - 0.5px);
+      opacity: 0.72;
+      transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .tutorial-log.tutorial-log-closing::after {
+      bottom: calc(50% - 0.5px);
+      opacity: 0.72;
+      transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .tutorial-log.tutorial-log-closing > * {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .tutorial-log.tutorial-log-closing.tutorial-log-collapse-height {
+      height: 1px !important;
+      margin-top: 0.2rem;
+      margin-bottom: 0.2rem;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-radius: 0;
+      transition:
+        height 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+        padding 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+        margin 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
     .log-action-btn {
       display: inline-block;
       margin-left: 0.7rem;
@@ -752,6 +861,7 @@
 
     #action-picker-btn {
       flex: 1;
+      min-width: 0;
       background: var(--bg);
       color: var(--text);
       border: 1px solid var(--border);
@@ -761,12 +871,25 @@
       cursor: pointer;
       text-align: left;
       display: flex;
-      justify-content: space-between;
       align-items: center;
     }
 
     #action-picker-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    #action-picker-btn::after { content: '▾'; color: var(--muted); font-size: 0.75rem; }
+    #action-picker-btn::after {
+      content: '▾';
+      flex: 0 0 auto;
+      margin-left: 0.45rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .action-picker-label {
+      display: block;
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
 
     /* ── 行動ビュー ── */
     /* ── 行動メニュー ── */
@@ -793,6 +916,17 @@
       font-weight: 600;
       color: var(--text);
       letter-spacing: 0.05em;
+    }
+    .place-name,
+    .action-name,
+    .action-place-name,
+    .action-row-name,
+    #location-popup-name,
+    .chronicle-entry-title,
+    .facility-panel-title {
+      font-family: 'BIZ UDPMincho', 'Shippori Mincho', 'Hiragino Mincho ProN', serif;
+      font-weight: 400;
+      letter-spacing: 0;
     }
 
     .action-rows {
@@ -834,7 +968,7 @@
 
     .action-row-name {
       font-size: 0.88rem;
-      font-weight: 600;
+      font-weight: 400;
       color: var(--text);
       min-width: 3em;
     }
@@ -991,6 +1125,14 @@
     }
 
     .resource-name { color: var(--muted); }
+    .resource-name,
+    .resource-inline-name,
+    .memory-resource-name,
+    .facility-shop-item-name,
+    .quest-resource-name {
+      font-family: 'KokuGL', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+      font-size: 1.05em;
+    }
     .resource-val {
       font-variant-numeric: tabular-nums;
       color: var(--accent);
@@ -1871,7 +2013,7 @@
     .facility-panel-icon { color: var(--accent); flex-shrink: 0; }
     .facility-panel-icon svg { width: 22px; height: 22px; display: block; }
     .facility-panel-titlewrap { flex: 1; padding-right: 3.5rem; }
-    .facility-panel-title { font-size: 1rem; font-weight: bold; color: var(--text); }
+    .facility-panel-title { font-size: 1rem; color: var(--text); }
     .facility-panel-desc { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
     .facility-panel-exit {
       position: absolute;
@@ -1935,6 +2077,37 @@
     .facility-card:disabled { opacity: 0.4; cursor: not-allowed; }
     .facility-card-icon svg { width: 26px; height: 26px; }
     .facility-card-label { line-height: 1.3; text-align: center; }
+    .facility-card--progress {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+    }
+    .facility-card--progress > :not(.facility-card-progress-fill) {
+      position: relative;
+      z-index: 1;
+    }
+    .facility-card-progress-fill {
+      position: absolute;
+      z-index: 0;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 0;
+      background: linear-gradient(90deg, rgba(74, 155, 196, 0.32), rgba(113, 190, 218, 0.2));
+      box-shadow: inset -1px 0 rgba(151, 218, 238, 0.42);
+      transition: width 0.25s linear;
+      pointer-events: none;
+    }
+    .facility-card-progress-status {
+      color: rgba(202, 229, 238, 0.76);
+      font-size: 0.64rem;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .facility-card--complete .facility-card-progress-fill {
+      background: linear-gradient(90deg, rgba(93, 180, 152, 0.3), rgba(116, 204, 176, 0.2));
+    }
 
     /* 図書館の復元メニュー。全体のUIに合わせた抽象的な本棚 */
     .facility-bookshelf {
@@ -2631,6 +2804,12 @@
       background: #fff;
       box-shadow: 0 0 4px #fff, 0 0 12px var(--star-color, rgba(137,180,250,1)), 0 0 28px var(--star-color, rgba(88,146,224,.8)), 0 0 48px var(--star-color, rgba(88,146,224,.4));
     }
+    .star-chart-main-star.busy .star-chart-light {
+      width: 10px; height: 10px;
+      background: #d7b8ff;
+      box-shadow: 0 0 5px #eadcff, 0 0 15px rgba(185,125,255,.95), 0 0 34px rgba(140,85,220,.62);
+      animation: companion-task-pulse 1.8s ease-in-out infinite;
+    }
     .star-chart-name {
       position: absolute; left: 0; top: calc(50% + 9px);
       width: 100%; overflow: hidden;
@@ -2638,6 +2817,7 @@
       font-family: 'Cormorant Garamond', serif; font-style: italic; letter-spacing: 0.04em;
     }
     .star-chart-main-star.active .star-chart-name { opacity: 1; color: #b9d6fa; }
+    .star-chart-main-star.busy .star-chart-name { opacity: 1; color: #d7b8ff; }
     .star-chart-caption {
       position: absolute; left: 50%; bottom: 0.65rem; z-index: 5;
       transform: translateX(-50%);
@@ -2663,6 +2843,19 @@
       opacity: 1; color: #bbd4f7; border-color: #4d73a5;
       background: #111d2c; filter: none;
       box-shadow: inset 0 0 12px rgba(77,115,165,.14),0 0 8px rgba(81,133,202,.16);
+    }
+    .star-chart-rail-person.busy {
+      opacity: 1;
+      color: #dec8ff;
+      border-color: #8c62bd;
+      background: #1b1228;
+      filter: none;
+      box-shadow: inset 0 0 14px rgba(158,99,218,.2), 0 0 10px rgba(158,99,218,.3);
+      animation: companion-task-pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes companion-task-pulse {
+      0%,100% { filter: brightness(.9); }
+      50% { filter: brightness(1.25); }
     }
     .star-chart-rail-person.locked {
       opacity: .22;

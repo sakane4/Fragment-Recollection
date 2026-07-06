@@ -4,15 +4,21 @@ function createLogManager(panel, {
   storageKey = 'fr_log_history',
   maxEntries = 200,
 } = {}) {
+  const tutorialDismissedKey = 'fr_tutorial_log_dismissed';
   let buffer = [];
   let paused = false;
   let history = [];
+  let dismissedTutorials = new Set();
+
+  try {
+    dismissedTutorials = new Set(JSON.parse(localStorage.getItem(tutorialDismissedKey) || '[]'));
+  } catch {}
 
   function saveHistory() {
     try { localStorage.setItem(storageKey, JSON.stringify(history)); } catch {}
   }
 
-  function createEntryElement(text, highlight, html, rightAlign, extraClass) {
+  function createEntryElement(text, highlight, html, rightAlign, extraClass, tutorialId = '') {
     const el = document.createElement('div');
     el.className = 'log-entry'
       + (highlight ? ' highlight' : '')
@@ -20,6 +26,7 @@ function createLogManager(panel, {
       + (extraClass ? ` ${extraClass}` : '');
     if (html) el.innerHTML = text;
     else el.textContent = text;
+    if (tutorialId) el.dataset.tutorialLogId = tutorialId;
     return el;
   }
 
@@ -29,9 +36,11 @@ function createLogManager(panel, {
     if (saved && saved.length > 0) {
       history = saved;
       panel.innerHTML = '';
-      for (const { text, highlight, html, rightAlign, extraClass } of history) {
-        panel.appendChild(createEntryElement(text, highlight, html, rightAlign, extraClass));
+      history = history.filter(entry => !entry.tutorialId || !dismissedTutorials.has(entry.tutorialId));
+      for (const { text, highlight, html, rightAlign, extraClass, tutorialId } of history) {
+        panel.appendChild(createEntryElement(text, highlight, html, rightAlign, extraClass, tutorialId));
       }
+      saveHistory();
       panel.scrollTop = panel.scrollHeight;
     } else {
       history = [{
@@ -44,13 +53,13 @@ function createLogManager(panel, {
     }
   }
 
-  function appendLog(text, highlight, html, rightAlign = false, extraClass = '') {
-    const el = createEntryElement(text, highlight, html, rightAlign, extraClass);
+  function appendLog(text, highlight, html, rightAlign = false, extraClass = '', tutorialId = '') {
+    const el = createEntryElement(text, highlight, html, rightAlign, extraClass, tutorialId);
     const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 40;
     panel.appendChild(el);
     if (atBottom) panel.scrollTop = panel.scrollHeight;
 
-    history.push({ text, highlight, html, rightAlign, extraClass });
+    history.push({ text, highlight, html, rightAlign, extraClass, tutorialId });
     if (history.length > maxEntries) {
       history.shift();
       if (panel.firstChild) panel.removeChild(panel.firstChild);
@@ -66,19 +75,76 @@ function createLogManager(panel, {
     appendLog(text, highlight, html, rightAlign, extraClass);
   }
 
+  function addTutorialLog(id, title, text) {
+    if (!id || dismissedTutorials.has(id)) return;
+    if (history.some(entry => entry.tutorialId === id)) return;
+    const escapeHtml = value => String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+    const html = `
+      <button type="button" class="tutorial-log-close" aria-label="閉じる">×</button>
+      <div class="tutorial-log-label">TUTORIAL</div>
+      <div class="tutorial-log-title">${escapeHtml(title)}</div>
+      <div class="tutorial-log-body">${escapeHtml(text)}</div>
+    `;
+    if (paused) {
+      buffer.push({ text: html, highlight: false, html: true, rightAlign: false, extraClass: 'tutorial-log', tutorialId: id });
+      return;
+    }
+    appendLog(html, false, true, false, 'tutorial-log', id);
+  }
+
+  function resetTutorialLogs() {
+    dismissedTutorials.clear();
+    try { localStorage.removeItem(tutorialDismissedKey); } catch {}
+  }
+
   function pauseLog() {
     paused = true;
   }
 
   function resumeLog() {
     paused = false;
-    buffer.forEach(({ text, highlight, html, rightAlign, extraClass }) => {
-      appendLog(text, highlight, html, rightAlign, extraClass);
+    buffer.forEach(({ text, highlight, html, rightAlign, extraClass, tutorialId }) => {
+      appendLog(text, highlight, html, rightAlign, extraClass, tutorialId);
     });
     buffer = [];
   }
 
-  return { addLog, pauseLog, resumeLog, restoreLogHistory };
+  panel.addEventListener('click', event => {
+    const close = event.target.closest('.tutorial-log-close');
+    if (!close) return;
+    const entry = close.closest('.tutorial-log');
+    const id = entry?.dataset.tutorialLogId;
+    if (!entry || !id || entry.classList.contains('tutorial-log-closing')) return;
+
+    dismissedTutorials.add(id);
+    try { localStorage.setItem(tutorialDismissedKey, JSON.stringify([...dismissedTutorials])); } catch {}
+    history = history.filter(item => item.tutorialId !== id);
+    saveHistory();
+
+    // 高さを縮める間も直前のログを同じ位置に保ち、
+    // ブラウザのスクロールアンカー補正で通常ログが押し出されないようにする。
+    const anchor = entry.previousElementSibling;
+    const anchorTop = anchor?.getBoundingClientRect().top;
+    const keepAnchorUntil = performance.now() + 650;
+    const keepAnchorPosition = () => {
+      if (anchor?.isConnected && Number.isFinite(anchorTop)) {
+        panel.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
+      }
+      if (performance.now() < keepAnchorUntil) requestAnimationFrame(keepAnchorPosition);
+    };
+
+    entry.style.height = `${entry.offsetHeight}px`;
+    entry.classList.add('tutorial-log-closing');
+    requestAnimationFrame(keepAnchorPosition);
+    window.setTimeout(() => entry.classList.add('tutorial-log-collapse-height'), 300);
+    window.setTimeout(() => entry.remove(), 580);
+  });
+
+  return { addLog, addTutorialLog, resetTutorialLogs, pauseLog, resumeLog, restoreLogHistory };
 }
 
 const ACTION_LOGS = {

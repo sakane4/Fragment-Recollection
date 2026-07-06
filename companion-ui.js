@@ -30,6 +30,7 @@ function createCompanionTabRenderer({
   function renderCharTab(state) {
     const view = document.getElementById('view-chars');
     const active = (state.activeCompanions ?? []).slice(0, 5);
+    const busy = Object.keys(state.companionTasks ?? {});
     const unlocked = state.unlockedCompanions ?? [];
     const discovered = CONSTELLATIONS.filter(item => state.discoveredConstellations?.includes(item.id));
 
@@ -39,6 +40,7 @@ function createCompanionTabRenderer({
       companions: COMPANION_DATA,
       unlocked,
       active,
+      busy,
       constellations: discovered,
       onToggle: (id, makeActive) => changeCompanion(id, makeActive),
     });

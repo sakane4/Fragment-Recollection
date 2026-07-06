@@ -19,6 +19,7 @@ const RESOURCES = {
     acquireVerbByAction: { nostalgia_flower_help: 'もらった' },
   },
   nostalgia_rumor:     { label: 'ノスタルジアの噂話', color: '#c6a7d8', unit: 'つ', acquireVerb: '耳にした' },
+  observatory_rumor:   { label: '星空研究所の噂', color: '#8fcfe3', unit: 'つ', acquireVerb: '耳にした', highlight: true },
   old_text:        { label: '古文書', color: '#bba16a', unit: '冊' },
   survey_wherever: { label: '再生された世界の調査記録', color: '#9eb7c4', unit: '部', category: 'survey', highlight: true },
   survey_forest:   { label: 'はじまりの森の調査記録', color: '#8fb59a', unit: '部', category: 'survey', highlight: true },
@@ -75,7 +76,7 @@ function resCategory(resource) { return RESOURCES[resource]?.category ?? 'materi
 function resUnit(resource) { return RESOURCES[resource]?.unit ?? ''; }
 
 function resourceSpan(resource, text) {
-  return `<span style="color:${resColor(resource)};font-weight:bold">${text}</span>`;
+  return `<span class="resource-inline-name" style="color:${resColor(resource)};font-weight:bold">${text}</span>`;
 }
 
 function resourceLog(resource, amount, actionId = null) {

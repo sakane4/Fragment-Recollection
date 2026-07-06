@@ -50,6 +50,20 @@ const REWARD_TABLES = {
   nostalgia_rumor_random: () => [
     { resource: 'nostalgia_rumor', minAmount: 1, maxAmount: 1, minMs: 7000, maxMs: 13000, chance: 0.25 },
   ],
+  observatory_rumor_random: (state) => {
+    const requiredCompanions = ['yuya', 'rabi', 'shizuku', 'kaoru'];
+    if (!requiredCompanions.every(id => state.unlockedCompanions.includes(id))) return [];
+    if ((state.resources.observatory_rumor ?? 0) > 0) return [];
+    return [{
+      resource: 'observatory_rumor',
+      minAmount: 1,
+      maxAmount: 1,
+      maxOwned: 1,
+      minMs: 8000,
+      maxMs: 14000,
+      chance: 0.12,
+    }];
+  },
   chronicle_record_random: (state, _locationLv, _actionLv, locationId) => {
     const entry = WORLD_CHRONICLE_ENTRIES[locationId];
     const record = entry && { resource: entry.recordResource, required: entry.required };
@@ -104,7 +118,7 @@ const LOCATION_DEFS = [
         description: 'ノスタルジアの街を歩き回る。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
-        rewardTableRandom: ['fragment_random', 'nostalgia_coin_random', 'nostalgia_rumor_random', 'chronicle_record_random'],
+        rewardTableRandom: ['fragment_random', 'nostalgia_coin_random', 'nostalgia_rumor_random', 'observatory_rumor_random', 'chronicle_record_random'],
         rewards: [],
         randomRewards: [],
         discoveries: [],
@@ -502,6 +516,14 @@ const FACILITIES = {
       { id: 'shop', label: '買い物', type: 'shop', shopId: 'antique' },
     ],
   },
+  starlit_observatory: {
+    id: 'starlit_observatory',
+    label: '星空研究所',
+    locationId: 'nostalgia',
+    description: '丘の上に建つ、魔法と星空を研究する施設。',
+    enterText: '星空研究所に入った。',
+    options: [],
+  },
 };
 
 // 花屋で買える、この世界に存在する花や葉。マグコイン消費・在庫無限。
@@ -652,6 +674,7 @@ function levelUpCompanion(companionId) {
 // フラグメント変換の異能。direction: 'toUnique'(ノーマル→固有) または 'toNormal'(固有→ノーマル)。レートは1:1
 // 個数に応じて時間がかかる(時間中は別行動扱い=同行できない)。同行中の仲間は使用不可
 const FRAGMENT_CONVERT_MS_PER_UNIT = 200;
+const OBSERVATORY_RESEARCH_MS = 30 * 60 * 1000;
 const _companionTaskTimers = {};
 
 function getCompanionTaskProgress(companionId) {
@@ -690,6 +713,30 @@ function startFragmentConvert(companionId, direction, amount, uniqueResource) {
   return { ok: true };
 }
 
+function startObservatoryResearch() {
+  const companionId = 'shizuku';
+  if (!state.unlockedActions.includes('starlit_observatory')) return { ok: false };
+  if (state.companionTasks?.[companionId] || state.observatoryResearchDone) return { ok: false };
+  const now = Date.now();
+  state = {
+    ...state,
+    activeCompanions: state.activeCompanions.filter(id => id !== companionId),
+    companionTasks: {
+      ...state.companionTasks,
+      [companionId]: {
+        type: 'observatory_research',
+        label: '星空研究所で資料を調査中',
+        startedAt: now,
+        endsAt: now + OBSERVATORY_RESEARCH_MS,
+      },
+    },
+  };
+  saveToStorage(state);
+  notify();
+  _scheduleCompanionTask(companionId, OBSERVATORY_RESEARCH_MS);
+  return { ok: true };
+}
+
 function _scheduleCompanionTask(companionId, delay) {
   clearTimeout(_companionTaskTimers[companionId]);
   _companionTaskTimers[companionId] = setTimeout(() => _completeCompanionTask(companionId), delay);
@@ -700,12 +747,21 @@ function _completeCompanionTask(companionId) {
   if (!task) return;
   const newTasks = { ...state.companionTasks };
   delete newTasks[companionId];
-  state = {
-    ...state,
-    resources: { ...state.resources, [task.toRes]: (state.resources[task.toRes] ?? 0) + task.amount },
-    companionTasks: newTasks,
-    lastCompanionTaskResult: { companionId, fromRes: task.fromRes, toRes: task.toRes, amount: task.amount, doneAt: Date.now() },
-  };
+  if (task.type === 'observatory_research') {
+    state = {
+      ...state,
+      companionTasks: newTasks,
+      observatoryResearchDone: true,
+      lastCompanionTaskResult: { companionId, type: task.type, doneAt: Date.now() },
+    };
+  } else {
+    state = {
+      ...state,
+      resources: { ...state.resources, [task.toRes]: (state.resources[task.toRes] ?? 0) + task.amount },
+      companionTasks: newTasks,
+      lastCompanionTaskResult: { companionId, type: task.type, fromRes: task.fromRes, toRes: task.toRes, amount: task.amount, doneAt: Date.now() },
+    };
+  }
   saveToStorage(state);
   notify();
 }
@@ -765,6 +821,7 @@ const INITIAL_STATE = {
   nostalgiaFacilityOrder: null,
   companionTasks: {},
   lastCompanionTaskResult: null,
+  observatoryResearchDone: false,
   encounterStreak: {},
   restBuffStacks: 0,
   worldChronicleUnlocked: false,
@@ -775,6 +832,7 @@ const INITIAL_STATE = {
   flowerClerkTalkSeen: false,
   questStatus: {},
   questActionBaselines: {},
+  questProgress: {},
   allCompanionsMetDone: false,
   companionTutorialDone: false,
 };
@@ -879,6 +937,21 @@ function turnInQuest(questId) {
   return { ok: true, questId, rewards: (quest.rewards ?? []).map(reward => ({ ...reward })) };
 }
 
+// 発見ストーリーの読了をもって、自動的に完了扱いとなる依頼。
+function completeStoryQuest(questId) {
+  const quest = getQuestDefinition(questId);
+  if (!quest?.autoCompleteStory || getQuestStatus(state, questId) !== QUEST_STATUS.COMPLETED) {
+    return { ok: false };
+  }
+  state = {
+    ...state,
+    questStatus: { ...state.questStatus, [questId]: QUEST_STATUS.REPORTED },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true, questId };
+}
+
 function unlockQuest(questId) {
   const quest = getQuestDefinition(questId);
   if (!quest || !canUnlockQuest(state, questId)) return { ok: false };
@@ -893,10 +966,17 @@ function unlockQuest(questId) {
   for (const requirement of (quest.unlock?.requirements ?? [])) {
     resources[requirement.resource] -= requirement.amount;
   }
+  const actionBaselines = Object.fromEntries(
+    (quest.baselineActions ?? []).map(actionId => [actionId, state.actionCount?.[actionId] ?? 0])
+  );
   state = {
     ...state,
     resources,
     questStatus: { ...questStatus, [questId]: QUEST_STATUS.ACTIVE },
+    questActionBaselines: {
+      ...state.questActionBaselines,
+      [questId]: actionBaselines,
+    },
   };
   saveToStorage(state);
   notify();
@@ -1391,6 +1471,39 @@ function completeAction(actionId, onComplete) {
     flowerEncyclopediaFound = true;
   }
 
+  // 星空研究所は、指定された4人だけで行ったノスタルジア探索を内部で3回数える。
+  const completedStoryQuests = [];
+  if (
+    actionId === 'nostalgia_explore' &&
+    getQuestStatus(state, 'find_starlit_observatory') === QUEST_STATUS.ACTIVE
+  ) {
+    const requiredParty = ['yuya', 'rabi', 'shizuku', 'kaoru'];
+    const activeParty = state.activeCompanions ?? [];
+    const exactParty = activeParty.length === requiredParty.length &&
+      requiredParty.every(id => activeParty.includes(id));
+    if (exactParty) {
+      const current = state.questProgress?.find_starlit_observatory ?? 0;
+      const next = Math.min(current + 1, 3);
+      state = {
+        ...state,
+        questProgress: {
+          ...state.questProgress,
+          find_starlit_observatory: next,
+        },
+      };
+      if (next >= 3) {
+        state = {
+          ...state,
+          questStatus: {
+            ...state.questStatus,
+            find_starlit_observatory: QUEST_STATUS.COMPLETED,
+          },
+        };
+        completedStoryQuests.push('find_starlit_observatory');
+      }
+    }
+  }
+
   // 行動完了時の依頼発見。一度受けた依頼はgetDiscoverableQuestsの対象外になる
   const receivedQuests = [];
   for (const quest of getDiscoverableQuests(actionId, state)) {
@@ -1427,7 +1540,7 @@ function completeAction(actionId, onComplete) {
 
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests, discoveredConstellations: constellationResult.newlyDiscovered };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests, completedStoryQuests, discoveredConstellations: constellationResult.newlyDiscovered };
   onComplete?.(result);
   // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
   notify();
@@ -1544,6 +1657,7 @@ function init() {
     nostalgiaFacilityOrder: saved.nostalgiaFacilityOrder ?? INITIAL_STATE.nostalgiaFacilityOrder,
     companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
     lastCompanionTaskResult: saved.lastCompanionTaskResult ?? INITIAL_STATE.lastCompanionTaskResult,
+    observatoryResearchDone: saved.observatoryResearchDone ?? INITIAL_STATE.observatoryResearchDone,
     encounterStreak: saved.encounterStreak ?? INITIAL_STATE.encounterStreak,
     worldChronicleUnlocked: saved.worldChronicleUnlocked ?? INITIAL_STATE.worldChronicleUnlocked,
     restoredWorldChronicleEntries: saved.restoredWorldChronicleEntries ?? INITIAL_STATE.restoredWorldChronicleEntries,
@@ -1553,6 +1667,7 @@ function init() {
     flowerClerkTalkSeen: saved.flowerClerkTalkSeen ?? INITIAL_STATE.flowerClerkTalkSeen,
     questStatus: saved.questStatus ?? INITIAL_STATE.questStatus,
     questActionBaselines: saved.questActionBaselines ?? INITIAL_STATE.questActionBaselines,
+    questProgress: saved.questProgress ?? INITIAL_STATE.questProgress,
     allCompanionsMetDone: saved.allCompanionsMetDone ?? INITIAL_STATE.allCompanionsMetDone,
     companionTutorialDone: saved.companionTutorialDone ?? INITIAL_STATE.companionTutorialDone,
   };
@@ -1627,16 +1742,27 @@ function markFlowerClerkTalkSeen() {
 // 開発者用: 依頼・施設まわりの進捗だけをリセットする(記憶・行動・同行者・リソース等は保持したまま、
 // フルリセットせずに花屋/図書館/依頼の検証を繰り返せるようにするための機能)
 function resetQuestsAndFacilities() {
+  const companionTasks = { ...state.companionTasks };
+  if (companionTasks.shizuku?.type === 'observatory_research') {
+    delete companionTasks.shizuku;
+    clearTimeout(_companionTaskTimers.shizuku);
+    delete _companionTaskTimers.shizuku;
+  }
   state = {
     ...state,
     questStatus: {},
     questActionBaselines: {},
-    unlockedActions: state.unlockedActions.filter(id => !NOSTALGIA_FACILITIES.includes(id)),
+    questProgress: {},
+    companionTasks,
+    unlockedActions: state.unlockedActions.filter(id =>
+      !NOSTALGIA_FACILITIES.includes(id) && id !== 'starlit_observatory'
+    ),
     nostalgiaFacilityOrder: null,
     shopPurchaseCount: {},
     flowerHelpUnlocked: false,
     flowerEncyclopediaUnlocked: false,
     flowerClerkTalkSeen: false,
+    observatoryResearchDone: false,
     worldChronicleUnlocked: false,
     restoredWorldChronicleEntries: [],
     actionCount: {
@@ -1804,4 +1930,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, OBSERVATORY_RESEARCH_MS, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone };

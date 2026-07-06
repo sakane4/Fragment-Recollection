@@ -644,6 +644,12 @@ function runFacilityMenu(mainPanel, {
   onLeave,
 } = {}) {
   let tw = null;
+  const progressTimers = new Set();
+
+  function clearProgressTimers() {
+    for (const timer of progressTimers) clearInterval(timer);
+    progressTimers.clear();
+  }
 
   function addEntry(cls) {
     const el = document.createElement('div');
@@ -659,6 +665,7 @@ function runFacilityMenu(mainPanel, {
   mainPanel.addEventListener('click', handleClick);
 
   function cleanup() {
+    clearProgressTimers();
     mainPanel.removeEventListener('click', handleClick);
   }
 
@@ -776,6 +783,7 @@ function runFacilityMenu(mainPanel, {
 
   function renderMenu() {
     _ensurePanel();
+    clearProgressTimers();
     body.innerHTML = '';
     const grid = document.createElement('div');
     grid.className = 'facility-grid';
@@ -789,6 +797,26 @@ function runFacilityMenu(mainPanel, {
         continue;
       }
       const btn = _makeCard(opt.label, opt.icon);
+      if (typeof opt.getProgress === 'function') {
+        btn.classList.add('facility-card--progress');
+        const fill = document.createElement('span');
+        fill.className = 'facility-card-progress-fill';
+        const status = document.createElement('span');
+        status.className = 'facility-card-progress-status';
+        btn.prepend(fill);
+        btn.appendChild(status);
+
+        const updateProgress = () => {
+          if (!btn.isConnected) return;
+          const progress = Math.min(1, Math.max(0, Number(opt.getProgress()) || 0));
+          fill.style.width = `${progress * 100}%`;
+          status.textContent = opt.getProgressText?.() ?? `${Math.round(progress * 100)}%`;
+          btn.classList.toggle('facility-card--complete', progress >= 1);
+        };
+        updateProgress();
+        const timer = setInterval(updateProgress, 250);
+        progressTimers.add(timer);
+      }
       if (opt.disabled) {
         btn.disabled = true;
         grid.appendChild(btn);
@@ -826,6 +854,7 @@ function runFacilityMenu(mainPanel, {
   // 施設内の人物との短い会話。パネルを閉じず、「戻る」で元の施設メニューへ戻れる。
   function renderTalk(option) {
     _ensurePanel();
+    clearProgressTimers();
     if (tw && !tw.done) tw.skip();
     body.innerHTML = '';
     const speaker = document.createElement('div');
@@ -845,6 +874,7 @@ function runFacilityMenu(mainPanel, {
   // 「復元」など、施設内の選択肢をさらに分類する二段目のカードメニュー
   function renderSubmenu(parentOption) {
     _ensurePanel();
+    clearProgressTimers();
     body.innerHTML = '';
     const subheading = document.createElement('div');
     subheading.className = 'facility-shop-balance';
@@ -888,6 +918,7 @@ function runFacilityMenu(mainPanel, {
 
   function renderShop(shopId, { exitLabel = '戻る', onExit = renderMenu } = {}) {
     _ensurePanel();
+    clearProgressTimers();
     body.innerHTML = '';
     const balance = document.createElement('div');
     balance.className = 'facility-shop-balance';
@@ -975,4 +1006,53 @@ const NOSTALGIA_DISCOVERY_STEPS = parseScript(`
 
 function runNostalgiaDiscovery(mainPanel, opts) { return runLogSt(NOSTALGIA_DISCOVERY_STEPS, mainPanel, opts); }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery };
+const STARLIT_OBSERVATORY_DISCOVERY_STEPS = parseScript(`
+[title: 星空研究所]
+ノスタルジアのはずれ、丘の上に建つ星空研究所があった。
+建物の隣には、大きな魔法望遠鏡がしつらえてある。
+「大きな望遠鏡だね！」
+ユウヤの言葉に、カオルもうなずく。
+「星がよく見えるんだろうなぁ〜」
+近づいてみると、望遠鏡を覗き込む少女がいる。
+水色の髪から、もふもふの耳がのぞいている。
+あなた達の足音に気づき、少女は振り向いた。ぴょこぴょこと耳を動かしている。
+「どうしたの？」
+「噂を聞いて、気になって来てみたんだ」
+「君はなんでここに？」
+「わたしは……望遠鏡を見てたら、なにか思い出せる気がして！」
+「そうなの？　なにか思い出せた？」
+「うーん。でも、星に名前をつけて、星座をつくってたことを思い出したんだよ！」
+「星に、名前？」
+「サルヴァスとサルヴィス……ペンシー……」
+その名前を聞き、みんな、息を呑んだ。
+「知ってる。サルヴァスは、あの星でしょう」
+ユウヤは空を指さした。
+「みんなも知ってるの？」
+「知っているというか……」
+あなたは事情を説明した。
+ひとつだけ、星の名前がわかったこと。その星が強く輝き、導いてくれること。
+「導いてくれる、加護の星……？」
+少女は考え込む。
+「この世界と星空には、何か関係があるんじゃないかって思ったんだ」
+「それでここへきたの？」
+「うん」
+「ちょっと待って、中へ入って！」
+導かれて研究所の中へ入った。
+「これを見て」
+「星座の記録？　こっちは、星の記録だね」
+彼女が示したのは、紙の束だった。研究の資料らしい。
+「うん。欠けていて、わからないけど……なにか、手がかりにならないかな？」
+「ちょっと貸して」
+シズクが言って、紙にざっと目を通す。
+「星座……魔術……」
+つぶやきながら、どんどん眼差しが集中していく。
+「オレ、少し調べてみる」
+シズクは言う。
+[end: シズクに調査を頼む]
+`);
+
+function runStarlitObservatoryDiscovery(mainPanel, opts) {
+  return runLogSt(STARLIT_OBSERVATORY_DISCOVERY_STEPS, mainPanel, opts);
+}
+
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery };

@@ -36,7 +36,7 @@ const BACKGROUND_STARS=Array.from({length:520},() => {
 const FUTURE_VECTORS=FUTURE_STARS.map(([lon,lat])=>vector(lon,lat));
 
 
-function createStarChart({ companions, unlocked, active, constellations, onToggle }) {
+function createStarChart({ companions, unlocked, active, busy = [], constellations, onToggle }) {
   const root=document.createElement('div');
   root.className='star-chart-layout';
   root.innerHTML=`
@@ -65,7 +65,7 @@ function createStarChart({ companions, unlocked, active, constellations, onToggl
     if (!companion || !position) continue;
     const button=document.createElement('button');
     button.type='button';
-    button.className=`star-chart-main-star${active.includes(id)?' active':''}`;
+    button.className=`star-chart-main-star${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}`;
     button.dataset.companion=id;
     if(companion.color) button.style.setProperty('--star-color', companion.color);
     button.innerHTML=`<span class="star-chart-light"></span><em class="star-chart-name">${companion.starName ?? companion.name}</em>`;
@@ -77,7 +77,7 @@ function createStarChart({ companions, unlocked, active, constellations, onToggl
 
     const railButton=document.createElement('button');
     railButton.type='button';
-    railButton.className=`star-chart-rail-person${active.includes(id)?' active':''}`;
+    railButton.className=`star-chart-rail-person${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}`;
     railButton.dataset.companion=id;
     railButton.innerHTML=`<span>${companion.mark??'✦'}</span><small>${companion.name}</small>`;
     railButton.addEventListener('click',()=>onToggle(id,!active.includes(id)));

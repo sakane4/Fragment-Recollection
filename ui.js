@@ -1,10 +1,10 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
 import { QUEST_STATUS, getQuestDefinition, getQuestStatus, getQuestProgress, getQuestTaskProgress, getChildQuests, getVisibleQuests } from './quests.js';
@@ -32,6 +32,8 @@ const els = {
 
 const {
   addLog,
+  addTutorialLog,
+  resetTutorialLogs,
   pauseLog,
   resumeLog,
   restoreLogHistory,
@@ -113,9 +115,23 @@ function companionLvTagHtml(level) {
 }
 
 // ── ユーティリティ ──
-function actionDisplayLabel(action, sep = ' / ') {
+function placeNameHtml(label) {
+  return `<span class="place-name">${label}</span>`;
+}
+
+function actionNameHtml(label) {
+  return `<span class="action-name">${label}</span>`;
+}
+
+function actionDisplayHtml(action, sep = ' / ') {
   const loc = LOCATIONS[action.locationId];
-  return loc?.label ? `${loc.label}${sep}${action.label}` : action.label;
+  const actionLabel = FACILITIES[action.id] ? placeNameHtml(action.label) : actionNameHtml(action.label);
+  return loc?.label ? `${placeNameHtml(loc.label)}${sep}${actionLabel}` : actionLabel;
+}
+
+function setActionPickerLabel(action, sep = ' — ') {
+  const label = action ? actionDisplayHtml(action, sep) : actionNameHtml('探索');
+  els.actionPickerBtn.innerHTML = `<span class="action-picker-label">${label}</span>`;
 }
 
 function makeRandomRewardHandler(actionId) {
@@ -815,11 +831,11 @@ function render(state) {
   if (active && !prevActive) {
     const action = ACTIONS[active.actionId];
     const startMsg = _isAutoRestart
-      ? `さらに【${actionDisplayLabel(action)}】を続ける・・・`
-      : `【${actionDisplayLabel(action)}】開始`;
-    addLog(startMsg, true);
+      ? `さらに【${actionDisplayHtml(action)}】を続ける・・・`
+      : `【${actionDisplayHtml(action)}】開始`;
+    addLog(startMsg, true, true);
     _isAutoRestart = false;
-    els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+    setActionPickerLabel(action);
     els.actionBtn.textContent = '中断';
     const companions = (state.activeCompanions ?? [])
       .map(id => COMPANION_DATA[id] ? { id, name: COMPANION_DATA[id].name } : null)
@@ -834,7 +850,7 @@ function render(state) {
     _cancelled = false;
     els.actionBtn.textContent = '開始';
     const selAction = ACTIONS[selectedActionId] ?? FACILITIES[selectedActionId];
-    els.actionPickerBtn.textContent = selAction ? actionDisplayLabel(selAction, ' — ') : '探索';
+    setActionPickerLabel(selAction);
 
     const willAutoRestart = !wasCancelled && !_logStPending &&
       !(state.logSt1Done && !state.logSt2Done && (state.activeCompanions ?? []).length > 0) &&
@@ -892,7 +908,7 @@ function render(state) {
   } else {
     for (const id of state.unlockedLocations) {
       if (!prevUnlockedLocations.includes(id) && LOCATIONS[id]?.label) {
-        addLog(`【発見】新しい場所「${LOCATIONS[id].label}」を見つけた`, true);
+        addLog(`【発見】新しい場所「${placeNameHtml(LOCATIONS[id].label)}」を見つけた`, true, true);
       }
     }
   }
@@ -904,12 +920,13 @@ function render(state) {
         const action = ACTIONS[id] ?? FACILITIES[id];
         if (!action) continue;
         const location = LOCATIONS[action.locationId];
+        const discoveredName = FACILITIES[id] ? placeNameHtml(action.label) : action.label;
         const msg = (action.stub || FACILITIES[id])
-          ? `【発見】${location?.label ? `${location.label}で` : ''}「${action.label}」を見つけた`
+          ? `【発見】${location?.label ? `${placeNameHtml(location.label)}で` : ''}「${discoveredName}」を見つけた`
           : (location?.label
-            ? `${location.label} で「${action.label}」ができるようになった`
+            ? `${placeNameHtml(location.label)} で「${action.label}」ができるようになった`
             : `「${action.label}」ができるようになった`);
-        addLog(msg, true);
+        addLog(msg, true, true);
       }
     }
   }
@@ -919,9 +936,13 @@ function render(state) {
     prevCompanionTaskDoneAt = taskResult?.doneAt ?? 0;
   } else if (taskResult && taskResult.doneAt > prevCompanionTaskDoneAt) {
     const name = COMPANION_DATA[taskResult.companionId]?.name ?? taskResult.companionId;
-    const fromSpan = resourceSpan(taskResult.fromRes, `${resLabel(taskResult.fromRes)}${taskResult.amount}`);
-    const toSpan = resourceSpan(taskResult.toRes, `${resLabel(taskResult.toRes)}${taskResult.amount}`);
-    addLog(`【${name}】${fromSpan} → ${toSpan} に変換した`, true, true, true);
+    if (taskResult.type === 'observatory_research') {
+      addLog(`【星空研究所】${name}の資料調査が終わったようだ`, true, false, false, 'log-rare');
+    } else {
+      const fromSpan = `${resourceSpan(taskResult.fromRes, resLabel(taskResult.fromRes))}${taskResult.amount}`;
+      const toSpan = `${resourceSpan(taskResult.toRes, resLabel(taskResult.toRes))}${taskResult.amount}`;
+      addLog(`【${name}】${fromSpan} → ${toSpan} に変換した`, true, true, true);
+    }
     prevCompanionTaskDoneAt = taskResult.doneAt;
   }
 
@@ -1149,7 +1170,9 @@ function renderQuestList(state) {
     button.setAttribute('aria-selected', String(selected));
   });
 
-  const readyToTurnIn = visible.some(({ status }) => status === QUEST_STATUS.COMPLETED);
+  const readyToTurnIn = visible.some(({ quest, status }) =>
+    status === QUEST_STATUS.COMPLETED && quest.turnIn === 'quest_ui'
+  );
   document.getElementById('quest-tab-btn')?.classList.toggle('ready', readyToTurnIn);
 
   const filtered = visible.filter(({ quest, status }) => {
@@ -1293,7 +1316,13 @@ function renderQuestList(state) {
       actionProgress.textContent = '';
     } else if ((quest.requirements ?? []).length > 0) {
       actionProgress.appendChild(_buildQuestResourceList(quest.requirements, state.resources));
-    } else if (quest.objective?.type === 'resource_set' || quest.objective?.type === 'action_count') {
+    } else if (quest.hideProgress) {
+      actionProgress.textContent = '';
+    } else if (
+      quest.objective?.type === 'resource_set' ||
+      quest.objective?.type === 'action_count' ||
+      quest.objective?.type === 'state_count'
+    ) {
       const progress = getQuestProgress(state, quest.id);
       actionProgress.textContent = `${progress?.unitLabel ?? ''} ${progress?.current ?? 0}/${progress?.target ?? 0}`.trim();
     } else {
@@ -1309,7 +1338,7 @@ function renderQuestList(state) {
       check.textContent = '✓';
       check.title = '報告済み';
       actionSlot.appendChild(check);
-    } else {
+    } else if (!quest.autoCompleteStory) {
       const turnIn = document.createElement('button');
       turnIn.className = 'quest-turnin-btn';
       turnIn.textContent = (quest.turnInLabel ?? '納品する').replace(/する$/, '');
@@ -1434,7 +1463,7 @@ function _interruptForPartyChange(companionId, makeActive) {
     _cancelled = true;
     cancelAction();
     _resetPendingCompanionRewards();
-    addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
+    addLog(`【${actionDisplayHtml(curAction)}】中断`, true, true);
   }
   setActiveCompanion(companionId, makeActive);
   renderCharTab(getState());
@@ -1830,7 +1859,7 @@ function showLocationPopup(location, btnEl) {
     // notify()(→render→ルール評価)より先にログを出すため、一旦silentで適用してからログ→notify
     const result = levelUpLocation(location.id, prepaid, { silent: true });
     if (result.ok) {
-      addLog(`【${location.label}】LocationLv が ${result.newLv} になった`, true);
+      addLog(`【${placeNameHtml(location.label)}】LocationLv が ${result.newLv} になった`, true, true);
       notify();
       _renderLocationPopup(location);
       // _renderLocationPopup が innerHTML を書き換えるので progEl を再追加
@@ -1863,10 +1892,10 @@ function _startActionById(actionId) {
     _cancelled = true;
     cancelAction();
     _resetPendingCompanionRewards();
-    addLog(`【${actionDisplayLabel(curAction)}】中断`, true);
+    addLog(`【${actionDisplayHtml(curAction)}】中断`, true, true);
   }
   selectedActionId = actionId;
-  els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+  setActionPickerLabel(action);
   if (!_storyLogPlaying) {
     _resetPendingCompanionRewards();
     startAction(actionId, makeActionCallbacks(actionId));
@@ -1913,7 +1942,7 @@ function _flowerClerkDialogue(state) {
 
 function _enterFacility(facility) {
   selectedActionId = facility.id;
-  els.actionPickerBtn.textContent = actionDisplayLabel(facility, ' — ');
+  setActionPickerLabel(facility);
   _pauseForStory();
   _storyLogPlaying = true;
   const state = getState();
@@ -1922,6 +1951,42 @@ function _enterFacility(facility) {
     icon: actionIconSvg(o.label),
     locked: _isFacilityOptionLocked(facility.id, o.id, state),
   }));
+  if (facility.id === 'starlit_observatory') {
+    const task = state.companionTasks?.shizuku;
+    const remainingMinutes = task?.type === 'observatory_research'
+      ? Math.max(1, Math.ceil((task.endsAt - Date.now()) / 60000))
+      : 0;
+    options.push({
+      id: 'research_status',
+      label: '資料調査',
+      type: 'talk',
+      speaker: 'シズク',
+      getProgress: () => {
+        const currentState = getState();
+        const currentTask = currentState.companionTasks?.shizuku;
+        if (currentTask?.type === 'observatory_research') {
+          return getCompanionTaskProgress('shizuku') ?? 0;
+        }
+        return currentState.observatoryResearchDone ? 1 : 0;
+      },
+      getProgressText: () => {
+        const currentState = getState();
+        const currentTask = currentState.companionTasks?.shizuku;
+        if (currentTask?.type !== 'observatory_research') {
+          return currentState.observatoryResearchDone ? '調査完了' : '待機中';
+        }
+        const remainingSeconds = Math.max(0, Math.ceil((currentTask.endsAt - Date.now()) / 1000));
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = String(remainingSeconds % 60).padStart(2, '0');
+        return `残り ${minutes}:${seconds}`;
+      },
+      dialogue: task?.type === 'observatory_research'
+        ? `「まだ調べているところだ。あと${remainingMinutes}分くらいかかりそうだ」`
+        : state.observatoryResearchDone
+          ? '「ひと通り調べ終わった。少し気になることがある」'
+          : '「この資料、少し時間をかけて調べてみたい」',
+    });
+  }
   if (facility.id === 'nostalgia_flower') {
     const talk = options.find(option => option.id === 'talk');
     if (talk) {
@@ -2219,7 +2284,7 @@ function openFlowerEncyclopedia() {
 }
 
 function _handleActionComplete(actionId, result) {
-  const { discovered = [], allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], discoveredConstellations = [] } = result;
+  const { discovered = [], allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], completedStoryQuests = [], discoveredConstellations = [] } = result;
   for (const id of discoveredConstellations) {
     const constellation = CONSTELLATIONS.find(item => item.id === id);
     addLog(`【星座発見】${constellation?.name ?? id}`, true, false, false, 'log-rare');
@@ -2243,10 +2308,10 @@ function _handleActionComplete(actionId, result) {
       .map(reward => _rewardHtml(reward, 'log-companion-reward'))
       .join(', ');
     const fullRewards = companionHtml ? `${rewardsHtml} / ${companionHtml}` : rewardsHtml;
-    addLog(`【${actionDisplayLabel(act)}】完了 — ${fullRewards}`, true, true);
+    addLog(`【${actionDisplayHtml(act)}】完了 — ${fullRewards}`, true, true);
     _resetPendingCompanionRewards();
   } else {
-    addLog(`【${actionDisplayLabel(act)}】完了 — ${rewardsHtml}`, true, true);
+    addLog(`【${actionDisplayHtml(act)}】完了 — ${rewardsHtml}`, true, true);
     const companionTotals = new Map(_pendingCompanionRewards);
     for (const { resource, amount } of companionRewards ?? []) {
       companionTotals.set(resource, (companionTotals.get(resource) ?? 0) + amount);
@@ -2287,6 +2352,11 @@ function _handleActionComplete(actionId, result) {
     if (!quest) continue;
     addLog(`【依頼】${quest.progressLog ?? `「${quest.title}」の手がかりを見つけた`}`, true, false, false, 'log-rare');
     _flashQuestTab();
+  }
+  if (completedStoryQuests.includes('find_starlit_observatory')) {
+    _cancelled = true;
+    if (getState().autoRepeat) setAutoRepeat(false);
+    setTimeout(startStarlitObservatoryDiscovery, 0);
   }
   if (receivedQuests.length > 0) {
     renderQuestList(getState());
@@ -2363,6 +2433,27 @@ function startLostFlowersIntro() {
           () => { if (cleanup) { cleanup(); cleanup = null; } },
           () => addLog('て言っても、どうやって調べればいいんだろう。花に詳しい人か、花の図鑑みたいなものがどこかにないかな？', false),
         );
+      },
+    });
+  });
+}
+
+function startStarlitObservatoryDiscovery() {
+  enqueueLogStory('quest_story:starlit_observatory_discovery', (finish) => {
+    let cleanup = null;
+    cleanup = runStarlitObservatoryDiscovery(els.mainPanel, {
+      onComplete: () => {
+        unlockAction('starlit_observatory');
+        startObservatoryResearch();
+        completeStoryQuest('find_starlit_observatory');
+        addLog('【別行動】シズクが星空研究所で資料の調査を始めた', true);
+        addTutorialLog(
+          'separate-action',
+          '別行動',
+          '仲間が別行動を始めました。別行動は、ゲームを閉じている間も進行します。別行動中の仲間は、探索へ同行できません。同行メニューから、様子を確認することができます。',
+        );
+        addLog('【依頼完了】「星空研究所を探す」', true, false, false, 'log-rare');
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
       },
     });
   });
@@ -2485,7 +2576,7 @@ function renderActionList() {
       icon.innerHTML = actionIconSvg(action.label);
 
       const name = document.createElement('span');
-      name.className = 'action-row-name';
+      name.className = 'action-row-name' + (action._kind === 'facility' ? ' facility-name' : '');
       name.textContent = action.label;
       if (action._kind === 'action') {
         const actionLv = state.ActionLv?.[action.id] ?? 0;
@@ -2506,7 +2597,7 @@ function renderActionList() {
       row.addEventListener('click', (e) => {
         e.stopPropagation();
         selectedActionId = action.id;
-        els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+        setActionPickerLabel(action);
         renderActionList();
       });
 
@@ -2527,7 +2618,7 @@ function _revertActionSelection() {
   if (running) {
     const action = ACTIONS[running.actionId];
     selectedActionId = running.actionId;
-    if (action) els.actionPickerBtn.textContent = actionDisplayLabel(action, ' — ');
+    if (action) setActionPickerLabel(action);
   }
   renderActionList();
 }
@@ -2660,6 +2751,18 @@ let _waitingForPrologue = false;
 const _logStoryQueue = [];
 const _queuedLogStoryIds = new Set();
 let _activeLogStoryId = null;
+const _PENDING_LOG_STORY_KEY = 'fr_pending_log_story_id';
+
+function _savePendingLogStory(id) {
+  try { localStorage.setItem(_PENDING_LOG_STORY_KEY, id); } catch {}
+}
+
+function _clearPendingLogStory(id = null) {
+  try {
+    if (id && localStorage.getItem(_PENDING_LOG_STORY_KEY) !== id) return;
+    localStorage.removeItem(_PENDING_LOG_STORY_KEY);
+  } catch {}
+}
 
 function enqueueLogStory(id, start) {
   if (_activeLogStoryId === id || _queuedLogStoryIds.has(id)) return;
@@ -2673,12 +2776,14 @@ function drainLogStoryQueue() {
   const next = _logStoryQueue.shift();
   _queuedLogStoryIds.delete(next.id);
   _activeLogStoryId = next.id;
+  _savePendingLogStory(next.id);
   _pauseForStory();
   _storyLogPlaying = true;
 
   next.start((cleanup, extraFn) => {
     if (cleanup) cleanup();
     if (extraFn) extraFn();
+    _clearPendingLogStory(next.id);
     _activeLogStoryId = null;
     _storyLogPlaying = false;
 
@@ -2689,6 +2794,42 @@ function drainLogStoryQueue() {
     }
     _onLogStComplete();
   });
+}
+
+function _recoverPendingLogStory() {
+  let id = '';
+  try { id = localStorage.getItem(_PENDING_LOG_STORY_KEY) || ''; } catch {}
+  if (!id) {
+    // 永続化対応前に星空研究所の物語途中でリロードされたセーブも救済する。
+    const state = getState();
+    if (
+      getQuestStatus(state, 'find_starlit_observatory') === QUEST_STATUS.COMPLETED &&
+      !(state.unlockedActions ?? []).includes('starlit_observatory')
+    ) {
+      startStarlitObservatoryDiscovery();
+    }
+    return;
+  }
+
+  if (id.startsWith('companion_join:')) {
+    startCompanionJoin(id.slice('companion_join:'.length));
+    return;
+  }
+
+  const starters = {
+    log_st_1: () => startLogSt_1(),
+    log_st_2: () => startLogSt_2(getState()),
+    log_st_3: () => startLogSt_3(),
+    log_st_4: () => startLogSt_4(),
+    world_chronicle_intro: () => startWorldChronicleIntro(),
+    all_companions_met: () => startAllCompanionsMet(),
+    'facility_discovery:nostalgia_flower': () => startFlowerShopDiscovery(),
+    'quest_intro:lost_flowers': () => startLostFlowersIntro(),
+    'quest_story:starlit_observatory_discovery': () => startStarlitObservatoryDiscovery(),
+  };
+  const start = starters[id];
+  if (start) start();
+  else _clearPendingLogStory(id);
 }
 
 function launchTutorial() {
@@ -2739,10 +2880,10 @@ function _onLogStComplete(cleanup, extraFn) {
 function startLogSt_2(state) {
   if (state.logSt2Done) return;
   enqueueLogStory('log_st_2', (finish) => {
-    setLogSt2Done();
     let cleanup = null;
     cleanup = runLogSt_2(els.mainPanel, {
       onComplete: () => {
+        setLogSt2Done();
         finish(
           () => { if (cleanup) { cleanup(); cleanup = null; } },
           () => addLog('フラグメントをもっと集めてみよう...', false),
@@ -2757,7 +2898,6 @@ function startLogSt_1() {
   if (state.logSt1Done) return;
   enqueueLogStory('log_st_1', (finish) => {
     _waitingForPrologue = false;
-    setLogSt1Done();
     if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; }
     _logStCleanup = runLogSt_1(els.mainPanel, {
       onNameDecided: (name) => {
@@ -2765,6 +2905,7 @@ function startLogSt_1() {
         renderCharTab(getState());
       },
       onComplete: () => {
+        setLogSt1Done();
         unlockCompanion('yuya');
         addLog('【同行】ユウヤが仲間になった', true);
         finish(() => { if (_logStCleanup) { _logStCleanup(); _logStCleanup = null; } });
@@ -2777,10 +2918,12 @@ function startLogSt_3() {
   const state = getState();
   if (state.logSt3Done) return;
   enqueueLogStory('log_st_3', (finish) => {
-    setLogSt3Done();
     let cleanup = null;
     cleanup = runLogSt_3(els.mainPanel, {
-      onComplete: () => finish(() => { if (cleanup) { cleanup(); cleanup = null; } }),
+      onComplete: () => {
+        setLogSt3Done();
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
     });
   });
 }
@@ -2789,10 +2932,10 @@ function startLogSt_4() {
   const state = getState();
   if (state.logSt4Done) return;
   enqueueLogStory('log_st_4', (finish) => {
-    setLogSt4Done();
     let cleanup = null;
     cleanup = runLogSt_4(els.mainPanel, {
       onComplete: () => {
+        setLogSt4Done();
         finish(
           () => { if (cleanup) { cleanup(); cleanup = null; } },
           () => {
@@ -3441,6 +3584,8 @@ function initDevTools() {
     if (!confirm('依頼・施設(花屋/図書館など)の進捗をリセットしますか？')) return;
     // 導入イベントの発火済み記録も戻し、リセット後に条件を満たせば再受注できるようにする。
     resetFiredRules();
+    resetTutorialLogs();
+    _clearPendingLogStory();
     resetQuestsAndFacilities();
   });
 
@@ -3490,6 +3635,7 @@ export function init() {
   }
 
   initActionPicker();
+  _recoverPendingLogStory();
   if (initialState.activeAction?.actionId) {
     restoreActiveActionCallbacks(makeActionCallbacks(initialState.activeAction.actionId));
   }
@@ -3499,12 +3645,12 @@ export function init() {
     const active = getState().activeAction;
     if (active) {
       const action = ACTIONS[active.actionId];
-      const label = action ? actionDisplayLabel(action) : '行動';
+      const label = action ? actionDisplayHtml(action) : '行動';
       if (stopFlavor) { stopFlavor(); stopFlavor = null; }
       _cancelled = true;
       cancelAction();
       _resetPendingCompanionRewards();
-      addLog(`【${label}】中断`, true);
+      addLog(`【${label}】中断`, true, true);
     } else {
       if (!_storyLogPlaying) _startActionById(selectedActionId);
     }
