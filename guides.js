@@ -30,8 +30,11 @@ export const GUIDES = [
       const target = ctx.discoveryStepLv[step];
       const current = state.LocationLv?.wherever ?? 0;
       if (current >= target) return null;
+      const locationLabel = state.unlockedLocations?.includes('nostalgia')
+        ? 'ノスタルジア'
+        : '再生された世界';
       return {
-        text: `【再生された世界】をさらに再生しよう…（再生Lv${target}）`,
+        text: `【${locationLabel}】をさらに再生しよう…（再生Lv${target}）`,
         progress: current,
         target,
       };
