@@ -75,6 +75,10 @@ function createStarChart({
   const editorMembers=editor
     ? editor.path.filter(id=>id.startsWith('companion:')).map(id=>id.slice(10))
     : [];
+  // エディタ演出用の状態: 直近に繋いだ線の伸びアニメーションと、星を拾った時のリップル
+  let prevPathLength=editor?editor.path.length:0;
+  let lastSegmentAddedAt=-1;
+  const ripples=[];
 
   for (const id of unlocked) {
     const companion=companions[id], position=STAR_POSITIONS[id];
@@ -96,7 +100,7 @@ function createStarChart({
 
     const railButton=document.createElement('button');
     railButton.type='button';
-    railButton.className=`star-chart-rail-person${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}${inspectedId===id?' inspect-selected':''}`;
+    railButton.className=`star-chart-rail-person${isSelected?' active':''}${busy.includes(id)?' busy':''}${inspectedId===id?' inspect-selected':''}`;
     railButton.dataset.companion=id;
     railButton.innerHTML=`<span>${companion.mark??'✦'}</span><small>${companion.name}</small>`;
     railButton.addEventListener('click',()=>{
@@ -145,19 +149,21 @@ function createStarChart({
     context.shadowColor='rgba(100,160,240,.9)';context.shadowBlur=10;context.stroke();context.shadowBlur=0;
   }
 
-  function editorPoint(id,f) {
+  function editorVector(id) {
     if(id.startsWith('companion:')){
       const position=STAR_POSITIONS[id.slice(10)];
-      return position?project(vector(position.lon,position.lat),f):null;
+      return position?vector(position.lon,position.lat):null;
     }
-    if(id.startsWith('background:')){
-      const star=BACKGROUND_STARS[Number(id.slice(11))];
-      return star?project(star.point,f):null;
-    }
+    if(id.startsWith('background:'))return BACKGROUND_STARS[Number(id.slice(11))]?.point??null;
     return null;
   }
 
-  function draw() {
+  function editorPoint(id,f) {
+    const point=editorVector(id);
+    return point?project(point,f):null;
+  }
+
+  function draw(now=performance.now()) {
     const f=frame(),ratio=window.devicePixelRatio||1;
     if(canvas.width!==Math.round(f.width*ratio)||canvas.height!==Math.round(f.height*ratio)){
       canvas.width=Math.round(f.width*ratio);canvas.height=Math.round(f.height*ratio);
@@ -173,11 +179,28 @@ function createStarChart({
       context.beginPath();context.arc(point.x,point.y,star.size*(.7+point.depth*.5),0,Math.PI*2);
       context.fillStyle=`rgba(190,215,250,${star.alpha})`;context.fill();
       if(index%11===0&&(editor||visiblePath.includes(`background:${index}`))){
-        context.beginPath();context.arc(point.x,point.y,2.1,0,Math.PI*2);
-        context.fillStyle=visiblePath.includes(`background:${index}`)
-          ?'rgba(238,249,255,.98)'
-          :'rgba(183,211,244,.7)';
-        context.fill();
+        const selected=visiblePath.includes(`background:${index}`);
+        if(editor){
+          // 選択できる小星: 白いコア+ハロー+輪郭リングの3層。未選択はゆっくり明滅して
+          // 「繋げられる星」であることを示し、選択済みは白く確定した見た目にする
+          const phase=.5+.5*Math.sin(now/900+index*1.7);
+          const haloRadius=selected?8:5.5+phase*2;
+          const halo=context.createRadialGradient(point.x,point.y,0,point.x,point.y,haloRadius);
+          halo.addColorStop(0,selected?'rgba(255,255,255,.95)':`rgba(215,233,252,${.5+phase*.35})`);
+          halo.addColorStop(.4,selected?'rgba(190,220,255,.45)':`rgba(160,200,245,${.14+phase*.18})`);
+          halo.addColorStop(1,'rgba(160,200,245,0)');
+          context.beginPath();context.arc(point.x,point.y,haloRadius,0,Math.PI*2);
+          context.fillStyle=halo;context.fill();
+          context.beginPath();context.arc(point.x,point.y,selected?2.4:1.8,0,Math.PI*2);
+          context.fillStyle=selected?'#fff':`rgba(238,247,255,${.75+phase*.25})`;context.fill();
+          context.beginPath();context.arc(point.x,point.y,selected?5:6.5,0,Math.PI*2);
+          context.strokeStyle=selected?'rgba(240,250,255,.85)':`rgba(170,205,245,${.2+phase*.3})`;
+          context.lineWidth=selected?1.2:1;context.stroke();
+        }else{
+          context.beginPath();context.arc(point.x,point.y,2.1,0,Math.PI*2);
+          context.fillStyle=selected?'rgba(238,249,255,.98)':'rgba(183,211,244,.7)';
+          context.fill();
+        }
       }
     }
     for(const star of FUTURE_VECTORS){
@@ -190,8 +213,14 @@ function createStarChart({
     if(drawnPath){
       for(let index=1;index<drawnPath.length;index+=1){
         const fromId=drawnPath[index-1],toId=drawnPath[index];
-        const start=editorPoint(fromId,f),end=editorPoint(toId,f);
+        const start=editorPoint(fromId,f);let end=editorPoint(toId,f);
         if(!start||!end)continue;
+        // 直近に繋いだ線は、終端からスッと伸びるアニメーション
+        if(editor&&index===drawnPath.length-1&&lastSegmentAddedAt>=0){
+          const t=Math.min(1,(now-lastSegmentAddedAt)/350);
+          const eased=1-Math.pow(1-t,3);
+          end={x:start.x+(end.x-start.x)*eased,y:start.y+(end.y-start.y)*eased};
+        }
         const minor=fromId.startsWith('background:')||toId.startsWith('background:');
         context.beginPath();context.moveTo(start.x,start.y);context.lineTo(end.x,end.y);
         context.strokeStyle=minor?'rgba(169,207,244,.62)':'rgba(158,199,255,.96)';
@@ -203,6 +232,25 @@ function createStarChart({
       const connections=matched?.connections ?? active.slice(1).map((id,index)=>[active[index],id]);
       for(const [from,to] of connections){
         if(STAR_POSITIONS[from]&&STAR_POSITIONS[to])drawConnection(context,STAR_POSITIONS[from],STAR_POSITIONS[to],f);
+      }
+    }
+    if(editor&&editor.path.length){
+      // パスの終端(次の線が伸びる場所)に脈動リングを出して、一筆書きの続きを示す
+      const endPoint=editorPoint(editor.path[editor.path.length-1],f);
+      if(endPoint){
+        const pulse=9+2.5*Math.sin(now/260);
+        context.beginPath();context.arc(endPoint.x,endPoint.y,pulse,0,Math.PI*2);
+        context.strokeStyle='rgba(214,236,255,.55)';context.lineWidth=1.2;context.stroke();
+      }
+      // 星を拾った瞬間のリップル(広がって消える輪)
+      for(let index=ripples.length-1;index>=0;index-=1){
+        const age=now-ripples[index].bornAt;
+        if(age>450){ripples.splice(index,1);continue;}
+        const point=project(ripples[index].point,f);
+        if(!point)continue;
+        const t=age/450;
+        context.beginPath();context.arc(point.x,point.y,6+t*18,0,Math.PI*2);
+        context.strokeStyle=`rgba(214,236,255,${.5*(1-t)})`;context.lineWidth=1.4;context.stroke();
       }
     }
     root.querySelector('.star-chart-caption').textContent=editor?'DRAW A NEW CONSTELLATION':matched?matched.name:'THE UNFINISHED SKY';
@@ -248,7 +296,7 @@ function createStarChart({
         const point=project(BACKGROUND_STARS[index].point,f);
         if(!point)continue;
         const gap=Math.hypot(point.x-x,point.y-y);
-        if(gap<=16&&(!nearest||gap<nearest.gap))nearest={index,gap};
+        if(gap<=22&&(!nearest||gap<nearest.gap))nearest={index,gap};
       }
       if(nearest)editor.onToggle?.(`background:${nearest.index}`);
     }
@@ -267,6 +315,35 @@ function createStarChart({
     });
     canvasObserver.observe(canvas);
     canvasObserver.observe(root);
+  }
+
+  // エディタからパス変更を反映するための更新API。DOMを作り直さず、選択クラスと演出タイマーだけ更新する
+  function refreshEditorState() {
+    if(!editor)return;
+    const members=editor.path.filter(id=>id.startsWith('companion:')).map(id=>id.slice(10));
+    root.querySelectorAll('[data-companion]').forEach(button=>{
+      button.classList.toggle('active',members.includes(button.dataset.companion));
+    });
+    if(editor.path.length>prevPathLength){
+      lastSegmentAddedAt=performance.now();
+      const point=editorVector(editor.path[editor.path.length-1]);
+      if(point)ripples.push({point,bornAt:lastSegmentAddedAt});
+    }
+    prevPathLength=editor.path.length;
+  }
+  root.chartApi={redraw:()=>draw(),refreshEditorState};
+
+  // エディタ中だけ描画ループを回す(明滅・脈動リング・線の伸び・リップルのため)。
+  // 通常の星図盤は従来どおりジェスチャ/リサイズ時のみ再描画(常時ループのバッテリー消費を避ける)
+  if(editor){
+    let started=false;
+    const animate=()=>{
+      if(started&&!root.isConnected)return;
+      if(root.isConnected)started=true;
+      draw();
+      requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
   }
   return root;
 }

@@ -4,7 +4,8 @@ import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { QUEST_STATUS, getQuestDefinition, getQuestStatus, getVisibleQuests, getDiscoverableQuests, canTurnInQuest, canUnlockQuest, getActionObjectiveQuests } from './quests.js';
 import { FLOWERS, getSymbolicFlower } from './flowers.js';
 import { RESOURCES } from './resource.js';
-import { advanceConstellations } from './constellations.js';
+import { sameMembers } from './constellations.js';
+import { resolveConstellationEffect } from './constellation-effects.js';
 
 // 共通報酬テーブル。関数形式: (state) => Array<reward>
 // 将来、世界Lvや状態を参照して量を変えることができる
@@ -1240,7 +1241,9 @@ function startAction(actionId, { onRandomReward, onCompanionRandomReward, onComp
   if (!action) return { ok: false, reason: 'unknown_action' };
 
   const now = Date.now();
-  const duration = devMode ? 1000 : action.duration;
+  const activeEffect = getActiveConstellationEffect();
+  const durationRate = getConstellationEffectValue(activeEffect, 'durationRate', 1);
+  const duration = devMode ? 1000 : Math.max(1000, Math.round(action.duration * durationRate));
   state = {
     ...state,
     activeAction: { actionId, startedAt: now, endsAt: now + duration },
@@ -1349,14 +1352,22 @@ function completeAction(actionId, onComplete) {
   // 同行ボーナス: 同行者が1人でもいれば固定報酬2倍(星座導入時に一度廃止したが、序盤の同行motivationとして復活)
   const hasCompanionBonus = (state.activeCompanions?.length ?? 0) > 0;
   const multiplier = (hadRestBuff ? 2 : 1) * (hasCompanionBonus ? 2 : 1);
+  const activeEffect = getActiveConstellationEffect();
+  const fragmentMultiplier = getConstellationEffectValue(activeEffect, 'fragmentMultiplier', 1);
   const allRewards = [...resolveTable(action.rewardTable, action.locationId, action.id), ...(action.rewards ?? [])];
   const appliedRewards = [];
   let fragmentsGained = 0;
   for (const reward of allRewards) {
-    const gained = reward.amount * multiplier;
+    const effectMultiplier = reward.resource === 'fragment' ? fragmentMultiplier : 1;
+    const gained = reward.amount * multiplier * effectMultiplier;
     newResources[reward.resource] = (newResources[reward.resource] ?? 0) + gained;
     appliedRewards.push({ ...reward, amount: gained });
     if (reward.resource === 'fragment') fragmentsGained += gained;
+  }
+  for (const effect of activeEffect?.effects ?? []) {
+    if (effect.type !== 'extraReward' || !effect.resource || !effect.amount) continue;
+    newResources[effect.resource] = (newResources[effect.resource] ?? 0) + effect.amount;
+    appliedRewards.push({ resource: effect.resource, amount: effect.amount, source: 'constellation', effectId: activeEffect.id });
   }
   let newRestBuffStacks = (state.restBuffStacks ?? 0) - (hadRestBuff ? 1 : 0);
   if (actionId === 'nostalgia_inn_rest') newRestBuffStacks += REST_BUFF_STACKS;
@@ -1544,12 +1555,9 @@ function completeAction(actionId, onComplete) {
     progressedQuests.push(quest.id);
   }
 
-  const constellationResult = advanceConstellations(state, actionId);
-  state = constellationResult.state;
-
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests, completedStoryQuests, discoveredConstellations: constellationResult.newlyDiscovered, tericiaVisitTriggered };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests, completedStoryQuests, tericiaVisitTriggered };
   onComplete?.(result);
   // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
   notify();
@@ -1775,6 +1783,20 @@ function completeObservatoryReport() {
   return { ok: true };
 }
 
+function getActiveConstellationEffect() {
+  const active = state.activeCompanions ?? [];
+  if (active.length === 0) return null;
+  const constellation = (state.customConstellations ?? []).find(item =>
+    item.effect && sameMembers(active, item.members)
+  );
+  return constellation?.effect ?? null;
+}
+
+function getConstellationEffectValue(effect, type, fallback) {
+  const item = effect?.effects?.find(entry => entry.type === type);
+  return item?.value ?? fallback;
+}
+
 function beginTericiaConstellationEditing() {
   if (!state.tericiaVisitPending || state.tericiaConstellationCreated) return { ok:false };
   state={...state,tericiaConstellationEditing:true};
@@ -1783,13 +1805,15 @@ function beginTericiaConstellationEditing() {
 }
 
 function completeTericiaConstellation(constellation) {
-  if (!state.tericiaConstellationEditing || !constellation?.name) return {ok:false};
+  const canCreate = state.tericiaConstellationEditing || state.unlockedCompanions?.includes('tericia');
+  if (!canCreate || !constellation?.name) return {ok:false};
   const id=`custom_${Date.now()}`;
+  const effect = constellation.effect ?? resolveConstellationEffect(constellation.members ?? []);
   state={
     ...state,
     tericiaConstellationEditing:false,
     tericiaConstellationCreated:true,
-    customConstellations:[...(state.customConstellations??[]),{id,...constellation}],
+    customConstellations:[...(state.customConstellations??[]),{id,...constellation,effect}],
   };
   saveToStorage(state);notify();
   return {ok:true,id};

@@ -1,5 +1,5 @@
 // companion-ui.js — 同行タブの一覧表示
-import { CONSTELLATIONS, sameMembers } from './constellations.js';
+import { sameMembers } from './constellations.js';
 import { createStarChart } from './star-chart.js';
 
 const COMPANION_DATA = {
@@ -33,13 +33,14 @@ function createCompanionTabRenderer({
     const busy = Object.keys(state.companionTasks ?? {});
     const unlocked = state.unlockedCompanions ?? [];
     const discovered = [
-      ...CONSTELLATIONS.filter(item => state.discoveredConstellations?.includes(item.id)),
       ...(state.customConstellations ?? []).map(item => ({
         mark:'✦',
-        description:'あなたが星を結び、名前を与えた星座',
+        description:item.effect ? `${item.effect.name}：${item.effect.description}` : 'あなたが星を結び、名前を与えた星座',
         ...item,
       })),
     ];
+    const constellationUnlocked = (state.customConstellations?.length ?? 0) > 0 || !!state.tericiaConstellationCreated;
+    if (!constellationUnlocked && openSection === 'constellations') openSection = null;
 
     view.innerHTML = '';
     view.classList.toggle('lower-section-open', !!openSection);
@@ -63,12 +64,16 @@ function createCompanionTabRenderer({
 
     const tabs = document.createElement('div');
     tabs.className = 'companion-lower-tabs';
+    const constellationTabClass = `${openSection === 'constellations' ? 'active' : ''}${constellationUnlocked ? '' : ' locked'}`;
+    const constellationTabAttrs = constellationUnlocked ? '' : ' disabled aria-disabled="true"';
+    const constellationTabCount = constellationUnlocked ? discovered.length : 'LOCK';
     tabs.innerHTML = `
-      <button type="button" data-section="constellations" class="${openSection === 'constellations' ? 'active' : ''}">発見した星座 <small>${discovered.length}</small></button>
+      <button type="button" data-section="constellations" class="${constellationTabClass}"${constellationTabAttrs}>発見した星座 <small>${constellationTabCount}</small></button>
       <button type="button" data-section="records" class="${openSection === 'records' ? 'active' : ''}">人物詳細</button>`;
     tabs.querySelectorAll('button').forEach(button => {
       button.addEventListener('click', () => {
         const next = button.dataset.section;
+        if (next === 'constellations' && !constellationUnlocked) return;
         openSection = openSection === next ? null : next;
         if (openSection === 'records') selectedRecordId = null;
         const mainPanelWrap = document.getElementById('main-panel-wrap');

@@ -7,6 +7,7 @@ const RESOURCES = {
   clear_fragment:  { label: '無色のフラグメント', color: '#cdd6f4', category: 'fragment', unit: '片' },
   bubble_fragment: { label: '泡のフラグメント',   color: '#cba6f7', category: 'fragment', unit: '片' },
   sky_fragment:    { label: '空のフラグメント',   color: '#89dceb', category: 'fragment', unit: '片' },
+  crescent_fragment: { label: '三日月のフラグメント', color: '#f6d98b', category: 'fragment', unit: '片' },
   herb:            { label: '薬草', color: '#a6e3a1', unit: '束' },
   forest_voice:    { label: '木々の声', color: '#a8d8a8', unit: 'かけら' },
   branch:          { label: '木の枝', color: '#c8a97e', unit: '本', acquireVerb: '拾った' },

@@ -10,7 +10,6 @@ import { getActiveGuides } from './guides.js';
 import { QUEST_STATUS, getQuestDefinition, getQuestStatus, getQuestProgress, getQuestTaskProgress, getChildQuests, getVisibleQuests } from './quests.js';
 import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel, resColor, resCategory, resUnit, resourceSpan, resourceLog, maskedResLabel, formatCostLabel } from './resource.js';
 import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
-import { CONSTELLATIONS } from './constellations.js';
 import { FLOWERS } from './flowers.js';
 import { openConstellationEditor } from './constellation-editor.js';
 
@@ -2001,6 +2000,15 @@ function _enterFacility(facility) {
         dialogue: '少女は、研究資料を大切そうに見つめている。',
       });
     }
+    if (state.tericiaConstellationEditing || state.unlockedCompanions?.includes('tericia')) {
+      options.push({
+        id: 'constellation_editor',
+        label: '星座を編む',
+        type: 'constellation_editor',
+        icon: actionIconSvg('星座を編む'),
+        description: '望遠鏡を覗き、星と星を結んで星座を作る。',
+      });
+    }
   }
   if (facility.id === 'nostalgia_flower') {
     const talk = options.find(option => option.id === 'talk');
@@ -2123,6 +2131,7 @@ function _enterFacility(facility) {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
       if (option.type === 'world_chronicle') openWorldChronicle();
       if (option.type === 'flower_encyclopedia') openFlowerEncyclopedia();
+      if (option.type === 'constellation_editor') openTericiaConstellationEditor();
     },
     onTrigger: (trigger) => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
@@ -2300,11 +2309,7 @@ function openFlowerEncyclopedia() {
 }
 
 function _handleActionComplete(actionId, result) {
-  const { discovered = [], allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], completedStoryQuests = [], discoveredConstellations = [], tericiaVisitTriggered = false } = result;
-  for (const id of discoveredConstellations) {
-    const constellation = CONSTELLATIONS.find(item => item.id === id);
-    addLog(`【星座発見】${constellation?.name ?? id}`, true, false, false, 'log-rare');
-  }
+  const { discovered = [], allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], completedStoryQuests = [], tericiaVisitTriggered = false } = result;
   const act = ACTIONS[actionId];
 
   if (act?.stub) {
@@ -2498,19 +2503,27 @@ function startObservatoryReport() {
   });
 }
 
-function openTericiaConstellationEditor() {
+function openTericiaConstellationEditor(options = {}) {
   if (document.querySelector('.constellation-editor-overlay')) return;
   const state=getState();
-  openConstellationEditor({
+  const shouldStartJoin=state.tericiaVisitPending && !state.unlockedCompanions.includes('tericia');
+  const storyOrigin = options.storyOrigin ?? state.tericiaConstellationEditing;
+  const editorOptions = {
     companions:COMPANION_DATA,
     unlocked:state.unlockedCompanions,
+    knownEffectIds:[...new Set((state.customConstellations??[]).map(item=>item.effect?.id).filter(Boolean))],
     onComplete:(constellation)=>{
       const result=completeTericiaConstellation(constellation);
       if(!result.ok)return;
       addLog(`【星座誕生】${constellation.name}`, true, false, false, 'log-rare');
-      startTericiaJoin();
+      if(shouldStartJoin)startTericiaJoin();
     },
-  });
+  };
+  if (storyOrigin) {
+    editorOptions.initialPath = ['companion:tericia'];
+    editorOptions.lockedId = 'tericia';
+  }
+  openConstellationEditor(editorOptions);
 }
 
 function startTericiaVisit() {
@@ -2521,7 +2534,7 @@ function startTericiaVisit() {
         beginTericiaConstellationEditing();
         finish(
           ()=>{if(cleanup){cleanup();cleanup=null;}},
-          ()=>openTericiaConstellationEditor(),
+          ()=>openTericiaConstellationEditor({storyOrigin:true}),
         );
       },
     });
