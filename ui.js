@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
@@ -795,11 +795,14 @@ function render(state) {
     quest.objective?.actionId
       ? [quest.objective.actionId, state.actionCount?.[quest.objective.actionId] ?? 0]
       : null,
-    // long_termのtasks(state_flag/child_quest_count)は子依頼の状態変化も含めて検知する
+    // long_termのtasks(state_flag/child_quest_count)は子依頼の状態変化・表記の解禁状態も含めて検知する
     quest.tasks
-      ? quest.tasks.map(task => task.type === 'child_quest_count'
-        ? getChildQuests(quest.id).map(child => getQuestStatus(state, child.id))
-        : getQuestTaskProgress(state, quest, task)?.current)
+      ? quest.tasks.map(task => [
+        task.type === 'child_quest_count'
+          ? getChildQuests(quest.id).map(child => getQuestStatus(state, child.id))
+          : getQuestTaskProgress(state, quest, task)?.current,
+        task.revealed ? task.revealed(state) : true,
+      ])
       : null,
   ]));
   if (questSig !== _prevQuestSig) {
@@ -1089,7 +1092,8 @@ function _buildLongQuestTasks(quest, state) {
     marker.textContent = done ? '✓' : '○';
     const label = document.createElement('span');
     label.className = 'quest-task-label';
-    label.textContent = task.label;
+    const revealed = task.revealed ? task.revealed(state) : true;
+    label.textContent = revealed ? task.label : (task.abstractLabel ?? task.label);
     const count = document.createElement('span');
     count.className = 'quest-task-count';
     count.textContent = task.type === 'state_flag'
@@ -1488,6 +1492,134 @@ function switchTab(viewId) {
   // 記憶タブ/地図タブを開いたら新着を既読化
   if (viewId === 'view-stories') _markStoriesSeen(getState());
   if (viewId === 'view-actions') { _markDiscoveriesSeen(getState()); renderActionList(); }
+
+  // 初めて同行タブを開いた時、サイドバー→星図盤の順に軽いポインターチュートリアルを挟む
+  if (viewId === 'view-chars') {
+    const state = getState();
+    if (!state.companionTutorialDone && (state.unlockedCompanions ?? []).length > 0) {
+      _runCompanionTutorial();
+    }
+  }
+}
+
+// ── 要素ポインター(特定のUI要素を指して一言添えるミニチュートリアル) ──
+let _companionTutorialActive = false;
+
+function _runCompanionTutorial() {
+  if (_companionTutorialActive) return;
+  _companionTutorialActive = true;
+  _runElementPointerSteps([
+    {
+      selector: '.star-chart-rail',
+      text: 'ここから同行することができます',
+      placement: 'left',
+      // タップを奪わず、実際に誰かが同行するまで待ってから次へ進む
+      waitFor: (state) => (state.activeCompanions ?? []).length > 0,
+      // このステップ中は、サイドバーのユウヤ以外のボタンを押せないようにする
+      restrictTo: 'yuya',
+    },
+    { selector: '.star-chart-sky', text: '同行している間、星の加護が行く先を示します' },
+  ], () => {
+    _companionTutorialActive = false;
+    setCompanionTutorialDone();
+  });
+}
+
+// サイドバーの指定同行者だけを残し、人物記録・星座一覧・下部メニューを含む
+// ほかのボタンを一時的に無効化する。元に戻す関数を返す。
+function _restrictCompanionTutorialInput(exceptId) {
+  const buttons = document.querySelectorAll('button');
+  const restored = [];
+  buttons.forEach(btn => {
+    const isAllowedCompanionToggle =
+      btn.dataset.companion === exceptId
+      && btn.matches('.star-chart-rail-person');
+    if (isAllowedCompanionToggle || btn.disabled) return;
+    btn.disabled = true;
+    restored.push(btn);
+  });
+  return () => { restored.forEach(btn => { btn.disabled = false; }); };
+}
+
+function _runElementPointerSteps(steps, onComplete) {
+  const overlay = document.getElementById('element-pointer-overlay');
+  const bubble = document.getElementById('element-pointer-bubble');
+  let index = 0;
+  let unsubscribe = null;
+  let restoreRestriction = null;
+
+  function stopWaiting() {
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    if (restoreRestriction) { restoreRestriction(); restoreRestriction = null; }
+  }
+
+  function showStep() {
+    const step = steps[index];
+    const target = document.querySelector(step.selector);
+    if (!target) { finish(); return; }
+    bubble.textContent = step.text;
+    bubble.classList.remove('visible', 'point-above', 'point-below', 'point-left');
+    const rect = target.getBoundingClientRect();
+    const margin = 10;
+    const bubbleRect = bubble.getBoundingClientRect();
+
+    if (step.placement === 'left') {
+      // 対象が画面端に近い細長い要素の場合、上下ではなく左側に吹き出しを出し、右向きの矢印で指す
+      let top = rect.top + rect.height / 2 - bubbleRect.height / 2;
+      top = Math.max(margin, Math.min(top, window.innerHeight - bubbleRect.height - margin));
+      bubble.style.top = `${top}px`;
+      bubble.style.left = `${rect.left - margin - bubbleRect.width}px`;
+      bubble.classList.add('point-left');
+    } else {
+      const pointBelow = rect.top < 140;
+      let left = rect.left + rect.width / 2 - bubbleRect.width / 2;
+      left = Math.max(margin, Math.min(left, window.innerWidth - bubbleRect.width - margin));
+      bubble.style.left = `${left}px`;
+      bubble.style.top = pointBelow
+        ? `${rect.bottom + margin}px`
+        : `${rect.top - bubbleRect.height - margin}px`;
+      bubble.classList.add(pointBelow ? 'point-below' : 'point-above');
+    }
+    bubble.classList.add('visible');
+
+    if (step.waitFor) {
+      // 指している要素の実際の操作を通す(オーバーレイでタップを奪わない)。条件を満たしたら自動で次へ
+      overlay.classList.add('passthrough');
+      overlay.onclick = null;
+      // renderCharTabは状態変化のたびに星図盤のボタンを作り直すため、再描画のたびに制限をかけ直す
+      const applyRestriction = () => {
+        if (restoreRestriction) restoreRestriction();
+        restoreRestriction = step.restrictTo ? _restrictCompanionTutorialInput(step.restrictTo) : null;
+      };
+      applyRestriction();
+      if (step.waitFor(getState())) { advance(); return; }
+      unsubscribe = subscribe((state) => {
+        applyRestriction();
+        if (step.waitFor(state)) advance();
+      });
+    } else {
+      overlay.classList.remove('passthrough');
+      overlay.onclick = advance;
+    }
+  }
+
+  function finish() {
+    stopWaiting();
+    overlay.classList.remove('open', 'passthrough');
+    overlay.onclick = null;
+    bubble.classList.remove('visible');
+    onComplete?.();
+  }
+
+  function advance() {
+    stopWaiting();
+    index++;
+    if (index >= steps.length) { finish(); return; }
+    showStep();
+  }
+
+  overlay.classList.add('open');
+  showStep();
 }
 
 function initTabs() {
@@ -1810,6 +1942,12 @@ function _enterFacility(facility) {
     }
   }
   if (facility.id === 'nostalgia_library') {
+    const restorationQuestStatus = getQuestStatus(state, 'restore_continent_chronicle');
+    const restorationAccepted = [
+      QUEST_STATUS.ACTIVE,
+      QUEST_STATUS.COMPLETED,
+      QUEST_STATUS.REPORTED,
+    ].includes(restorationQuestStatus);
     options.push({
       id: 'restore_books',
       label: '復元',
@@ -1817,6 +1955,7 @@ function _enterFacility(facility) {
       type: 'submenu',
       style: 'bookshelf',
       icon: actionIconSvg('復元'),
+      locked: !restorationAccepted,
       options: [
         {
           id: 'world_chronicle',
@@ -2125,7 +2264,17 @@ function _handleActionComplete(actionId, result) {
   }
 
   if (flowerEncyclopediaFound) {
-    addLog('【図書館】失われた本棚から「花の図鑑」を見つけた', true, false, false, 'log-rare');
+    // 発見を区切りとして探索の繰り返しを止める。本はログから任意で開ける。
+    _cancelled = true;
+    if (getState().autoRepeat) setAutoRepeat(false);
+    addLog(
+      '【図書館】失われた本棚から「花の図鑑」を見つけた'
+      + '<button type="button" class="log-action-btn" data-open-book="flower-encyclopedia">本を開く</button>',
+      true,
+      true,
+      false,
+      'log-rare',
+    );
   }
 
   for (const questId of receivedQuests) {
@@ -2210,7 +2359,10 @@ function startLostFlowersIntro() {
         activateQuest('lost_flowers');
         addLog('【長期依頼】「失われた花」を引き受けた', true, false, false, 'log-rare');
         _flashQuestTab();
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+        finish(
+          () => { if (cleanup) { cleanup(); cleanup = null; } },
+          () => addLog('て言っても、どうやって調べればいいんだろう。花に詳しい人か、花の図鑑みたいなものがどこかにないかな？', false),
+        );
       },
     });
   });
@@ -2413,6 +2565,11 @@ function _updateModeToggleBtn() {
 
 function initStoryViewer() {
   els.storyCloseBtn.addEventListener('click', closeStory);
+  els.mainPanel.addEventListener('click', event => {
+    const button = event.target.closest('[data-open-book="flower-encyclopedia"]');
+    if (!button) return;
+    openFlowerEncyclopedia();
+  });
   const chronicleOverlay = document.getElementById('world-chronicle-overlay');
   document.getElementById('world-chronicle-close').addEventListener('click', () => chronicleOverlay.classList.remove('open'));
   chronicleOverlay.addEventListener('click', e => {
@@ -3517,6 +3674,12 @@ function initDevTools() {
   document.getElementById('dev-lock-all-stories').addEventListener('click', lockAllStories);
   document.getElementById('dev-unlock-all-actions').addEventListener('click', unlockAllActions);
   document.getElementById('dev-lock-all-actions').addEventListener('click', lockAllActions);
+  document.getElementById('dev-reset-quests-btn').addEventListener('click', () => {
+    if (!confirm('依頼・施設(花屋/図書館など)の進捗をリセットしますか？')) return;
+    // 導入イベントの発火済み記録も戻し、リセット後に条件を満たせば再受注できるようにする。
+    resetFiredRules();
+    resetQuestsAndFacilities();
+  });
 
   document.getElementById('dev-unlock-all-companions').addEventListener('click', () => {
     Object.keys(COMPANION_DATA).forEach(id => unlockCompanion(id));

@@ -82,6 +82,10 @@ export const QUESTS = [
       {
         id: 'find_encyclopedia',
         label: '図書館で花について調べる',
+        // 図書館をまだ発見していない間は場所を明言しない曖昧な表記にする(共通の仕組みとして
+        // revealed/abstractLabelを使い、今後の長期依頼タスクでも同様に流用できる)
+        abstractLabel: '花の手がかりを探そう',
+        revealed: (state) => !!state.unlockedActions?.includes('nostalgia_library'),
         type: 'state_flag',
         stateFlag: 'flowerEncyclopediaUnlocked',
       },

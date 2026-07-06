@@ -714,6 +714,22 @@
       color: var(--text);
     }
 
+    .log-action-btn {
+      display: inline-block;
+      margin-left: 0.7rem;
+      padding: 0.2rem 0.65rem;
+      border: 1px solid rgba(125,185,220,0.65);
+      border-radius: 4px;
+      background: rgba(125,185,220,0.12);
+      color: #b9d9ec;
+      font: inherit;
+      cursor: pointer;
+    }
+    .log-action-btn:hover {
+      background: rgba(125,185,220,0.24);
+      color: #e1f3fc;
+    }
+
     .log-entry--right {
       text-align: right;
       border-left: none;
@@ -1191,7 +1207,9 @@
       transition: width .5s ease, transform .5s ease;
     }
     .book-viewer.closed {
-      width: min(440px, 84vw);
+      width: min(440px, 84vw, 54vh);
+      height: auto;
+      aspect-ratio: 3 / 4;
       transform: rotateY(-7deg) rotateX(2deg);
     }
     .book-cover {
@@ -1325,7 +1343,7 @@
     .book-viewer-hint { color: #4f566b; font-size: .58rem; }
     @media (max-width:680px) {
       .book-viewer { width: 94vw; height: 70vh; }
-      .book-viewer.closed { width: min(370px,88vw); }
+      .book-viewer.closed { width: min(370px,88vw,54vh); }
       .book-spread { display: block; }
       .book-page { position: absolute; inset: 0; }
       .book-page.left { display: none; }
@@ -1647,6 +1665,34 @@
       line-height: 1.9;
       border-left: none !important;
       padding-left: 0 !important;
+    }
+
+    .story-log.story-log-title {
+      position: relative;
+      margin-top: 0.85rem;
+      padding: 0.15rem 0 0.5rem;
+      border-left: 0;
+      color: #9fc9df;
+      font-size: 0.92rem;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-align: left;
+      text-shadow: 0 0 12px rgba(125,185,220,0.18);
+    }
+    .story-log.story-log-title::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(125,185,220,0.72), rgba(125,185,220,0.12));
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform 1.65s ease-out;
+    }
+    .story-log.story-log-title.line-drawn::after {
+      transform: scaleX(1);
     }
 
     .story-tap-indicator {
@@ -2739,7 +2785,7 @@
       min-height: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
       border: 1px solid #2b3850; border-radius: 8px;
-      opacity: .3; color: #566174; background: #0a0f17; filter: grayscale(1);
+      opacity: .78; color: #9fb3ce; background: #0a0f17; filter: grayscale(.4);
     }
     .star-chart-rail-person.active {
       opacity: 1; color: #bbd4f7; border-color: #4d73a5;
@@ -3074,6 +3120,56 @@
       opacity: 1;
       transform: translateY(0);
     }
+    /* ── 要素ポインター(特定のUI要素を指すミニチュートリアル) ── */
+    #element-pointer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 260;
+    }
+    #element-pointer-overlay.open { display: block; }
+    /* 実際の操作(同行トグル等)を通したいステップ用。オーバーレイ自体はタップを奪わない */
+    #element-pointer-overlay.passthrough { pointer-events: none; }
+    #element-pointer-bubble {
+      position: fixed;
+      bottom: auto;
+      width: max-content;
+      max-width: min(80vw, 320px);
+      white-space: normal;
+      text-align: center;
+      line-height: 1.5;
+      pointer-events: none;
+    }
+    /* 矢印は方向ごとに向き・太さを明示指定する(継承に頼ると幅がズレて潰れて見えるため) */
+    #element-pointer-bubble::after {
+      bottom: auto;
+      border-width: 5px;
+      border-style: solid;
+    }
+    #element-pointer-bubble.point-below::after {
+      top: -5px;
+      bottom: auto;
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      border-color: transparent transparent var(--accent-border) transparent;
+    }
+    #element-pointer-bubble.point-above::after {
+      bottom: -5px;
+      top: auto;
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      border-color: var(--accent-border) transparent transparent transparent;
+    }
+    #element-pointer-bubble.point-left::after {
+      top: 50%;
+      bottom: auto;
+      right: -5px;
+      left: auto;
+      transform: translateY(-50%);
+      border-color: transparent transparent transparent var(--accent-border);
+    }
     /* ── スプラッシュ(起動画面) ── */
     #splash-screen {
       position: fixed;
@@ -3273,6 +3369,10 @@
             <option value="4">004</option>
           </select>
         </div>
+        <div class="dev-row">
+          <span class="dev-label">依頼・施設の進捗<br><span class="dev-label-sub">記憶/行動/同行者/所持品は保持したままリセット</span></span>
+          <button id="dev-reset-quests-btn" class="dev-btn dev-btn--danger">リセット</button>
+        </div>
       </div>
       <div class="dev-row">
         <span class="dev-label">セーブデータをすべて削除してリロード</span>
@@ -3399,6 +3499,11 @@
       <hr class="convert-divider">
       <div class="convert-fragment-list" id="convert-fragment-list"></div>
     </div>
+  </div>
+
+  <!-- 汎用の要素ポインター(特定のUI要素を指して一言添えるミニチュートリアル用) -->
+  <div id="element-pointer-overlay">
+    <div id="element-pointer-bubble" class="toast-bubble"></div>
   </div>
 
   <!-- 汎用確認ポップアップ -->

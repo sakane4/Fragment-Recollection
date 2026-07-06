@@ -78,6 +78,7 @@ function createStarChart({ companions, unlocked, active, constellations, onToggl
     const railButton=document.createElement('button');
     railButton.type='button';
     railButton.className=`star-chart-rail-person${active.includes(id)?' active':''}`;
+    railButton.dataset.companion=id;
     railButton.innerHTML=`<span>${companion.mark??'✦'}</span><small>${companion.name}</small>`;
     railButton.addEventListener('click',()=>onToggle(id,!active.includes(id)));
     rail.appendChild(railButton);

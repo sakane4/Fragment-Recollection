@@ -145,6 +145,7 @@ function showActionGuide() {
 
 // ── スクリプトパーサー ──
 // 空行を無視し、特殊タグを変換してステップ配列を返す
+// [title: タイトル]    → { type: 'title', text: 'タイトル' }
 // [name_input]         → { type: 'name_input' }
 // [end: ラベル]        → { type: 'end_button', label: 'ラベル' }
 // ${name} を含む行     → { type: 'text', text: (name) => `...` }
@@ -155,6 +156,8 @@ function parseScript(src) {
     .map(l => l.replace(/\r$/, ''))
     .filter(l => l.trim() !== '')
     .map(line => {
+      const titleMatch = line.match(/^\[title:\s*(.+)\]$/);
+      if (titleMatch) return { type: 'title', text: titleMatch[1] };
       if (line === '[name_input]') return { type: 'name_input' };
       const endMatch = line.match(/^\[end:\s*(.+)\]$/);
       if (endMatch) return { type: 'end_button', label: endMatch[1] };
@@ -168,7 +171,7 @@ function parseScript(src) {
 // ── ログストーリー001 ──
 // メインパネルにタイプライター式でテキストを順番に流す
 const LOG_STORY_STEPS = parseScript(`
-001
+[title: 001　邂逅]
 何もない世界をしばらくさまよった。
 「あれ？」
 後ろから、声が聞こえた。
@@ -220,7 +223,39 @@ function runLogSt(steps, mainPanel, { onNameDecided, onComplete, initialName = '
     waitingForTap = false;
     const step = steps[stepIndex];
 
-    if (step.type === 'text') {
+    if (step.type === 'title') {
+      const el = addEntry();
+      el.classList.add('story-log-title');
+      stepIndex++;
+      let titleDone = false;
+      let lineDone = false;
+      let advanced = false;
+      const continueAfterTitle = () => {
+        if (advanced || !titleDone || !lineDone) return;
+        advanced = true;
+        nextStep();
+      };
+      const finishLine = () => {
+        if (lineDone) return;
+        lineDone = true;
+        continueAfterTitle();
+      };
+      el.addEventListener('transitionend', event => {
+        if (event.propertyName === 'transform') finishLine();
+      }, { once: true });
+      requestAnimationFrame(() => el.classList.add('line-drawn'));
+      // transitionendが発火しない環境でも本文へ進めるようにする。
+      setTimeout(finishLine, 1800);
+      currentTw = typewriter(el, step.text, {
+        speed: 115,
+        onStep: () => { mainPanel.scrollTop = mainPanel.scrollHeight; },
+        onDone: () => {
+          titleDone = true;
+          continueAfterTitle();
+        },
+      });
+
+    } else if (step.type === 'text') {
       const text = typeof step.text === 'function' ? step.text(playerName) : step.text;
       const el = addEntry();
       currentTw = typewriter(el, text, {
@@ -294,7 +329,7 @@ function runLogSt(steps, mainPanel, { onNameDecided, onComplete, initialName = '
 
 // ── ログストーリー002 ──
 const LOG_STORY_2_STEPS = parseScript(`
-002
+[title: 002　不思議なかけら]
 「これ、いったいなんだろう」
 ユウヤの手には、不思議な物質がある。
 さきほどから、あなたも見つけていたものだ。
@@ -306,6 +341,7 @@ const LOG_STORY_2_STEPS = parseScript(`
 `);
 
 const WORLD_CHRONICLE_INTRO_STEPS = parseScript(`
+[title: 失われた大陸誌]
 図書館には多くの本がある。
 だが、そのタイトルも内容も、曖昧にぼやけたものばかりだった。
 一冊の古びた本を手に取り、開いてみる。
@@ -324,7 +360,7 @@ const WORLD_CHRONICLE_INTRO_STEPS = parseScript(`
 
 // ── ログストーリー003 ──
 const LOG_STORY_3_STEPS = parseScript(`
-003
+[title: 003　忘れられない人]
 集めた欠片が、青い光をはなつ。
 強まる光を見ていたあなたの頭に浮かんだ、その記憶……。
 あなたは直感的にわかる。それは、今隣にいる少年のものだと。
@@ -350,13 +386,14 @@ function runWorldChronicleIntro(mainPanel, opts) { return runLogSt(WORLD_CHRONIC
 
 // 5人全員が揃ったときの顔合わせシーン(仮文。あとで本文を書き直す)
 const ALL_COMPANIONS_MET_STEPS = parseScript(`
+[title: 星々の集い]
 「」
 [end: 再生を続ける]
 `);
 function runAllCompanionsMet(mainPanel, opts) { return runLogSt(ALL_COMPANIONS_MET_STEPS, mainPanel, opts); }
 
 const LOG_STORY_4_STEPS =parseScript(`
-004
+[title: 004　星の導き]
 森の中、あなたはユウヤと足を止める。
 「あのとき、誰かが……」
 ユウヤはそうして記憶を探る様子だったが、
@@ -384,6 +421,7 @@ function runLogSt_4(mainPanel, opts) { return runLogSt(LOG_STORY_4_STEPS, mainPa
 
 // ── 同行者加入イベント ──
 const JOIN_KAORU_STEPS = parseScript(`
+[title: カオル]
 あなたは不思議な生き物を拾った。
 もきゅもきゅと鳴いている。
 手のひらに収まる、毛玉のような生き物だ。
@@ -404,6 +442,7 @@ const JOIN_KAORU_STEPS = parseScript(`
 `);
 
 const JOIN_SHIZUKU_STEPS = parseScript(`
+[title: シズク]
 旧美術室の鍵を開けると、そこには一人の青年が立っていた。
 彼は振り向く。
 その瞳にはかすかに戸惑いが浮かんでいる。
@@ -422,6 +461,7 @@ const JOIN_SHIZUKU_STEPS = parseScript(`
 `);
 
 const JOIN_YUKIKA_STEPS = parseScript(`
+[title: 雪架]
 暗い光に満ちた王都で、精巧な羅針盤を拾った。
 ただの羅針盤ではないようだが、造りが複雑すぎて、
 使い方はまったくわからない。
@@ -443,6 +483,7 @@ const JOIN_YUKIKA_STEPS = parseScript(`
 `);
 
 const JOIN_RABI_STEPS = parseScript(`
+[title: ラビ]
 騎士団の本部はとても広い建物で、どこまで歩いても終わりがない。
 赤い絨毯の敷かれた廊下に、一振りの剣が落ちていた。
 鞘まで丁寧に磨き抜かれ、抜いてみると刀身は澄んだ銀色だ。
@@ -486,6 +527,7 @@ function runCompanionJoin(companionId, mainPanel, opts) {
 
 // ── 花屋発見イベント ──
 const FLOWER_SHOP_DISCOVERY_STEPS = parseScript(`
+[title: 花屋 竜の鱗]
 通りを歩いていると、硝子の窓から通りに光を投げかけている、小さな花屋を見つけた。
 窓から覗き見ると、店内に花は少なく、人の気配もない。
 その時、カウンターの陰から立ち上がったエプロン姿の少女と、目が合った。
@@ -510,6 +552,7 @@ function runFlowerShopDiscovery(mainPanel, opts) {
 }
 
 const LOST_FLOWERS_INTRO_STEPS = parseScript(`
+[title: 失われた花]
 「いつもありがとうございます」
 花を包みながら、店員がそう声をかけてきた。
 「この店には、本当はもっとたくさんのお花があったみたいなんです」
@@ -921,6 +964,7 @@ function runFacilityMenu(mainPanel, {
 // ── ノスタルジア発見シーン ──
 // 「再生された世界」が「ノスタルジア」へと変化する瞬間の演出
 const NOSTALGIA_DISCOVERY_STEPS = parseScript(`
+[title: ノスタルジア]
 （仮）気がつくと、街の輪郭が滲んでいた。
 （仮）ここはどこだろう。なにもなかったはずなのに。
 （仮）石畳。路地。明かりのない窓。
