@@ -484,6 +484,52 @@ function runCompanionJoin(companionId, mainPanel, opts) {
   return steps ? runLogSt(steps, mainPanel, opts) : null;
 }
 
+// ── 花屋発見イベント ──
+const FLOWER_SHOP_DISCOVERY_STEPS = parseScript(`
+通りを歩いていると、硝子の窓から通りに光を投げかけている、小さな花屋を見つけた。
+窓から覗き見ると、店内に花は少なく、人の気配もない。
+その時、カウンターの陰から立ち上がったエプロン姿の少女と、目が合った。
+[button: 花屋に入る]
+「あ、あの…」
+少女は困ったように両手をふわふわ動かし、それから咳払いをして。
+「いらっしゃいませ、花屋 竜の鱗へ」
+と告げた。
+店内は優しい光と花の匂いで満ちている。
+「……とはいっても、私もただの通りすがりなんです」
+少女は、はにかんで続ける。
+「この街を歩いていました。何も思い出せず…でも、そうしたらこの花屋を見つけたんです」
+「誰もいなくて、店内も荒れていて、でも、何となく心惹かれて」
+「枯れかけた花を見ていたら、放っておけなくて」
+「この店の本当の店主が戻ってくるまで、ここにいようって決めたんです」
+「よかったら、見ていきますか？」
+[end: うなずく]
+`);
+
+function runFlowerShopDiscovery(mainPanel, opts) {
+  return runLogSt(FLOWER_SHOP_DISCOVERY_STEPS, mainPanel, opts);
+}
+
+const LOST_FLOWERS_INTRO_STEPS = parseScript(`
+「いつもありがとうございます」
+花を包みながら、店員がそう声をかけてきた。
+「この店には、本当はもっとたくさんのお花があったみたいなんです」
+「でも、人がいない間に、枯れてしまった...」
+店員は、カウンターの隅に置かれている、タグを見やった。
+千年草…オルキス…こがね草…クリスタルリリー…
+失われた花の名前がそこに記されている。
+ユウヤはそれを手に取って見つめた。それからパッと顔を上げる。
+「…ねぇ、\${name}さん、ここに書いてある花のこと、調べてみようよ！」
+「え？」
+少女はきょとんとしている。
+「花を探して、またこの花屋を、花でいっぱいにするんだ。どうかな？」
+それを聞いた少女の表情が、みるみる明るくなった。
+[end: 依頼「失われた花」を引き受ける]
+`);
+
+function runLostFlowersIntro(mainPanel, opts) {
+  return runLogSt(LOST_FLOWERS_INTRO_STEPS, mainPanel, opts);
+}
+
 // ── 場所選択プロンプト ──
 // メインパネルに「新しい場所が見つかりそうだ・・・」とプロンプトを流し、
 // その下に場所候補ボタンを並べる。選択すると onPick(id) を呼ぶ。
@@ -712,7 +758,13 @@ function runFacilityMenu(mainPanel, {
         } else if (opt.type === 'submenu') {
           renderSubmenu(opt);
         } else if (opt.type === 'talk') {
-          renderTalk(opt);
+          if (opt.trigger) {
+            collapsePanelToDivider();
+            cleanup();
+            onTrigger?.(opt.trigger);
+          } else {
+            renderTalk(opt);
+          }
         } else if (opt.type === 'action') {
           // 入店ログは履歴として残し、操作パネルは中央線へ畳んで以後操作できない区切りにする。
           collapsePanelToDivider();
@@ -879,4 +931,4 @@ const NOSTALGIA_DISCOVERY_STEPS = parseScript(`
 
 function runNostalgiaDiscovery(mainPanel, opts) { return runLogSt(NOSTALGIA_DISCOVERY_STEPS, mainPanel, opts); }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu, runNostalgiaDiscovery };
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery };

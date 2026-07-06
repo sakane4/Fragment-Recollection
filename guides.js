@@ -83,9 +83,9 @@ export const GUIDES = [
   {
     id: 'become_flower_regular',
     title: '花屋の常連',
-    completed: (state) => !!state.flowerHelpUnlocked,
+    completed: (state) => (state.shopPurchaseCount?.flower ?? 0) >= 3,
     select: (state) => {
-      if (!state.unlockedActions?.includes('nostalgia_flower') || state.flowerHelpUnlocked) return null;
+      if (!state.unlockedActions?.includes('nostalgia_flower') || (state.shopPurchaseCount?.flower ?? 0) >= 3) return null;
       return {
         text: '【花屋 竜の鱗】で花を買ってみよう…何度か通えば、店員と親しくなれるかもしれない',
         progress: Math.min(state.shopPurchaseCount?.flower ?? 0, 3),

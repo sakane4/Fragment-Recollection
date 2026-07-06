@@ -34,7 +34,7 @@ const RESOURCES = {
   iria:            { label: 'イリア', color: '#9d8fe0' },
   andorsia:        { label: 'アンドルシア', color: '#e6ecf2' },
   orsis:           { label: 'オルシス', color: '#cfe9f0' },
-  hairenka:        { label: '灰冷花', color: '#aeb6b8' },
+  rakusekisou:        { label: '落赤花', color: '#aeb6b8' },
   koganegusa:      { label: 'こがね草', color: '#e0a832' },
   sennengusa:      { label: '千年草', color: '#d88a6a' },
   dark_lily:       { label: 'ダークリリー', color: '#8e78a8' },
@@ -43,7 +43,7 @@ const RESOURCES = {
   orsis_seed:      { label: 'オルシスの種', color: '#cfe9f0', acquireVerb: '見つけた' },
   old_paint:          { label: '古びた絵具', color: '#e0a96d' },
   torn_page:          { label: '破れたページ', color: '#d8cba0' },
-  broken_piano_sound: { label: '少し狂ったピアノの音', color: '#b0a8c8' },
+  broken_piano_sound: { label: '少し狂ったピアノの音', color: '#b0a8c8' ,category:'element'},
   art_room_key:       { label: '旧美術室の鍵', color: '#d6336c', category: 'relic' },
   wyvern_claw:        { label: '翼竜の爪', color: '#c0c4cc' },
   wyvern_scale:       { label: '翼竜の鱗', color: '#7fb0c8' },
@@ -60,9 +60,10 @@ const RESOURCES = {
   kinomi:           { label: '木の実', color: '#85652c', unit: '個', acquireVerb: '拾った' },
 };
 
-const RESOURCE_CATEGORY_ORDER = ['fragment', 'material', 'tool', 'relic'];
+const RESOURCE_CATEGORY_ORDER = ['fragment', 'element', 'material', 'tool', 'relic'];
 const RESOURCE_CATEGORY_LABELS = {
   fragment: 'フラグメント',
+  element:'エレメント',
   material: '素材',
   tool: '道具',
   relic: 'レリック',

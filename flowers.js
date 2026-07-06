@@ -15,7 +15,7 @@ export const FLOWERS = [
     companions: [],                 desc: 'レース編みのように繊細な白い花' },
   { id: 'orsis',        label: 'オルシス',         birthday: '4月4日',   realFlower: '馬酔木',
     companions: ['yukika'],         desc: '小さな鈴を連ねたように咲く花' },
-  { id: 'hairenka',     label: '灰冷花',           birthday: '5月24日',  realFlower: 'ソリダゴ',
+  { id: 'rakusekisou',  label: '落赤花',           birthday: '5月24日',  realFlower: 'ソリダゴ',
     companions: [],                 desc: '灰白色の小花が穂のように集まって咲く花' },
   { id: 'koganegusa',   label: 'こがね草',         birthday: '6月5日',   realFlower: 'マリーゴールド',
     companions: [],                 desc: '黄金色に燃えるように咲く花' },

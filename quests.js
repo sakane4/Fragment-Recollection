@@ -69,23 +69,31 @@ export const QUESTS = [
     turnInLabel: '報告する',
   },
   {
-    id: 'flower_shop_help',
-    title: '花屋のお手伝い',
+    id: 'lost_flowers',
+    kind: 'long_term',
+    title: '失われた花',
     requester: '花屋の店員',
-    description: '花屋の仕事を手伝い、店員との信頼を深めよう。',
-    requestComment: '「お時間のある時だけで構いませんから、お店を手伝ってもらえると嬉しいです」',
-    completeComment: '「いつもありがとうございます。あなたが来てくれる日、少し楽しみにしていたんです」',
-    goalLabel: '花屋を10回手伝う',
-    autoStart: { stateFlag: 'flowerHelpUnlocked' },
-    objective: {
-      type: 'action_count',
-      actionId: 'nostalgia_flower_help',
-      target: 10,
-      unitLabel: '回',
-    },
-    // 報告後は花屋で「店員と話す」が解放される(_isFacilityOptionLocked、ui.js)。
-    // その初回の会話を最後まで見る(markFlowerClerkTalkSeen)と、続く花クエストが自動で受注状態になる。
-    rewards: [{ resource: 'magcoin', amount: 30 }],
+    description: '失われた花の手がかりを集め、花屋 竜の鱗に九つの花を取り戻そう。',
+    requestComment: '「花を探して、またこの花屋を、花でいっぱいにできたら……とても嬉しいです」',
+    completeComment: '「こんなにたくさんの花が戻ってくるなんて……本当に、ありがとうございます」',
+    goalLabel: '失われた花を9種取り戻す',
+    baselineActions: ['nostalgia_library_research'],
+    tasks: [
+      {
+        id: 'find_encyclopedia',
+        label: '図書館で花について調べる',
+        type: 'state_flag',
+        stateFlag: 'flowerEncyclopediaUnlocked',
+      },
+      {
+        id: 'restore_flowers',
+        label: '失われた花を取り戻す',
+        type: 'child_quest_count',
+        target: 9,
+        unitLabel: '種',
+      },
+    ],
+    rewards: [],
     turnIn: 'quest_ui',
     turnInLabel: '報告する',
   },
@@ -94,6 +102,7 @@ export const QUESTS = [
     // (花屋店員との会話を見る→autoStartで依頼が始まる→探索先でgrantResourceの種を発見→
     // 報告で店頭に並ぶ)で追加していく想定。会話の内容(_flowerClerkDialogue、ui.js)は別途執筆する。
     id: 'orsis_seed_request',
+    parentId: 'lost_flowers',
     title: '雪架に届けたい花',
     requester: '花屋の店員',
     description: '雪架のために、魔界王都メフィストでオルシスの種を探してほしいと頼まれた。',
@@ -133,6 +142,10 @@ export function getQuestStatus(state, questId) {
     if (revealed) status = QUEST_STATUS.AVAILABLE;
   }
   if (status !== QUEST_STATUS.ACTIVE) return status;
+  if (quest.tasks) {
+    const ready = quest.tasks.every(task => isQuestTaskComplete(state, quest, task));
+    return ready ? QUEST_STATUS.COMPLETED : status;
+  }
   if (quest.objective?.type === 'resource_set') {
     const ready = (quest.objective.requirements ?? []).every(requirement =>
       (state.resources?.[requirement.resource] ?? 0) >= requirement.amount
@@ -150,9 +163,41 @@ export function getQuestStatus(state, questId) {
   return ready ? QUEST_STATUS.COMPLETED : status;
 }
 
+export function getChildQuests(parentId) {
+  return QUESTS.filter(quest => quest.parentId === parentId);
+}
+
+export function isQuestTaskComplete(state, quest, task) {
+  if (task.type === 'state_flag') return !!state[task.stateFlag];
+  if (task.type === 'child_quest_count') {
+    const completed = getChildQuests(quest.id).filter(child =>
+      getQuestStatus(state, child.id) === QUEST_STATUS.REPORTED
+    ).length;
+    return completed >= task.target;
+  }
+  return false;
+}
+
+export function getQuestTaskProgress(state, quest, task) {
+  if (task.type === 'state_flag') {
+    return { current: state[task.stateFlag] ? 1 : 0, target: 1, unitLabel: '' };
+  }
+  if (task.type === 'child_quest_count') {
+    const current = getChildQuests(quest.id).filter(child =>
+      getQuestStatus(state, child.id) === QUEST_STATUS.REPORTED
+    ).length;
+    return { current: Math.min(current, task.target), target: task.target, unitLabel: task.unitLabel ?? '' };
+  }
+  return null;
+}
+
 export function getQuestProgress(state, questId) {
   const quest = getQuestDefinition(questId);
   if (!quest) return null;
+  if (quest.tasks) {
+    const task = quest.tasks.find(item => item.type === 'child_quest_count') ?? quest.tasks[0];
+    return task ? getQuestTaskProgress(state, quest, task) : null;
+  }
   if (quest.objective?.type === 'resource_set') {
     const requirements = quest.objective.requirements ?? [];
     return {
@@ -175,6 +220,7 @@ export function getQuestProgress(state, questId) {
 
 export function getVisibleQuests(state) {
   return QUESTS
+    .filter(quest => !quest.parentId)
     .map(quest => ({ quest, status: getQuestStatus(state, quest.id) }))
     .filter(({ status }) => status !== QUEST_STATUS.UNAVAILABLE);
 }

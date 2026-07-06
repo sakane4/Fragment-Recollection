@@ -1,13 +1,13 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFacilityMenu, runNostalgiaDiscovery } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
-import { QUEST_STATUS, getQuestDefinition, getQuestProgress, getVisibleQuests } from './quests.js';
+import { QUEST_STATUS, getQuestDefinition, getQuestStatus, getQuestProgress, getQuestTaskProgress, getChildQuests, getVisibleQuests } from './quests.js';
 import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel, resColor, resCategory, resUnit, resourceSpan, resourceLog, maskedResLabel, formatCostLabel } from './resource.js';
 import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
 import { CONSTELLATIONS } from './constellations.js';
@@ -1068,6 +1068,60 @@ function _buildQuestResourceList(items, values = null, extraClass = '') {
   return list;
 }
 
+function _buildLongQuestTasks(quest, state) {
+  const panel = document.createElement('div');
+  panel.className = 'quest-task-panel';
+
+  for (const task of quest.tasks ?? []) {
+    const progress = getQuestTaskProgress(state, quest, task);
+    const done = (progress?.current ?? 0) >= (progress?.target ?? 1);
+    const row = document.createElement(task.type === 'child_quest_count' ? 'button' : 'div');
+    row.className = `quest-task-row${done ? ' done' : ''}`;
+    if (row instanceof HTMLButtonElement) row.type = 'button';
+    const marker = document.createElement('span');
+    marker.className = 'quest-task-marker';
+    marker.textContent = done ? '✓' : '○';
+    const label = document.createElement('span');
+    label.className = 'quest-task-label';
+    label.textContent = task.label;
+    const count = document.createElement('span');
+    count.className = 'quest-task-count';
+    count.textContent = task.type === 'state_flag'
+      ? (done ? '完了' : '未完了')
+      : `${progress?.current ?? 0}/${progress?.target ?? 0}`;
+    row.append(marker, label, count);
+    panel.appendChild(row);
+
+    if (task.type !== 'child_quest_count') continue;
+    const collapseKey = `${quest.id}:${task.id}`;
+    const children = document.createElement('div');
+    children.className = 'quest-child-list';
+    children.hidden = _collapsedQuestCards.has(collapseKey);
+    const childQuests = getChildQuests(quest.id);
+    for (let index = 0; index < task.target; index++) {
+      const child = childQuests[index] ?? null;
+      const childStatus = child ? getQuestStatus(state, child.id) : QUEST_STATUS.UNAVAILABLE;
+      const visible = child && childStatus !== QUEST_STATUS.UNAVAILABLE;
+      const childRow = document.createElement('div');
+      childRow.className = `quest-child-row quest-child-row--${childStatus}`;
+      childRow.innerHTML = visible
+        ? `<span>${childStatus === QUEST_STATUS.REPORTED ? '✓' : '○'}</span><span>${child.title}</span>`
+        : '<span>？</span><span>未発見</span>';
+      children.appendChild(childRow);
+    }
+    row.setAttribute('aria-expanded', String(!children.hidden));
+    row.addEventListener('click', () => {
+      children.hidden = !children.hidden;
+      row.setAttribute('aria-expanded', String(!children.hidden));
+      if (children.hidden) _collapsedQuestCards.add(collapseKey);
+      else _collapsedQuestCards.delete(collapseKey);
+      _saveCollapsedQuestCards();
+    });
+    panel.appendChild(children);
+  }
+  return panel;
+}
+
 // 依頼パネル。進行状況を表示し、条件を満たした依頼はここから直接納品できる
 function renderQuestList(state) {
   const panel = document.getElementById('quest-panel');
@@ -1088,7 +1142,7 @@ function renderQuestList(state) {
   const readyToTurnIn = visible.some(({ status }) => status === QUEST_STATUS.COMPLETED);
   document.getElementById('quest-tab-btn')?.classList.toggle('ready', readyToTurnIn);
 
-  const filtered = visible.filter(({ status }) => {
+  const filtered = visible.filter(({ quest, status }) => {
     if (_questFilter === 'rumor') return status === QUEST_STATUS.AVAILABLE;
     if (_questFilter === 'active') {
       return status === QUEST_STATUS.ACTIVE || status === QUEST_STATUS.COMPLETED ||
@@ -1262,6 +1316,9 @@ function renderQuestList(state) {
     }
     actionRow.appendChild(actionSlot);
     layout.appendChild(actionRow);
+    if (quest.kind === 'long_term' && quest.tasks) {
+      layout.appendChild(_buildLongQuestTasks(quest, state));
+    }
     syncCollapsed();
     card.appendChild(layout);
     list.appendChild(card);
@@ -1691,7 +1748,8 @@ function _formatShopItemLabel(item) {
 
 // 施設メニューの選択肢が「？？？」表示のロック中かどうか(イベント経由で解放される選択肢のみ対象)
 function _isFacilityOptionLocked(facilityId, optionId, state) {
-  if (facilityId === 'nostalgia_flower' && optionId === 'help') return !state.flowerHelpUnlocked;
+  // 花が増えて店が忙しくなった段階で解放する予定。条件確定までは常にロックする。
+  if (facilityId === 'nostalgia_flower' && optionId === 'help') return true;
   if (facilityId === 'nostalgia_flower' && optionId === 'talk') return (state.shopPurchaseCount?.flower ?? 0) < 3;
   return false;
 }
@@ -1702,7 +1760,9 @@ function _isFacilityOptionLocked(facilityId, optionId, state) {
 // 3. それ以降は落ち着いた定型の会話になる(会話文はいずれも仮で、正式な文面は後日執筆)
 function _flowerClerkDialogue(state) {
   if (!state.flowerHelpUnlocked) {
-    return '「お客さん、よくお花を買ってくれますよね」\nあなたに花を渡しながら、店員がそう声をかけてきた。\n「実は”喪失”以来、花の記録が失われて」\n「お花の世話の方法が分からなくなってしまったんです」\n「それで人手が足りなくて……」\n「もし、よろしければ、少し店を手伝ってくれませんか？」\n「もちろん、お礼は払いますし、時間のある時だけで構いませんから！」';
+    return state.flowerEncyclopediaUnlocked
+      ? '「図鑑に、失われた花の手がかりが残っているといいのですが……」'
+      : '「図書館なら、失われた花について何かわかるかもしれません」';
   }
   if ((state.actionCount?.nostalgia_flower_help ?? 0) < 10) {
     return '「いつも、お手伝いありがとうございます」';
@@ -1728,16 +1788,16 @@ function _enterFacility(facility) {
     const talk = options.find(option => option.id === 'talk');
     if (talk) {
       talk.speaker = '花屋の店員';
+      if (getQuestStatus(state, 'lost_flowers') === QUEST_STATUS.UNAVAILABLE) {
+        talk.trigger = 'lost_flowers_intro';
+      }
       // getter化: 同じ施設セッション内で段階が進んでも(例: 会話を見てflowerHelpUnlockedが変わった直後に
       // もう一度話しかけた場合)、次に開いた時は最新のstateに基づく内容を表示する
       Object.defineProperty(talk, 'dialogue', { get: () => _flowerClerkDialogue(getState()), configurable: true });
-      // 会話を最後まで見た(スキップ含む)時点の段階に応じて次の解放を進める
+      // 「手伝う」の解放時期は未定。現時点では後続会話の既読処理だけを行う。
       talk.onDone = () => {
         const s = getState();
-        if (!s.flowerHelpUnlocked) {
-          unlockFlowerHelp();
-          addLog('【花屋】「手伝う」ができるようになった', true);
-        } else if ((s.actionCount?.nostalgia_flower_help ?? 0) >= 10 && !s.flowerClerkTalkSeen) {
+        if (s.flowerHelpUnlocked && (s.actionCount?.nostalgia_flower_help ?? 0) >= 10 && !s.flowerClerkTalkSeen) {
           markFlowerClerkTalkSeen();
         }
       };
@@ -1819,6 +1879,8 @@ function _enterFacility(facility) {
         const afterFlowerCount = getState().shopPurchaseCount?.flower ?? 0;
         // 3回目の購入をまたいだ瞬間だけ、店を閉じずにログで「話す」解放を知らせる
         if (shopId === 'flower' && beforeFlowerCount < 3 && afterFlowerCount >= 3) {
+          const talk = options.find(option => option.id === 'talk');
+          if (talk) talk.locked = false;
           addLog('【花屋】店員と話ができるようになった！', true);
         }
         return {
@@ -1836,6 +1898,10 @@ function _enterFacility(facility) {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
       if (option.type === 'world_chronicle') openWorldChronicle();
       if (option.type === 'flower_encyclopedia') openFlowerEncyclopedia();
+    },
+    onTrigger: (trigger) => {
+      _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      if (trigger === 'lost_flowers_intro') setTimeout(startLostFlowersIntro, 0);
     },
     onLeave: () => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
@@ -1919,7 +1985,7 @@ function openFlowerEncyclopedia() {
 }
 
 function _handleActionComplete(actionId, result) {
-  const { allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], discoveredConstellations = [] } = result;
+  const { discovered = [], allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], discoveredConstellations = [] } = result;
   for (const id of discoveredConstellations) {
     const constellation = CONSTELLATIONS.find(item => item.id === id);
     addLog(`【星座発見】${constellation?.name ?? id}`, true, false, false, 'log-rare');
@@ -1964,7 +2030,7 @@ function _handleActionComplete(actionId, result) {
   }
 
   if (flowerEncyclopediaFound) {
-    addLog('【図書館】失われた本棚から「花の図鑑」を見つけた', true);
+    addLog('【図書館】失われた本棚から「花の図鑑」を見つけた', true, false, false, 'log-rare');
   }
 
   for (const questId of receivedQuests) {
@@ -1987,6 +2053,10 @@ function _handleActionComplete(actionId, result) {
     const next = WORLD_LV_THRESHOLDS[worldLvUp];
     const nextStr = next != null ? `（次: ${next}lg）` : '（最大）';
     addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
+  }
+
+  if (discovered.some(item => item.type === 'action' && item.id === 'nostalgia_flower')) {
+    setTimeout(startFlowerShopDiscovery, 0);
   }
 
   // レアドロップ → アイテム発見ログのあと、加入イベントを再生してから同行者を解放
@@ -2017,6 +2087,34 @@ function startCompanionJoin(companionId) {
         unlockCompanion(companionId);
         const compName = COMPANION_DATA[companionId]?.name ?? companionId;
         addLog(`【同行】${compName} が仲間になった`, true);
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
+  });
+}
+
+function startFlowerShopDiscovery() {
+  enqueueLogStory('facility_discovery:nostalgia_flower', (finish) => {
+    let cleanup = null;
+    cleanup = runFlowerShopDiscovery(els.mainPanel, {
+      onComplete: () => {
+        addLog('【施設発見】花屋 竜の鱗', true, false, false, 'log-rare');
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
+  });
+}
+
+function startLostFlowersIntro() {
+  if (getQuestStatus(getState(), 'lost_flowers') !== QUEST_STATUS.UNAVAILABLE) return;
+  enqueueLogStory('quest_intro:lost_flowers', (finish) => {
+    let cleanup = null;
+    cleanup = runLostFlowersIntro(els.mainPanel, {
+      initialName: getState().playerName,
+      onComplete: () => {
+        activateQuest('lost_flowers');
+        addLog('【長期依頼】「失われた花」を引き受けた', true, false, false, 'log-rare');
+        _flashQuestTab();
         finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
       },
     });

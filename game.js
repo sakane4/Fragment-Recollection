@@ -453,9 +453,6 @@ const EQUIP_BONUS = 5;
 
 // 宿屋「休む」完了で付与される、報酬2倍バフのスタック数(他の行動の完了ごとに1消費)
 const REST_BUFF_STACKS = 20;
-// 花屋の「手伝う」解放後、図書館の調査完了時に花の図鑑を発見する確率
-const FLOWER_ENCYCLOPEDIA_DISCOVERY_CHANCE = 0.15;
-
 // ── 施設(FACILITIES) ──
 // 通常の行動(時間経過)とは別の概念。入店すると専用メニューが開き、そこから個別の行動を選んだり、
 // 買い物(SHOP)をしたりする。FACILITIES自体のidはLOCATION_DEFSの行動解放(unlockedActions)と
@@ -775,6 +772,7 @@ const INITIAL_STATE = {
   flowerEncyclopediaUnlocked: false,
   flowerClerkTalkSeen: false,
   questStatus: {},
+  questActionBaselines: {},
   allCompanionsMetDone: false,
 };
 
@@ -896,6 +894,26 @@ function unlockQuest(questId) {
     ...state,
     resources,
     questStatus: { ...questStatus, [questId]: QUEST_STATUS.ACTIVE },
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true, questId };
+}
+
+// シナリオから依頼を直接開始する。すでに開始済みなら何もしない。
+function activateQuest(questId) {
+  const quest = getQuestDefinition(questId);
+  if (!quest || getQuestStatus(state, questId) !== QUEST_STATUS.UNAVAILABLE) return { ok: false };
+  const actionBaselines = Object.fromEntries(
+    (quest.baselineActions ?? []).map(actionId => [actionId, state.actionCount?.[actionId] ?? 0])
+  );
+  state = {
+    ...state,
+    questStatus: { ...state.questStatus, [questId]: QUEST_STATUS.ACTIVE },
+    questActionBaselines: {
+      ...state.questActionBaselines,
+      [questId]: actionBaselines,
+    },
   };
   saveToStorage(state);
   notify();
@@ -1352,13 +1370,19 @@ function completeAction(actionId, onComplete) {
     }
   }
 
-  // 花屋で世話を手伝えるようになった後、図書館を調査すると花の図鑑を確率で発見する
+  // 長期依頼「失われた花」の受注後、図書館を3回調査すると花の図鑑を確定発見する
   let flowerEncyclopediaFound = false;
+  const lostFlowersLibraryBaseline =
+    state.questActionBaselines?.lost_flowers?.nostalgia_library_research
+    ?? state.actionCount?.nostalgia_library_research
+    ?? 0;
+  const lostFlowersLibraryCount =
+    (state.actionCount?.nostalgia_library_research ?? 0) - lostFlowersLibraryBaseline;
   if (
     actionId === 'nostalgia_library_research' &&
-    state.flowerHelpUnlocked &&
+    [QUEST_STATUS.ACTIVE, QUEST_STATUS.COMPLETED].includes(getQuestStatus(state, 'lost_flowers')) &&
     !state.flowerEncyclopediaUnlocked &&
-    Math.random() < FLOWER_ENCYCLOPEDIA_DISCOVERY_CHANCE
+    lostFlowersLibraryCount >= 3
   ) {
     state = { ...state, flowerEncyclopediaUnlocked: true };
     flowerEncyclopediaFound = true;
@@ -1525,8 +1549,26 @@ function init() {
     flowerEncyclopediaUnlocked: saved.flowerEncyclopediaUnlocked ?? INITIAL_STATE.flowerEncyclopediaUnlocked,
     flowerClerkTalkSeen: saved.flowerClerkTalkSeen ?? INITIAL_STATE.flowerClerkTalkSeen,
     questStatus: saved.questStatus ?? INITIAL_STATE.questStatus,
+    questActionBaselines: saved.questActionBaselines ?? INITIAL_STATE.questActionBaselines,
     allCompanionsMetDone: saved.allCompanionsMetDone ?? INITIAL_STATE.allCompanionsMetDone,
   };
+
+  // 基準回数導入前の進行中セーブは、読み込んだ時点から3回を数え始める。
+  if (
+    getQuestStatus(state, 'lost_flowers') === QUEST_STATUS.ACTIVE &&
+    !state.questActionBaselines?.lost_flowers
+  ) {
+    state = {
+      ...state,
+      questActionBaselines: {
+        ...state.questActionBaselines,
+        lost_flowers: {
+          nostalgia_library_research: state.actionCount?.nostalgia_library_research ?? 0,
+        },
+      },
+    };
+    saveToStorage(state);
+  }
 
   for (const [companionId, task] of Object.entries(state.companionTasks ?? {})) {
     const remaining = task.endsAt - Date.now();
@@ -1727,4 +1769,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt };
