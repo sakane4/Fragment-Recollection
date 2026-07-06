@@ -8,6 +8,7 @@ const COMPANION_DATA = {
   shizuku:{ name: 'シズク', starName: 'Helianthus', mark:'□', color: '#b0bac4', desc: '寡黙な青年。' },
   kaoru:  { name: 'カオル', starName: 'pensée',     mark:'○', color: '#ff6fa8', desc: 'いつも笑顔のお姉さん。' },
   yukika: { name: '雪架',   starName: 'Pieris',     mark:'△', color: '#3fd4ff', desc: 'なにか秘密を知っているようだ。' },
+  tericia:{ name: 'テリシア',starName: '未命名星',   mark:'✦', color: '#9d8cff', desc: '星に名前をつけることを愛する少女。' },
 };
 
 function createCompanionTabRenderer({
@@ -31,7 +32,14 @@ function createCompanionTabRenderer({
     const active = (state.activeCompanions ?? []).slice(0, 5);
     const busy = Object.keys(state.companionTasks ?? {});
     const unlocked = state.unlockedCompanions ?? [];
-    const discovered = CONSTELLATIONS.filter(item => state.discoveredConstellations?.includes(item.id));
+    const discovered = [
+      ...CONSTELLATIONS.filter(item => state.discoveredConstellations?.includes(item.id)),
+      ...(state.customConstellations ?? []).map(item => ({
+        mark:'✦',
+        description:'あなたが星を結び、名前を与えた星座',
+        ...item,
+      })),
+    ];
 
     view.innerHTML = '';
     view.classList.toggle('lower-section-open', !!openSection);

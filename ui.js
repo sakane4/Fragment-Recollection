@@ -1,10 +1,10 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
-import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery } from './scenario.js';
+import { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery, runObservatoryReport, runTericiaVisit, runTericiaJoin } from './scenario.js';
 import { evaluateRules, resetFiredRules } from './rules.js';
 import { getActiveGuides } from './guides.js';
 import { QUEST_STATUS, getQuestDefinition, getQuestStatus, getQuestProgress, getQuestTaskProgress, getChildQuests, getVisibleQuests } from './quests.js';
@@ -12,6 +12,7 @@ import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel,
 import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
 import { CONSTELLATIONS } from './constellations.js';
 import { FLOWERS } from './flowers.js';
+import { openConstellationEditor } from './constellation-editor.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
 
@@ -953,7 +954,7 @@ function render(state) {
   if (storySig !== _prevStorySig) { renderStoryList(state); _prevStorySig = storySig; }
   _updateStoriesBadge(state);
 
-  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.discoveredConstellations, state.constellationProgress, state.ELv, state.bondLv, state.companionTraits, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources, state.appearedStories, state.unlockedStories, state.storyProgress, state.titleRevealed]);
+  const charSig = JSON.stringify([state.unlockedCompanions, state.activeCompanions, state.discoveredConstellations, state.customConstellations, state.constellationProgress, state.ELv, state.bondLv, state.companionTraits, state.companionEquipment, state.companionTasks, state.resources, state.discoveredResources, state.appearedStories, state.unlockedStories, state.storyProgress, state.titleRevealed]);
   if (charSig !== _prevCharSig) { renderCharTab(state); _prevCharSig = charSig; }
 
   const actionSig = JSON.stringify([state.unlockedLocations, state.unlockedActions, state.activeAction?.actionId ?? null, state.ActionLv, state.LocationLv, state.resources.fragment, state.worldLv]);
@@ -1961,7 +1962,10 @@ function _enterFacility(facility) {
       id: 'research_status',
       label: '資料調査',
       type: 'talk',
-      speaker: 'シズク',
+      speaker: '研究資料が散らばっている',
+      trigger: state.observatoryResearchDone && !state.observatoryReportRead
+        ? 'observatory_report'
+        : null,
       getProgress: () => {
         const currentState = getState();
         const currentTask = currentState.companionTasks?.shizuku;
@@ -1982,11 +1986,21 @@ function _enterFacility(facility) {
         return `残り ${minutes}:${seconds}`;
       },
       dialogue: task?.type === 'observatory_research'
-        ? `「まだ調べているところだ。あと${remainingMinutes}分くらいかかりそうだ」`
+        ? `「…………」
+        シズクは集中して資料を調べている。`
         : state.observatoryResearchDone
-          ? '「ひと通り調べ終わった。少し気になることがある」'
+          ? '「星と星座の魔法について、分かったことは話した通りだ」'
           : '「この資料、少し時間をかけて調べてみたい」',
     });
+    if (state.observatoryReportRead) {
+      options.push({
+        id: 'talk_to_girl',
+        label: '少女と話す',
+        type: 'talk',
+        speaker: '少女',
+        dialogue: '少女は、研究資料を大切そうに見つめている。',
+      });
+    }
   }
   if (facility.id === 'nostalgia_flower') {
     const talk = options.find(option => option.id === 'talk');
@@ -2113,6 +2127,7 @@ function _enterFacility(facility) {
     onTrigger: (trigger) => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
       if (trigger === 'lost_flowers_intro') setTimeout(startLostFlowersIntro, 0);
+      if (trigger === 'observatory_report') setTimeout(startObservatoryReport, 0);
     },
     onLeave: () => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
@@ -2285,7 +2300,7 @@ function openFlowerEncyclopedia() {
 }
 
 function _handleActionComplete(actionId, result) {
-  const { discovered = [], allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], completedStoryQuests = [], discoveredConstellations = [] } = result;
+  const { discovered = [], allRewards, companionRewards, worldLvUp, rareDrop, flowerEncyclopediaFound, receivedQuests = [], progressedQuests = [], completedStoryQuests = [], discoveredConstellations = [], tericiaVisitTriggered = false } = result;
   for (const id of discoveredConstellations) {
     const constellation = CONSTELLATIONS.find(item => item.id === id);
     addLog(`【星座発見】${constellation?.name ?? id}`, true, false, false, 'log-rare');
@@ -2358,6 +2373,11 @@ function _handleActionComplete(actionId, result) {
     _cancelled = true;
     if (getState().autoRepeat) setAutoRepeat(false);
     setTimeout(startStarlitObservatoryDiscovery, 0);
+  }
+  if (tericiaVisitTriggered) {
+    _cancelled = true;
+    if (getState().autoRepeat) setAutoRepeat(false);
+    setTimeout(startTericiaVisit, 0);
   }
   if (receivedQuests.length > 0) {
     renderQuestList(getState());
@@ -2453,15 +2473,69 @@ function startStarlitObservatoryDiscovery() {
       onComplete: () => {
         unlockAction('starlit_observatory');
         startObservatoryResearch();
-        completeStoryQuest('find_starlit_observatory');
         addLog('【別行動】シズクが星空研究所で資料の調査を始めた', true);
         addTutorialLog(
           'separate-action',
           '別行動',
           '仲間が別行動を始めました。別行動は、ゲームを閉じている間も進行します。別行動中の仲間は、探索へ同行できません。同行メニューから、様子を確認することができます。',
         );
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
+  });
+}
+
+function startObservatoryReport() {
+  enqueueLogStory('quest_story:observatory_report', (finish) => {
+    let cleanup = null;
+    cleanup = runObservatoryReport(els.mainPanel, {
+      onComplete: () => {
+        completeObservatoryReport();
         addLog('【依頼完了】「星空研究所を探す」', true, false, false, 'log-rare');
         finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
+      },
+    });
+  });
+}
+
+function openTericiaConstellationEditor() {
+  if (document.querySelector('.constellation-editor-overlay')) return;
+  const state=getState();
+  openConstellationEditor({
+    companions:COMPANION_DATA,
+    unlocked:state.unlockedCompanions,
+    onComplete:(constellation)=>{
+      const result=completeTericiaConstellation(constellation);
+      if(!result.ok)return;
+      addLog(`【星座誕生】${constellation.name}`, true, false, false, 'log-rare');
+      startTericiaJoin();
+    },
+  });
+}
+
+function startTericiaVisit() {
+  enqueueLogStory('quest_story:tericia_visit', (finish) => {
+    let cleanup=null;
+    cleanup=runTericiaVisit(els.mainPanel,{
+      onComplete:()=>{
+        beginTericiaConstellationEditing();
+        finish(
+          ()=>{if(cleanup){cleanup();cleanup=null;}},
+          ()=>openTericiaConstellationEditor(),
+        );
+      },
+    });
+  });
+}
+
+function startTericiaJoin() {
+  enqueueLogStory('quest_story:tericia_join', (finish) => {
+    let cleanup=null;
+    cleanup=runTericiaJoin(els.mainPanel,{
+      onComplete:()=>{
+        completeTericiaJoin();
+        addLog('【同行者】テリシアが仲間になった', true, false, false, 'log-rare');
+        finish(()=>{if(cleanup){cleanup();cleanup=null;}});
       },
     });
   });
@@ -2812,10 +2886,19 @@ function _recoverPendingLogStory() {
     // 永続化対応前に星空研究所の物語途中でリロードされたセーブも救済する。
     const state = getState();
     if (
-      getQuestStatus(state, 'find_starlit_observatory') === QUEST_STATUS.COMPLETED &&
+      [QUEST_STATUS.ACTIVE, QUEST_STATUS.COMPLETED].includes(
+        getQuestStatus(state, 'find_starlit_observatory')
+      ) &&
+      (state.questProgress?.find_starlit_observatory ?? 0) >= 3 &&
       !(state.unlockedActions ?? []).includes('starlit_observatory')
     ) {
       startStarlitObservatoryDiscovery();
+      return;
+    }
+    if (state.tericiaVisitPending && !state.unlockedCompanions?.includes('tericia')) {
+      if (state.tericiaConstellationEditing) setTimeout(openTericiaConstellationEditor,0);
+      else if (state.tericiaConstellationCreated) startTericiaJoin();
+      else startTericiaVisit();
     }
     return;
   }
@@ -2835,6 +2918,9 @@ function _recoverPendingLogStory() {
     'facility_discovery:nostalgia_flower': () => startFlowerShopDiscovery(),
     'quest_intro:lost_flowers': () => startLostFlowersIntro(),
     'quest_story:starlit_observatory_discovery': () => startStarlitObservatoryDiscovery(),
+    'quest_story:observatory_report': () => startObservatoryReport(),
+    'quest_story:tericia_visit': () => startTericiaVisit(),
+    'quest_story:tericia_join': () => startTericiaJoin(),
   };
   const start = starters[id];
   if (start) start();

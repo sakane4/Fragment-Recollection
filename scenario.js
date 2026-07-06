@@ -1075,4 +1075,76 @@ function runStarlitObservatoryDiscovery(mainPanel, opts) {
   return runLogSt(STARLIT_OBSERVATORY_DISCOVERY_STEPS, mainPanel, opts);
 }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery };
+const OBSERVATORY_REPORT_STEPS = parseScript(`
+[title: 星と星座の魔法]
+シズクは資料から顔を上げ、一同を見渡す。
+「この世界にとって、星座がどんなものだったか、わかった…」
+「なになに！？」
+興味津々、という顔で、少女は身を乗り出す。
+「ここにある資料によれば……この世界では、星のエネルギーを利用した巨大な魔法が使われていた」
+「巨大な……」
+「魔法？」
+「もともとは、ひとつの星の魔法から始まった技術だった。星からエネルギーを得て、水や火、土や風を操ったんだ。それが星座という、いくつもの星をつないだ、さらに大きな魔法へと発展していった…」
+シズクの話を聞いて、しばらく考えていたユウヤが口を開く。
+「じゃあ……」
+「失われた星座を取り戻すことは、この世界を取り戻すことにつながるんじゃない？」
+「そうだろうが……そんなに大規模な魔法を、簡単に取り戻せるとは思えないな」
+ラビの言葉に、シズクもうなずく。
+「長い歴史を経て、多くの人が築いてきた、とても複雑な技術だよ。取り戻すには、きっと長い時間がかかるだろうね」
+「そっかぁ…そうだよね」
+「でも、この世界のことが分かっただけで、すごい発見だよ！」
+カオルは「シズクのおかげだね！」と笑う。
+シズクは表情も変えず、曖昧にうなずくのだった。
+情報：「星と星座の魔法」を手に入れた。
+[end: 調査結果を受け取る]
+`);
+
+function runObservatoryReport(mainPanel, opts) {
+  return runLogSt(OBSERVATORY_REPORT_STEPS, mainPanel, opts);
+}
+
+const TERICIA_VISIT_STEPS = parseScript(`
+[title: 星を結ぶ少女]
+宿屋で休んでいると、誰かが扉をたたく音が響いた。
+「誰だろう？」
+ユウヤはすぐに立ち上がり、ラビがそれを制する。
+「この間、研究所に居た少女だ」
+「へぇぇ、わかるの？　それなら危ない人じゃないね！」
+「そうとは限らないだろ、おい…」
+「大丈夫だよ！」
+ユウヤが扉を開けると、ラビの言う通り、そこには研究所にいた少女が立っている。
+なにやら、興奮気味だ。
+「どうしてここがわかったの？」
+「星を見たんだよ！」
+「星？」
+「来て来て！」
+少女に従って、あなたたちは宿の庭へ出た。
+街は暗く、星空はよく見える。
+「この前の話を聞いて、考えたの」
+「世界を変えるような大きな魔法じゃなくても…」
+「人と人を結ぶことくらいは、できるかもって」
+「ほら、この望遠鏡に…星の光が満ちてる。覗き込んでみて！」
+少女から、望遠鏡を渡された――
+[end: 星座を作る]
+`);
+
+const TERICIA_JOIN_STEPS = parseScript(`
+[title: 星座の力]
+星空に、星と星がつなぎ合わされ、星座が輝いている。
+「これが…星座の力？」
+「なんだかすごく力が湧いてくる！」
+少女はキラキラと目を輝かせている。
+「やっぱり、あなたにならできた！　私は、夢をこの望遠鏡に込めることはできるけど、こんな風には使えないんだ…」
+「ねぇ、私もみんなと一緒に行っていい？」
+「この望遠鏡にたくさんの夢を込めて……たくさんの星とたくさんの星座を、取り戻したいんだ！」
+「もちろんだよ！　ねぇみんな？」
+ユウヤの声に、誰も反対する人はいない。
+[button: 少女に名前を尋ねる。]
+「わたしの名前は…わたしは、テリシア。これから、よろしくね！」
+[end: テリシアと共に行く]
+`);
+
+function runTericiaVisit(mainPanel, opts) { return runLogSt(TERICIA_VISIT_STEPS, mainPanel, opts); }
+function runTericiaJoin(mainPanel, opts) { return runLogSt(TERICIA_JOIN_STEPS, mainPanel, opts); }
+
+export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery, runObservatoryReport, runTericiaVisit, runTericiaJoin };

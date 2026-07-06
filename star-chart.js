@@ -5,6 +5,8 @@ const STAR_POSITIONS = {
   yuya: { lon:-18, lat:55 }, rabi: { lon:18, lat:34 },
   shizuku: { lon:43, lat:62 }, kaoru: { lon:61, lat:48 },
   yukika: { lon:35, lat:51 },
+  // 仮配置。編集画面を見ながら後で差し替えられる。
+  tericia: { lon:-48, lat:43 },
 };
 
 const FUTURE_STARS = [
@@ -46,16 +48,17 @@ function createStarChart({
   inspectMode = false,
   inspectedId = null,
   onInspect,
+  editor = null,
 }) {
   const root=document.createElement('div');
-  root.className=`star-chart-layout${inspectMode?' inspect-mode':''}`;
+  root.className=`star-chart-layout${inspectMode?' inspect-mode':''}${editor?' editor-mode':''}`;
   root.innerHTML=`
     <section class="star-chart-sky">
       <canvas class="star-chart-canvas"></canvas>
       <div class="star-chart-main-stars"></div>
       <div class="star-chart-overlay">
         <span>星図盤</span>
-        <small>${active.length} / 5</small>
+        <small>${editor?'星を順に選択':`${active.length} / 5`}</small>
       </div>
       <div class="star-chart-caption">THE UNFINISHED SKY</div>
     </section>
@@ -69,19 +72,24 @@ function createStarChart({
   const pointers=new Map();
   let gesture=null;
   let suppressStarClickUntil=0;
+  const editorMembers=editor
+    ? editor.path.filter(id=>id.startsWith('companion:')).map(id=>id.slice(10))
+    : [];
 
   for (const id of unlocked) {
     const companion=companions[id], position=STAR_POSITIONS[id];
     if (!companion || !position) continue;
     const button=document.createElement('button');
     button.type='button';
-    button.className=`star-chart-main-star${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}${inspectedId===id?' inspect-selected':''}`;
+    const isSelected=editor?editorMembers.includes(id):active.includes(id);
+    button.className=`star-chart-main-star${isSelected?' active':''}${busy.includes(id)?' busy':''}${inspectedId===id?' inspect-selected':''}${editor?.lockedId===id?' locked-origin':''}`;
     button.dataset.companion=id;
     if(companion.color) button.style.setProperty('--star-color', companion.color);
     button.innerHTML=`<span class="star-chart-light"></span><em class="star-chart-name">${companion.starName ?? companion.name}</em>`;
     button.addEventListener('click',()=>{
       if(Date.now()<suppressStarClickUntil)return;
-      if(inspectMode) onInspect?.(id);
+      if(editor) editor.onToggle?.(`companion:${id}`);
+      else if(inspectMode) onInspect?.(id);
       else onToggle(id,!active.includes(id));
     });
     starsLayer.appendChild(button);
@@ -92,7 +100,8 @@ function createStarChart({
     railButton.dataset.companion=id;
     railButton.innerHTML=`<span>${companion.mark??'✦'}</span><small>${companion.name}</small>`;
     railButton.addEventListener('click',()=>{
-      if(inspectMode) onInspect?.(id);
+      if(editor) editor.onToggle?.(`companion:${id}`);
+      else if(inspectMode) onInspect?.(id);
       else onToggle(id,!active.includes(id));
     });
     rail.appendChild(railButton);
@@ -136,6 +145,18 @@ function createStarChart({
     context.shadowColor='rgba(100,160,240,.9)';context.shadowBlur=10;context.stroke();context.shadowBlur=0;
   }
 
+  function editorPoint(id,f) {
+    if(id.startsWith('companion:')){
+      const position=STAR_POSITIONS[id.slice(10)];
+      return position?project(vector(position.lon,position.lat),f):null;
+    }
+    if(id.startsWith('background:')){
+      const star=BACKGROUND_STARS[Number(id.slice(11))];
+      return star?project(star.point,f):null;
+    }
+    return null;
+  }
+
   function draw() {
     const f=frame(),ratio=window.devicePixelRatio||1;
     if(canvas.width!==Math.round(f.width*ratio)||canvas.height!==Math.round(f.height*ratio)){
@@ -143,11 +164,21 @@ function createStarChart({
     }
     const context=canvas.getContext('2d');
     context.setTransform(ratio,0,0,ratio,0,0);context.clearRect(0,0,f.width,f.height);
-    for(const star of BACKGROUND_STARS){
+    const matched=editor?null:constellations.find(item=>sameMembers(active,item.members));
+    const visiblePath=editor?.path??matched?.path??[];
+    for(let index=0;index<BACKGROUND_STARS.length;index+=1){
+      const star=BACKGROUND_STARS[index];
       const point=project(star.point,f);
       if(!point||point.x<-4||point.x>f.width+4||point.y<-4||point.y>f.height+4)continue;
       context.beginPath();context.arc(point.x,point.y,star.size*(.7+point.depth*.5),0,Math.PI*2);
       context.fillStyle=`rgba(190,215,250,${star.alpha})`;context.fill();
+      if(index%11===0&&(editor||visiblePath.includes(`background:${index}`))){
+        context.beginPath();context.arc(point.x,point.y,2.1,0,Math.PI*2);
+        context.fillStyle=visiblePath.includes(`background:${index}`)
+          ?'rgba(238,249,255,.98)'
+          :'rgba(183,211,244,.7)';
+        context.fill();
+      }
     }
     for(const star of FUTURE_VECTORS){
       const point=project(star,f);if(!point)continue;
@@ -155,12 +186,26 @@ function createStarChart({
       context.fillStyle='rgba(122,151,190,.52)';context.shadowColor='rgba(110,160,225,.4)';
       context.shadowBlur=7;context.fill();context.shadowBlur=0;
     }
-    const matched=constellations.find(item=>sameMembers(active,item.members));
-    const connections=matched?.connections ?? active.slice(1).map((id,index)=>[active[index],id]);
-    for(const [from,to] of connections){
-      if(STAR_POSITIONS[from]&&STAR_POSITIONS[to])drawConnection(context,STAR_POSITIONS[from],STAR_POSITIONS[to],f);
+    const drawnPath=editor?.path??matched?.path;
+    if(drawnPath){
+      for(let index=1;index<drawnPath.length;index+=1){
+        const fromId=drawnPath[index-1],toId=drawnPath[index];
+        const start=editorPoint(fromId,f),end=editorPoint(toId,f);
+        if(!start||!end)continue;
+        const minor=fromId.startsWith('background:')||toId.startsWith('background:');
+        context.beginPath();context.moveTo(start.x,start.y);context.lineTo(end.x,end.y);
+        context.strokeStyle=minor?'rgba(169,207,244,.62)':'rgba(158,199,255,.96)';
+        context.lineWidth=minor?1:2;
+        context.shadowColor=minor?'transparent':'rgba(100,160,240,.9)';
+        context.shadowBlur=minor?0:10;context.stroke();context.shadowBlur=0;
+      }
+    }else{
+      const connections=matched?.connections ?? active.slice(1).map((id,index)=>[active[index],id]);
+      for(const [from,to] of connections){
+        if(STAR_POSITIONS[from]&&STAR_POSITIONS[to])drawConnection(context,STAR_POSITIONS[from],STAR_POSITIONS[to],f);
+      }
     }
-    root.querySelector('.star-chart-caption').textContent=matched?matched.name:'THE UNFINISHED SKY';
+    root.querySelector('.star-chart-caption').textContent=editor?'DRAW A NEW CONSTELLATION':matched?matched.name:'THE UNFINISHED SKY';
     starsLayer.querySelectorAll('[data-companion]').forEach(button=>{
       const point=project(vector(STAR_POSITIONS[button.dataset.companion].lon,STAR_POSITIONS[button.dataset.companion].lat),f);
       const visible=point&&point.x>-30&&point.x<f.width+30&&point.y>-30&&point.y<f.height+30;
@@ -193,7 +238,20 @@ function createStarChart({
     draw();
   });
   function finish(event){
-    if(gesture?.moved)suppressStarClickUntil=Date.now()+120;
+    const completedGesture=gesture;
+    if(completedGesture?.moved)suppressStarClickUntil=Date.now()+120;
+    if(editor&&completedGesture&&!completedGesture.moved&&!event.target.closest?.('.star-chart-main-star')){
+      const rect=canvas.getBoundingClientRect(),f=frame();
+      const x=event.clientX-rect.left,y=event.clientY-rect.top;
+      let nearest=null;
+      for(let index=0;index<BACKGROUND_STARS.length;index+=11){
+        const point=project(BACKGROUND_STARS[index].point,f);
+        if(!point)continue;
+        const gap=Math.hypot(point.x-x,point.y-y);
+        if(gap<=16&&(!nearest||gap<nearest.gap))nearest={index,gap};
+      }
+      if(nearest)editor.onToggle?.(`background:${nearest.index}`);
+    }
     pointers.delete(event.pointerId);
     if(!pointers.size){gesture=null;sky.classList.remove('panning');}
     else {const point=[...pointers.values()][0];gesture={type:'pan',x:point.x,y:point.y,yaw:view.yaw,pitch:view.pitch,moved:true};}
@@ -213,4 +271,4 @@ function createStarChart({
   return root;
 }
 
-export { STAR_POSITIONS, createStarChart };
+export { STAR_POSITIONS, BACKGROUND_STARS, createStarChart };

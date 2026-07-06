@@ -821,6 +821,11 @@ const INITIAL_STATE = {
   companionTasks: {},
   lastCompanionTaskResult: null,
   observatoryResearchDone: false,
+  observatoryReportRead: false,
+  tericiaVisitPending: false,
+  tericiaConstellationEditing: false,
+  tericiaConstellationCreated: false,
+  customConstellations: [],
   encounterStreak: {},
   restBuffStacks: 0,
   worldChronicleUnlocked: false,
@@ -940,7 +945,8 @@ function turnInQuest(questId) {
 // 発見ストーリーの読了をもって、自動的に完了扱いとなる依頼。
 function completeStoryQuest(questId) {
   const quest = getQuestDefinition(questId);
-  if (!quest?.autoCompleteStory || getQuestStatus(state, questId) !== QUEST_STATUS.COMPLETED) {
+  const status = getQuestStatus(state, questId);
+  if (!quest?.autoCompleteStory || ![QUEST_STATUS.ACTIVE, QUEST_STATUS.COMPLETED].includes(status)) {
     return { ok: false };
   }
   state = {
@@ -1354,6 +1360,12 @@ function completeAction(actionId, onComplete) {
   }
   let newRestBuffStacks = (state.restBuffStacks ?? 0) - (hadRestBuff ? 1 : 0);
   if (actionId === 'nostalgia_inn_rest') newRestBuffStacks += REST_BUFF_STACKS;
+  const tericiaVisitPending = state.tericiaVisitPending || (
+    actionId === 'nostalgia_inn_rest'
+    && state.observatoryReportRead
+    && !state.unlockedCompanions.includes('tericia')
+  );
+  const tericiaVisitTriggered = !state.tericiaVisitPending && tericiaVisitPending;
 
   // 同行者固有報酬(noCompanionRewardフラグが立っている行動はスキップ)
   const companionRewardsList = [];
@@ -1414,6 +1426,7 @@ function completeAction(actionId, onComplete) {
     unlockedActions: newActions,
     discoveredResources: newDiscovered,
     restBuffStacks: newRestBuffStacks,
+    tericiaVisitPending,
     // 同行ボーナス復活により宿屋を使う前から効果が発生しうるため、同行者がいる時点でも解放する
     effectsUnlocked: state.effectsUnlocked || actionId === 'nostalgia_inn_rest' || hasCompanionBonus,
   };
@@ -1495,13 +1508,6 @@ function completeAction(actionId, onComplete) {
         },
       };
       if (next >= 3) {
-        state = {
-          ...state,
-          questStatus: {
-            ...state.questStatus,
-            find_starlit_observatory: QUEST_STATUS.COMPLETED,
-          },
-        };
         completedStoryQuests.push('find_starlit_observatory');
       }
     }
@@ -1543,7 +1549,7 @@ function completeAction(actionId, onComplete) {
 
   // 同行者の解放(unlockCompanion)は加入イベント(ui.js側の演出)完了後に行う。ここではアイテム入手のみ。
   saveToStorage(state);
-  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests, completedStoryQuests, discoveredConstellations: constellationResult.newlyDiscovered };
+  const result = { discovered, allRewards: appliedRewards, companionRewards: companionRewardsList, worldLvUp: lvedUp ? state.worldLv : null, rareDrop, flowerEncyclopediaFound, receivedQuests, progressedQuests, completedStoryQuests, discoveredConstellations: constellationResult.newlyDiscovered, tericiaVisitTriggered };
   onComplete?.(result);
   // 完了ログなどを先に処理してから、購読側のルール判定を走らせる
   notify();
@@ -1660,6 +1666,11 @@ function init() {
     companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
     lastCompanionTaskResult: saved.lastCompanionTaskResult ?? INITIAL_STATE.lastCompanionTaskResult,
     observatoryResearchDone: saved.observatoryResearchDone ?? INITIAL_STATE.observatoryResearchDone,
+    observatoryReportRead: saved.observatoryReportRead ?? INITIAL_STATE.observatoryReportRead,
+    tericiaVisitPending: saved.tericiaVisitPending ?? INITIAL_STATE.tericiaVisitPending,
+    tericiaConstellationEditing: saved.tericiaConstellationEditing ?? INITIAL_STATE.tericiaConstellationEditing,
+    tericiaConstellationCreated: saved.tericiaConstellationCreated ?? INITIAL_STATE.tericiaConstellationCreated,
+    customConstellations: saved.customConstellations ?? INITIAL_STATE.customConstellations,
     encounterStreak: saved.encounterStreak ?? INITIAL_STATE.encounterStreak,
     worldChronicleUnlocked: saved.worldChronicleUnlocked ?? INITIAL_STATE.worldChronicleUnlocked,
     restoredWorldChronicleEntries: saved.restoredWorldChronicleEntries ?? INITIAL_STATE.restoredWorldChronicleEntries,
@@ -1742,6 +1753,63 @@ function markFlowerClerkTalkSeen() {
   notify();
 }
 
+function completeObservatoryReport() {
+  if (state.observatoryReportRead) return { ok: false };
+  state = {
+    ...state,
+    observatoryReportRead: true,
+    questStatus: {
+      ...state.questStatus,
+      find_starlit_observatory: QUEST_STATUS.REPORTED,
+    },
+    resources: {
+      ...state.resources,
+      star_constellation_magic: 1,
+    },
+    discoveredResources: state.discoveredResources.includes('star_constellation_magic')
+      ? state.discoveredResources
+      : [...state.discoveredResources, 'star_constellation_magic'],
+  };
+  saveToStorage(state);
+  notify();
+  return { ok: true };
+}
+
+function beginTericiaConstellationEditing() {
+  if (!state.tericiaVisitPending || state.tericiaConstellationCreated) return { ok:false };
+  state={...state,tericiaConstellationEditing:true};
+  saveToStorage(state);notify();
+  return {ok:true};
+}
+
+function completeTericiaConstellation(constellation) {
+  if (!state.tericiaConstellationEditing || !constellation?.name) return {ok:false};
+  const id=`custom_${Date.now()}`;
+  state={
+    ...state,
+    tericiaConstellationEditing:false,
+    tericiaConstellationCreated:true,
+    customConstellations:[...(state.customConstellations??[]),{id,...constellation}],
+  };
+  saveToStorage(state);notify();
+  return {ok:true,id};
+}
+
+function completeTericiaJoin() {
+  if (!state.tericiaConstellationCreated) return {ok:false};
+  const unlocked=state.unlockedCompanions.includes('tericia')
+    ?state.unlockedCompanions
+    :[...state.unlockedCompanions,'tericia'];
+  state={
+    ...state,
+    tericiaVisitPending:false,
+    tericiaConstellationEditing:false,
+    unlockedCompanions:unlocked,
+  };
+  saveToStorage(state);notify();
+  return {ok:true};
+}
+
 // 開発者用: 依頼・施設まわりの進捗だけをリセットする(記憶・行動・同行者・リソース等は保持したまま、
 // フルリセットせずに花屋/図書館/依頼の検証を繰り返せるようにするための機能)
 function resetQuestsAndFacilities() {
@@ -1766,6 +1834,16 @@ function resetQuestsAndFacilities() {
     flowerEncyclopediaUnlocked: false,
     flowerClerkTalkSeen: false,
     observatoryResearchDone: false,
+    observatoryReportRead: false,
+    tericiaVisitPending: false,
+    tericiaConstellationEditing: false,
+    tericiaConstellationCreated: false,
+    customConstellations: [],
+    resources: {
+      ...state.resources,
+      star_constellation_magic: 0,
+    },
+    discoveredResources: state.discoveredResources.filter(id => id !== 'star_constellation_magic'),
     worldChronicleUnlocked: false,
     restoredWorldChronicleEntries: [],
     actionCount: {
@@ -1942,4 +2020,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, OBSERVATORY_RESEARCH_MS, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, OBSERVATORY_RESEARCH_MS, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId };

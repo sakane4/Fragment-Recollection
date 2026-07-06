@@ -20,6 +20,7 @@ const RESOURCES = {
   },
   nostalgia_rumor:     { label: 'ノスタルジアの噂話', color: '#c6a7d8', unit: 'つ', acquireVerb: '耳にした' },
   observatory_rumor:   { label: '星空研究所の噂', color: '#8fcfe3', unit: 'つ', acquireVerb: '耳にした', highlight: true },
+  star_constellation_magic: { label: '星と星座の魔法', color: '#9fc9ef', category: 'information', highlight: true },
   old_text:        { label: '古文書', color: '#bba16a', unit: '冊' },
   survey_wherever: { label: '再生された世界の調査記録', color: '#9eb7c4', unit: '部', category: 'survey', highlight: true },
   survey_forest:   { label: 'はじまりの森の調査記録', color: '#8fb59a', unit: '部', category: 'survey', highlight: true },
@@ -61,13 +62,14 @@ const RESOURCES = {
   kinomi:           { label: '木の実', color: '#85652c', unit: '個', acquireVerb: '拾った' },
 };
 
-const RESOURCE_CATEGORY_ORDER = ['fragment', 'element', 'material', 'tool', 'relic'];
+const RESOURCE_CATEGORY_ORDER = ['fragment', 'element', 'material', 'tool', 'relic', 'information'];
 const RESOURCE_CATEGORY_LABELS = {
   fragment: 'フラグメント',
   element:'エレメント',
   material: '素材',
   tool: '道具',
   relic: 'レリック',
+  information: '情報',
 };
 
 function resLabel(resource) { return RESOURCES[resource]?.label ?? resource; }

@@ -97,6 +97,22 @@ export const GUIDES = [
     },
   },
   {
+    id: 'wait_for_tericia_at_inn',
+    title: '宿屋へ戻る',
+    completed: (state) => (
+      !!state.tericiaVisitPending
+      || state.unlockedCompanions?.includes('tericia')
+    ),
+    select: (state) => {
+      if (
+        !state.observatoryReportRead
+        || state.tericiaVisitPending
+        || state.unlockedCompanions?.includes('tericia')
+      ) return null;
+      return { text: '【宿屋】に帰って休んでみよう' };
+    },
+  },
+  {
     id: 'find_companion',
     title: '誰かの痕跡',
     completed: (state, ctx) => !Object.values(ctx.actions).some(action =>
