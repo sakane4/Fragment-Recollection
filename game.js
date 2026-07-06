@@ -107,7 +107,7 @@ function resolveTable(tableNameOrArray, locationId, actionId) {
 const LOCATION_DEFS = [
   {
     id: 'nostalgia',
-    label: '宵闇の都　ノスタルジア',
+    label: '宵闇の都 ノスタルジア',
     description: '失われた記憶や存在があつまってできた都。',
     // 拠点エリア。探索を進める(ActionLvが上がる)ごとに施設をランダムな順で発見する。
     // 4施設(宿屋/花屋/図書館/骨董屋)は通常の行動ではなく「施設」(FACILITIES参照)。

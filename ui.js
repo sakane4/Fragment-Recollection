@@ -12,6 +12,8 @@ import { RESOURCES, RESOURCE_CATEGORY_ORDER, RESOURCE_CATEGORY_LABELS, resLabel,
 import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
 import { FLOWERS } from './flowers.js';
 import { openConstellationEditor } from './constellation-editor.js';
+import { sameMembers } from './constellations.js';
+import { effectSummary } from './constellation-effects.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
 
@@ -1017,6 +1019,13 @@ function renderEffectList(state) {
   }
   if ((state.activeCompanions ?? []).length > 0) {
     effects.push('【同行】フラグメント×2 — 仲間が同行中');
+  }
+  const activeConstellation = (state.customConstellations ?? []).find(item =>
+    sameMembers(state.activeCompanions ?? [], item.members ?? [])
+  );
+  if (activeConstellation?.effect) {
+    const summary = effectSummary(activeConstellation.effect);
+    effects.push(`【星座】${activeConstellation.name}：${activeConstellation.effect.name}${summary ? ` — ${summary}` : ''}`);
   }
 
   document.getElementById('effect-tab-btn')?.classList.toggle('glow', effects.length > 0);
