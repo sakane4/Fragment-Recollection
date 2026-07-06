@@ -109,7 +109,7 @@ export const QUESTS = [
     requestComment: '「雪架さんが、魔界王都に咲く花を欲しがっていて……よかったら、探してきてもらえませんか？」',
     completeComment: '「見つけてくれたんですね……！　これで雪架さんにも渡せます。お店にも並べさせていただきますね」',
     goalLabel: 'オルシスの種を見つける',
-    autoStart: { stateFlag: 'flowerClerkTalkSeen' },
+    autoStart: { stateFlag: 'flowerEncyclopediaUnlocked' },
     objective: { type: 'action_chance', actionId: 'mephisto_explore', chance: 0.15, grantResource: 'orsis_seed' },
     progressLog: 'オルシスの種を見つけた',
     reportLog: '【花屋】オルシスが店頭に並ぶようになった',

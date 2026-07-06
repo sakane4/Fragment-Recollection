@@ -795,6 +795,12 @@ function render(state) {
     quest.objective?.actionId
       ? [quest.objective.actionId, state.actionCount?.[quest.objective.actionId] ?? 0]
       : null,
+    // long_termのtasks(state_flag/child_quest_count)は子依頼の状態変化も含めて検知する
+    quest.tasks
+      ? quest.tasks.map(task => task.type === 'child_quest_count'
+        ? getChildQuests(quest.id).map(child => getQuestStatus(state, child.id))
+        : getQuestTaskProgress(state, quest, task)?.current)
+      : null,
   ]));
   if (questSig !== _prevQuestSig) {
     renderQuestList(state);
@@ -1954,34 +1960,123 @@ function openWorldChronicle() {
   overlay.classList.add('open');
 }
 
-function openFlowerEncyclopedia() {
-  const overlay = document.getElementById('world-chronicle-overlay');
-  const list = document.getElementById('world-chronicle-list');
-  const state = getState();
-  document.querySelector('.world-chronicle-title').textContent = '花の図鑑';
-  document.querySelector('.world-chronicle-meta').textContent = '失われた花の記録を復元する';
-  list.innerHTML = '';
+let _bookSpreads = [];
+let _bookSpreadIndex = 0;
+let _bookOpened = false;
 
-  // 一度でも入手した花の頁だけが読める。未入手の頁はぼやけたまま
-  for (const flower of FLOWERS) {
-    const discovered = (state.discoveredResources ?? []).includes(flower.id);
-    const item = document.createElement('div');
-    item.className = `chronicle-entry${discovered ? ' restored' : ''}`;
+function _bookText(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
 
-    const title = document.createElement('div');
-    title.className = 'chronicle-entry-title';
-    title.textContent = discovered ? flower.label : '判読できない頁';
-    if (discovered) title.style.color = resColor(flower.id);
-    item.appendChild(title);
-
-    const body = document.createElement('div');
-    body.className = 'chronicle-entry-body';
-    body.textContent = discovered ? `${flower.desc}。` : '頁全体が曖昧にぼやけている。';
-    item.appendChild(body);
-
-    list.appendChild(item);
+function _renderBookSpread() {
+  const left = document.getElementById('book-left-page');
+  const right = document.getElementById('book-right-page');
+  const prev = document.getElementById('book-prev-btn');
+  const next = document.getElementById('book-next-btn');
+  const indicator = document.getElementById('book-page-indicator');
+  if (!_bookOpened) {
+    indicator.textContent = '表紙';
+    prev.disabled = true;
+    next.disabled = true;
+    return;
   }
+  const spread = _bookSpreads[_bookSpreadIndex];
+  left.innerHTML = spread?.left ?? '';
+  right.innerHTML = spread?.right ?? '';
+  indicator.textContent = `${_bookSpreadIndex + 1} / ${_bookSpreads.length}`;
+  prev.disabled = _bookSpreadIndex === 0;
+  next.disabled = _bookSpreadIndex >= _bookSpreads.length - 1;
+}
+
+function _openBook({ title, subtitle, mark = '❈', spreads }) {
+  const overlay = document.getElementById('book-viewer-overlay');
+  const viewer = document.getElementById('book-viewer');
+  _bookSpreads = spreads;
+  _bookSpreadIndex = 0;
+  _bookOpened = false;
+  document.getElementById('book-viewer-heading').textContent = title;
+  document.getElementById('book-cover-title').textContent = title;
+  document.getElementById('book-cover-subtitle').textContent = subtitle;
+  document.getElementById('book-cover-mark').textContent = mark;
+  viewer.classList.remove('open');
+  viewer.classList.add('closed');
   overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  _renderBookSpread();
+}
+
+function _closeBook() {
+  const overlay = document.getElementById('book-viewer-overlay');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  _bookOpened = false;
+  _bookSpreads = [];
+}
+
+function openFlowerEncyclopedia() {
+  const state = getState();
+  const discoveredIds = new Set(state.discoveredResources ?? []);
+  const contents = FLOWERS.map((flower, index) => {
+    const discovered = discoveredIds.has(flower.id);
+    return `<li class="${discovered ? '' : 'unknown'}"><span>${discovered ? _bookText(flower.label) : '判読不能'}</span><span>${index + 3}</span></li>`;
+  }).join('');
+  const spreads = [{
+    left: `
+      <div class="book-page-content">
+        <div class="book-eyebrow">THE BOOK OF LOST FLOWERS</div>
+        <h2>花の図鑑</h2>
+        <div class="book-latin">a record of flowers once known</div>
+        <div class="book-copy">この本は、大陸に咲く花々について記したものである。<br>多くの頁は傷み、文字も挿絵も失われている。</div>
+      </div>
+      <span class="book-page-number">1</span>`,
+    right: `
+      <div class="book-page-content">
+        <div class="book-eyebrow">目次</div>
+        <ol class="book-contents">${contents}</ol>
+      </div>
+      <span class="book-page-number">2</span>`,
+  }];
+
+  FLOWERS.forEach((flower, index) => {
+    const discovered = discoveredIds.has(flower.id);
+    const unreadable = discovered ? '' : ' unreadable';
+    const label = _bookText(flower.label);
+    const description = _bookText(flower.desc);
+    const color = _bookText(resColor(flower.id));
+    const page = index * 2 + 3;
+    spreads.push({
+      left: `
+        ${discovered ? '' : '<div class="book-clear-note">まだ読めない</div>'}
+        <div class="book-page-content${unreadable}">
+          <div class="book-eyebrow">植物記録 ／ ${String(index + 1).padStart(2, '0')}</div>
+          <h2>${label}</h2>
+          <div class="book-latin">${_bookText(flower.realFlower)}</div>
+          <div class="book-illustration"><div class="book-flower-glyph" style="--book-flower-color:${color}">❈</div></div>
+        </div>
+        <span class="book-page-number">${page}</span>`,
+      right: `
+        ${discovered ? '' : '<div class="book-clear-note book-mobile-only">まだ読めない</div>'}
+        <div class="book-page-content${unreadable}">
+          <div class="book-mobile-only">
+            <div class="book-eyebrow">植物記録 ／ ${String(index + 1).padStart(2, '0')}</div>
+            <h2>${label}</h2>
+          </div>
+          <div class="book-eyebrow">${label}について</div>
+          <div class="book-copy">${description}。</div>
+        </div>
+        <span class="book-page-number">${page + 1}</span>`,
+    });
+  });
+
+  _openBook({
+    title: '花の図鑑',
+    subtitle: '失われた花々についての記録',
+    spreads,
+  });
 }
 
 function _handleActionComplete(actionId, result) {
@@ -2322,6 +2417,39 @@ function initStoryViewer() {
   document.getElementById('world-chronicle-close').addEventListener('click', () => chronicleOverlay.classList.remove('open'));
   chronicleOverlay.addEventListener('click', e => {
     if (e.target === chronicleOverlay) chronicleOverlay.classList.remove('open');
+  });
+  const bookOverlay = document.getElementById('book-viewer-overlay');
+  const bookViewer = document.getElementById('book-viewer');
+  document.getElementById('book-open-btn').addEventListener('click', () => {
+    _bookOpened = true;
+    bookViewer.classList.remove('closed');
+    bookViewer.classList.add('open');
+    _renderBookSpread();
+  });
+  document.getElementById('book-close-btn').addEventListener('click', _closeBook);
+  document.getElementById('book-prev-btn').addEventListener('click', () => {
+    if (_bookOpened && _bookSpreadIndex > 0) {
+      _bookSpreadIndex--;
+      _renderBookSpread();
+    }
+  });
+  document.getElementById('book-next-btn').addEventListener('click', () => {
+    if (_bookOpened && _bookSpreadIndex < _bookSpreads.length - 1) {
+      _bookSpreadIndex++;
+      _renderBookSpread();
+    }
+  });
+  document.getElementById('book-spread').addEventListener('click', event => {
+    if (!_bookOpened) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const buttonId = event.clientX - rect.left > rect.width / 2 ? 'book-next-btn' : 'book-prev-btn';
+    document.getElementById(buttonId).click();
+  });
+  document.addEventListener('keydown', event => {
+    if (!bookOverlay.classList.contains('open')) return;
+    if (event.key === 'ArrowLeft') document.getElementById('book-prev-btn').click();
+    if (event.key === 'ArrowRight') document.getElementById('book-next-btn').click();
+    if (event.key === 'Escape') _closeBook();
   });
   els.storyOverlay.addEventListener('click', e => {
     if (e.target === els.storyOverlay) closeStory();

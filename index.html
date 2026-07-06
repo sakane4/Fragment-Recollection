@@ -1148,6 +1148,192 @@
       font-size: 0.75rem;
     }
 
+    /* ── 書物ビューア ── */
+    #book-viewer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 220;
+      grid-template-rows: 42px minmax(0, 1fr) 46px;
+      background:
+        radial-gradient(circle at 50% 18%, #1b2137 0, transparent 36%),
+        rgba(4, 5, 10, 0.97);
+      font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+    }
+    #book-viewer-overlay.open { display: grid; }
+    .book-viewer-header,
+    .book-viewer-footer {
+      display: grid;
+      align-items: center;
+      padding: 0 0.9rem;
+      border-color: #24293b;
+      background: rgba(11, 14, 25, 0.93);
+      font-family: "Yu Gothic UI", sans-serif;
+    }
+    .book-viewer-header {
+      grid-template-columns: 1fr auto;
+      border-bottom: 1px solid #24293b;
+    }
+    .book-viewer-title { color: var(--accent); font-size: 0.75rem; letter-spacing: 0.12em; }
+    .book-viewer-stage {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 0;
+      padding: 1rem;
+      perspective: 1500px;
+    }
+    .book-viewer {
+      position: relative;
+      width: min(920px, 92vw);
+      height: min(600px, 72vh);
+      filter: drop-shadow(0 30px 35px rgba(0,0,0,.72));
+      transition: width .5s ease, transform .5s ease;
+    }
+    .book-viewer.closed {
+      width: min(440px, 84vw);
+      transform: rotateY(-7deg) rotateX(2deg);
+    }
+    .book-cover {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid #6b624e;
+      border-radius: 7px 15px 15px 7px;
+      background: linear-gradient(90deg,#202b25 0 17px,#3a493e 18px 22px,#26352c 23px);
+      box-shadow: inset 0 0 0 5px #18221c, inset 0 0 0 7px #8b795044,
+        inset 0 0 80px #0008, 9px 7px 0 #b9ad8c, 13px 10px 0 #655e4e;
+      transform-origin: left center;
+      transition: opacity .35s, transform .65s;
+    }
+    .book-viewer.open .book-cover {
+      opacity: 0;
+      pointer-events: none;
+      transform: rotateY(-155deg);
+    }
+    .book-cover::before {
+      content: "";
+      position: absolute;
+      inset: 24px;
+      border: 1px solid #b7a06966;
+      border-radius: 120px 8px;
+    }
+    .book-cover-center {
+      position: relative;
+      width: 72%;
+      padding: 2.2rem 1rem;
+      text-align: center;
+      border-block: 1px solid #bca56788;
+    }
+    .book-cover-mark { color: #c8b47d; font-size: 2rem; }
+    .book-cover-title { margin-top: 1rem; color: #e0d4ad; font-size: clamp(1.5rem,5vw,2.4rem); letter-spacing: .2em; }
+    .book-cover-subtitle { margin-top: .6rem; color: #9fa58e; font-size: .62rem; letter-spacing: .16em; }
+    #book-open-btn {
+      position: absolute;
+      left: 50%;
+      bottom: 1.7rem;
+      translate: -50% 0;
+      z-index: 7;
+      padding: .45rem 1.4rem;
+      border: 1px solid #a99562;
+      border-radius: 99px;
+      background: rgba(24,35,29,.92);
+      color: #d7c99e;
+      cursor: pointer;
+    }
+    .book-spread {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+      border: 1px solid #2b2923;
+      border-radius: 5px 12px 12px 5px;
+      background: #756d5c;
+      opacity: 0;
+      transition: opacity .4s .2s;
+    }
+    .book-viewer.open .book-spread { opacity: 1; }
+    .book-page {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      padding: clamp(25px,4vw,48px);
+      color: #312e29;
+      background: radial-gradient(circle at 25% 15%,#eee7d4,#d8cfb5 68%,#c7bb9d);
+    }
+    .book-page.right {
+      background: linear-gradient(90deg,#766d5940,transparent 7%),
+        radial-gradient(circle at 75% 15%,#eee7d4,#d8cfb5 68%,#c7bb9d);
+    }
+    .book-page.left::after,.book-page.right::before {
+      content: ""; position: absolute; top: 0; bottom: 0; width: 25px; pointer-events: none; z-index: 2;
+    }
+    .book-page.left::after { right: 0; background: linear-gradient(90deg,transparent,#50493638); }
+    .book-page.right::before { left: 0; background: linear-gradient(90deg,#50493642,transparent); }
+    .book-page-content { height: 100%; transition: filter .7s, opacity .7s; }
+    .book-page-content.unreadable { filter: blur(2.35px); opacity: .72; user-select: none; }
+    .book-page-number { position: absolute; bottom: 1rem; z-index: 4; color: #786f5e; font-size: .62rem; }
+    .left .book-page-number { left: 1.7rem; }
+    .right .book-page-number { right: 1.7rem; }
+    .book-eyebrow { padding-bottom: .45rem; border-bottom: 1px solid #9d917566; color: #786f5e; font-size: .58rem; letter-spacing: .16em; }
+    .book-page h2 { margin: 1.2rem 0 .4rem; color: #312e29; font-size: 1.8rem; font-weight: 500; letter-spacing: .08em; }
+    .book-latin { color: #817663; font-size: .62rem; font-style: italic; letter-spacing: .1em; }
+    .book-copy { margin-top: 1.3rem; color: #6c6558; font-size: .76rem; line-height: 2; }
+    .book-mobile-only { display: none; }
+    .book-illustration { display: grid; place-items: center; min-height: 44%; margin-top: 1rem; }
+    .book-flower-glyph { color: var(--book-flower-color,#78948a); font-size: 6rem; line-height: 1; text-shadow: 3px 5px 4px #695f4942; }
+    .book-contents { margin: 1.1rem 0 0; padding: 0; list-style: none; }
+    .book-contents li { display: grid; grid-template-columns: 1fr auto; gap: .7rem; padding: .55rem 0; border-bottom: 1px dotted #a69a7c; font-size: .72rem; }
+    .book-contents li.unknown { color: #8e8574; filter: blur(.65px); }
+    .book-clear-note {
+      position: absolute;
+      z-index: 4;
+      right: 1.4rem;
+      top: 1.2rem;
+      padding: .45rem .75rem;
+      border: 1px solid #d4ffff75;
+      border-radius: 2px 9px;
+      background: radial-gradient(circle at 25% 15%,#e8ffff6b,transparent 55%),
+        linear-gradient(135deg,#98d9dc42,#dfffff18);
+      color: #425e62;
+      font-family: "Yu Gothic UI", sans-serif;
+      font-size: .58rem;
+      box-shadow: inset 0 0 12px #d9ffff33,0 0 9px #8ee7ed42;
+      backdrop-filter: blur(2px);
+      transform: rotate(-2deg);
+    }
+    .book-viewer-footer {
+      grid-template-columns: 1fr auto 1fr;
+      gap: .7rem;
+      border-top: 1px solid #24293b;
+    }
+    .book-nav { display: flex; align-items: center; gap: .65rem; }
+    .book-nav-btn,#book-close-btn {
+      border: 0;
+      background: transparent;
+      color: #9da4b9;
+      cursor: pointer;
+    }
+    .book-nav-btn { width: 34px; height: 30px; font-size: 1rem; }
+    .book-nav-btn:disabled { opacity: .2; cursor: default; }
+    #book-page-indicator { min-width: 3rem; color: #73798d; font-size: .65rem; text-align: center; }
+    #book-close-btn { justify-self: end; padding: .35rem .7rem; border: 1px solid #30364b; border-radius: 5px; }
+    .book-viewer-hint { color: #4f566b; font-size: .58rem; }
+    @media (max-width:680px) {
+      .book-viewer { width: 94vw; height: 70vh; }
+      .book-viewer.closed { width: min(370px,88vw); }
+      .book-spread { display: block; }
+      .book-page { position: absolute; inset: 0; }
+      .book-page.left { display: none; }
+      .book-page.right { border-radius: 5px; padding: 30px; }
+      .book-mobile-only { display: block; }
+      .book-viewer-hint { visibility: hidden; }
+    }
+
     #story-viewer {
       position: relative;
       width: 100%;
@@ -3129,6 +3315,37 @@
         <button id="world-chronicle-close" type="button" title="閉じる" aria-label="閉じる">✕</button>
       </div>
       <div id="world-chronicle-list"></div>
+    </div>
+  </div>
+
+  <div id="book-viewer-overlay" aria-hidden="true">
+    <div class="book-viewer-header">
+      <div id="book-viewer-heading" class="book-viewer-title"></div>
+    </div>
+    <div class="book-viewer-stage">
+      <section id="book-viewer" class="book-viewer closed">
+        <div id="book-spread" class="book-spread">
+          <article id="book-left-page" class="book-page left"></article>
+          <article id="book-right-page" class="book-page right"></article>
+        </div>
+        <div class="book-cover">
+          <div class="book-cover-center">
+            <div id="book-cover-mark" class="book-cover-mark">❈</div>
+            <div id="book-cover-title" class="book-cover-title"></div>
+            <div id="book-cover-subtitle" class="book-cover-subtitle"></div>
+          </div>
+          <button id="book-open-btn" type="button">本を開く</button>
+        </div>
+      </section>
+    </div>
+    <div class="book-viewer-footer">
+      <div class="book-viewer-hint">頁の左右を押して移動</div>
+      <div class="book-nav">
+        <button id="book-prev-btn" class="book-nav-btn" type="button" aria-label="前の頁">◁</button>
+        <div id="book-page-indicator">表紙</div>
+        <button id="book-next-btn" class="book-nav-btn" type="button" aria-label="次の頁">▷</button>
+      </div>
+      <button id="book-close-btn" type="button">閉じる</button>
     </div>
   </div>
 
