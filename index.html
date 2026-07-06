@@ -112,7 +112,7 @@
     }
     .constellation-editor-preview circle.minor { fill:rgba(210,232,255,.86); }
     .constellation-editor-name-row {
-      display:grid; grid-template-columns:minmax(0,1fr) 74px; gap:8px; align-items:end;
+      display:grid; grid-template-columns:minmax(0,1fr) 96px; gap:8px; align-items:end;
     }
     .constellation-editor-name-field {
       position:relative; height:43px; border-bottom:1px solid #394a67;
@@ -2429,6 +2429,49 @@
       cursor: pointer;
     }
     .equip-popup-item:hover { background: var(--accent-dim); }
+    .constellation-record-popup { z-index: 190; }
+    .constellation-record-popup-inner {
+      width: min(88vw, 380px);
+      max-height: 76vh;
+      overflow-y: auto;
+    }
+    .constellation-record-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .constellation-record-row:last-child { border-bottom: none; }
+    .constellation-record-info { min-width: 0; }
+    .constellation-record-info b {
+      display: block;
+      color: var(--text);
+      font-size: 0.84rem;
+      font-weight: 500;
+    }
+    .constellation-record-info small {
+      display: block;
+      color: var(--muted);
+      font-size: 0.64rem;
+      line-height: 1.45;
+      margin-top: 0.15rem;
+    }
+    .constellation-record-info em {
+      display: block;
+      color: #7187a4;
+      font-size: 0.62rem;
+      font-style: normal;
+      margin-top: 0.18rem;
+    }
+    .constellation-record-delete {
+      color: #d88a8a;
+      white-space: nowrap;
+    }
+
+    .confirm-popup-message {white-space: pre-line;}
+
     .convert-box-wrap {
       display: flex;
       flex-direction: column;

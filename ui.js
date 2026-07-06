@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, deleteCustomConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
@@ -1963,60 +1963,73 @@ function _enterFacility(facility) {
   }));
   if (facility.id === 'starlit_observatory') {
     const task = state.companionTasks?.shizuku;
-    const remainingMinutes = task?.type === 'observatory_research'
-      ? Math.max(1, Math.ceil((task.endsAt - Date.now()) / 60000))
-      : 0;
-    options.push({
-      id: 'research_status',
-      label: '資料調査',
-      type: 'talk',
-      speaker: '研究資料が散らばっている',
-      trigger: state.observatoryResearchDone && !state.observatoryReportRead
-        ? 'observatory_report'
-        : null,
-      getProgress: () => {
-        const currentState = getState();
-        const currentTask = currentState.companionTasks?.shizuku;
-        if (currentTask?.type === 'observatory_research') {
-          return getCompanionTaskProgress('shizuku') ?? 0;
-        }
-        return currentState.observatoryResearchDone ? 1 : 0;
-      },
-      getProgressText: () => {
-        const currentState = getState();
-        const currentTask = currentState.companionTasks?.shizuku;
-        if (currentTask?.type !== 'observatory_research') {
-          return currentState.observatoryResearchDone ? '調査完了' : '待機中';
-        }
-        const remainingSeconds = Math.max(0, Math.ceil((currentTask.endsAt - Date.now()) / 1000));
-        const minutes = Math.floor(remainingSeconds / 60);
-        const seconds = String(remainingSeconds % 60).padStart(2, '0');
-        return `残り ${minutes}:${seconds}`;
-      },
-      dialogue: task?.type === 'observatory_research'
-        ? `「…………」
-        シズクは集中して資料を調べている。`
-        : state.observatoryResearchDone
-          ? '「星と星座の魔法について、分かったことは話した通りだ」'
-          : '「この資料、少し時間をかけて調べてみたい」',
-    });
-    if (state.observatoryReportRead) {
+    const constellationUnlocked = !!state.tericiaConstellationCreated
+      || (state.customConstellations?.length ?? 0) > 0
+      || state.unlockedCompanions?.includes('tericia');
+    if (!state.observatoryReportRead) {
       options.push({
-        id: 'talk_to_girl',
-        label: '少女と話す',
+        id: 'research_status',
+        label: '資料調査',
         type: 'talk',
-        speaker: '少女',
-        dialogue: '少女は、研究資料を大切そうに見つめている。',
+        speaker: '研究資料が散らばっている',
+        trigger: state.observatoryResearchDone
+          ? 'observatory_report'
+          : null,
+        getProgress: () => {
+          const currentState = getState();
+          const currentTask = currentState.companionTasks?.shizuku;
+          if (currentTask?.type === 'observatory_research') {
+            return getCompanionTaskProgress('shizuku') ?? 0;
+          }
+          return currentState.observatoryResearchDone ? 1 : 0;
+        },
+        getProgressText: () => {
+          const currentState = getState();
+          const currentTask = currentState.companionTasks?.shizuku;
+          if (currentTask?.type !== 'observatory_research') {
+            return currentState.observatoryResearchDone ? '調査完了' : '待機中';
+          }
+          const remainingSeconds = Math.max(0, Math.ceil((currentTask.endsAt - Date.now()) / 1000));
+          const minutes = Math.floor(remainingSeconds / 60);
+          const seconds = String(remainingSeconds % 60).padStart(2, '0');
+          return `残り ${minutes}:${seconds}`;
+        },
+        dialogue: task?.type === 'observatory_research'
+          ? `「…………」
+          シズクは集中して資料を調べている。`
+          : state.observatoryResearchDone
+            ? '「星と星座の魔法について、分かったことは話した通りだ」'
+            : '「この資料、少し時間をかけて調べてみたい」',
       });
-    }
-    if (state.tericiaConstellationEditing || state.unlockedCompanions?.includes('tericia')) {
+    } else if (constellationUnlocked) {
       options.push({
         id: 'constellation_editor',
-        label: '星座を編む',
+        label: '星を編む',
         type: 'constellation_editor',
-        icon: actionIconSvg('星座を編む'),
+        icon: actionIconSvg('星を編む'),
         description: '望遠鏡を覗き、星と星を結んで星座を作る。',
       });
+    } else {
+      options.push({
+        id: 'constellation_locked',
+        label: '？？？',
+        type: 'talk',
+        locked: true,
+        speaker: 'まだ使い方の分からない望遠鏡',
+        dialogue: '星の光は、まだ静かに眠っている。',
+        description: '星座の力が目覚めるまでは使えない。',
+      });
+    }
+    if (state.observatoryReportRead) {
+      if (constellationUnlocked) {
+        options.push({
+          id: 'constellation_records',
+          label: '星座を記録する',
+          type: 'constellation_records',
+          icon: actionIconSvg('星座を記録する'),
+          description: '作った星座の記録を確認し、不要な記録を消す。',
+        });
+      }
     }
   }
   if (facility.id === 'nostalgia_flower') {
@@ -2141,6 +2154,7 @@ function _enterFacility(facility) {
       if (option.type === 'world_chronicle') openWorldChronicle();
       if (option.type === 'flower_encyclopedia') openFlowerEncyclopedia();
       if (option.type === 'constellation_editor') openTericiaConstellationEditor();
+      if (option.type === 'constellation_records') openConstellationRecordPopup();
     },
     onTrigger: (trigger) => {
       _onLogStComplete(() => { if (cleanup) { cleanup(); cleanup = null; } });
@@ -2520,7 +2534,10 @@ function openTericiaConstellationEditor(options = {}) {
   const editorOptions = {
     companions:COMPANION_DATA,
     unlocked:state.unlockedCompanions,
-    knownEffectIds:[...new Set((state.customConstellations??[]).map(item=>item.effect?.id).filter(Boolean))],
+    knownEffectIds:[...new Set([
+      ...(state.knownConstellationEffectIds ?? []),
+      ...(state.customConstellations??[]).map(item=>item.effect?.id).filter(Boolean),
+    ])],
     onComplete:(constellation)=>{
       const result=completeTericiaConstellation(constellation);
       if(!result.ok)return;
@@ -2533,6 +2550,69 @@ function openTericiaConstellationEditor(options = {}) {
     editorOptions.lockedId = 'tericia';
   }
   openConstellationEditor(editorOptions);
+}
+
+function openConstellationRecordPopup() {
+  document.querySelector('.constellation-record-popup')?.remove();
+  const popup = document.createElement('div');
+  popup.className = 'equip-popup constellation-record-popup open';
+  const inner = document.createElement('div');
+  inner.className = 'equip-popup-inner constellation-record-popup-inner';
+  const title = document.createElement('div');
+  title.className = 'equip-popup-title';
+  title.textContent = '星座の記録';
+  const list = document.createElement('div');
+  list.className = 'equip-popup-list constellation-record-list';
+  inner.append(title, list);
+  popup.appendChild(inner);
+  document.body.appendChild(popup);
+
+  const close = () => popup.remove();
+  popup.addEventListener('click', (event) => {
+    if (event.target === popup) close();
+  });
+
+  const render = () => {
+    const state = getState();
+    const records = state.customConstellations ?? [];
+    list.innerHTML = '';
+    if (records.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'equip-popup-empty';
+      empty.textContent = 'まだ記録された星座はない';
+      list.appendChild(empty);
+      return;
+    }
+    for (const record of records) {
+      const row = document.createElement('div');
+      row.className = 'constellation-record-row';
+      const names = (record.members ?? []).map(id => COMPANION_DATA[id]?.name ?? id).join('・');
+      const summary = effectSummary(record.effect);
+      const info = document.createElement('div');
+      info.className = 'constellation-record-info';
+      info.innerHTML = `<b>${record.name}</b><small>${record.effect?.name ?? '星座効果'}${summary ? ` — ${summary}` : ''}</small><em>${names}</em>`;
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'equip-popup-item constellation-record-delete';
+      deleteBtn.textContent = '記録';
+      deleteBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        showConfirm(`「${record.name}」を記録しますか？
+          ※この星座は編成に使えなくなります。`, () => {
+          const result = deleteCustomConstellation(record.id);
+          if (result.ok) {
+            addLog(`【星座記録】「${record.name}」を削除した`, true);
+            render();
+            renderCharTab(getState());
+            renderEffectList(getState());
+          }
+        });
+      });
+      row.append(info, deleteBtn);
+      list.appendChild(row);
+    }
+  };
+  render();
 }
 
 function startTericiaVisit() {

@@ -167,6 +167,7 @@ function openConstellationEditor({
     confirmOpen = true;
     const resolvedEffect = resolveConstellationEffect(companionMembers());
     const effectKnown = knownEffects.has(resolvedEffect.id);
+    let effectRevealed = effectKnown;
     modalHost.innerHTML = `
       <div class="constellation-editor-modal-backdrop">
         <section class="constellation-editor-modal" role="dialog" aria-modal="true">
@@ -179,7 +180,7 @@ function openConstellationEditor({
               <small>名前を付ける</small>
               <input maxlength="16" placeholder="星座名" value="${escapeHtml(name)}">
             </label>
-            <button type="button" class="constellation-editor-complete">OK</button>
+            <button type="button" class="constellation-editor-complete">${effectKnown ? 'OK' : '名前を付ける'}</button>
           </div>
           <div class="constellation-editor-effect-space">
             <small>星座の効果</small>
@@ -194,15 +195,34 @@ function openConstellationEditor({
 
     const input = modalHost.querySelector('input');
     const complete = modalHost.querySelector('.constellation-editor-complete');
+    const backButton = modalHost.querySelector('[data-editor-action="back"]');
+    const effectName = modalHost.querySelector('.constellation-editor-effect-space strong');
+    const effectBody = modalHost.querySelector('.constellation-editor-effect-space p');
     complete.disabled = !name.trim();
 
     input.addEventListener('input', () => {
       name = input.value;
       complete.disabled = !name.trim();
     });
-    modalHost.querySelector('[data-editor-action="back"]').addEventListener('click', closeConfirmModal);
+    backButton.addEventListener('click', () => {
+      if (input.disabled) {
+        completeConstellation();
+        return;
+      }
+      closeConfirmModal();
+    });
     complete.addEventListener('click', () => {
       if (complete.disabled) return;
+      if (!effectRevealed) {
+        effectRevealed = true;
+        knownEffects.add(resolvedEffect.id);
+        input.disabled = true;
+        effectName.textContent = resolvedEffect.name;
+        effectBody.textContent = effectSummary(resolvedEffect);
+        complete.textContent = 'OK';
+        backButton.textContent = 'OK';
+        return;
+      }
       completeConstellation();
     });
   }
