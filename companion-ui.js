@@ -12,7 +12,6 @@ const COMPANION_DATA = {
 
 function createCompanionTabRenderer({
   getState,
-  levelTagHtml,
   buildDetail,
   showTabToast,
   changeCompanion,
@@ -35,6 +34,7 @@ function createCompanionTabRenderer({
     const discovered = CONSTELLATIONS.filter(item => state.discoveredConstellations?.includes(item.id));
 
     view.innerHTML = '';
+    view.classList.toggle('lower-section-open', !!openSection);
 
     const chart = createStarChart({
       companions: COMPANION_DATA,
@@ -43,6 +43,13 @@ function createCompanionTabRenderer({
       busy,
       constellations: discovered,
       onToggle: (id, makeActive) => changeCompanion(id, makeActive),
+      inspectMode: openSection === 'records',
+      inspectedId: selectedRecordId,
+      onInspect: (id) => {
+        selectedRecordId = id;
+        renderCharTab(getState());
+        document.getElementById('sub-panel')?.scrollTo({ top: 0, behavior: 'auto' });
+      },
     });
     view.appendChild(chart);
 
@@ -50,11 +57,12 @@ function createCompanionTabRenderer({
     tabs.className = 'companion-lower-tabs';
     tabs.innerHTML = `
       <button type="button" data-section="constellations" class="${openSection === 'constellations' ? 'active' : ''}">発見した星座 <small>${discovered.length}</small></button>
-      <button type="button" data-section="records" class="${openSection === 'records' ? 'active' : ''}">人物記録</button>`;
+      <button type="button" data-section="records" class="${openSection === 'records' ? 'active' : ''}">人物詳細</button>`;
     tabs.querySelectorAll('button').forEach(button => {
       button.addEventListener('click', () => {
         const next = button.dataset.section;
         openSection = openSection === next ? null : next;
+        if (openSection === 'records') selectedRecordId = null;
         const mainPanelWrap = document.getElementById('main-panel-wrap');
         if (openSection) {
           if (mainPanelWrap) mainPanelWrap.style.height = '60px';
@@ -83,24 +91,14 @@ function createCompanionTabRenderer({
       }
       view.appendChild(list);
     } else if (openSection === 'records') {
-      const records = document.createElement('div');
-      records.className = 'companion-record-list companion-lower-content';
-      if (!unlocked.length) records.innerHTML = '<div class="party-empty">まだ誰も記録されていない</div>';
-      for (const id of unlocked) {
-        const data = COMPANION_DATA[id];
-        if (!data) continue;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `companion-record-card${selectedRecordId === id ? ' active' : ''}`;
-        button.innerHTML = `<span class="companion-record-mark">${data.mark}</span><span><b>${data.name}${levelTagHtml(state.ELv?.[id] ?? 0)}</b><small>${data.desc}</small></span>`;
-        button.addEventListener('click', () => {
-          selectedRecordId = selectedRecordId === id ? null : id;
-          renderCharTab(getState());
-        });
-        records.appendChild(button);
-        if (selectedRecordId === id) records.appendChild(buildDetail(id, state));
+      const detailArea = document.createElement('div');
+      detailArea.className = 'companion-record-detail companion-lower-content';
+      if (selectedRecordId && unlocked.includes(selectedRecordId)) {
+        detailArea.appendChild(buildDetail(selectedRecordId, state));
+      } else {
+        detailArea.innerHTML = '<div class="party-empty companion-inspect-hint">星図盤の星、または右側の人物ボタンを選んでください</div>';
       }
-      view.appendChild(records);
+      view.appendChild(detailArea);
     }
 
     if (previousUnlocked !== null) {

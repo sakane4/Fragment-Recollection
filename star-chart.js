@@ -36,9 +36,19 @@ const BACKGROUND_STARS=Array.from({length:520},() => {
 const FUTURE_VECTORS=FUTURE_STARS.map(([lon,lat])=>vector(lon,lat));
 
 
-function createStarChart({ companions, unlocked, active, busy = [], constellations, onToggle }) {
+function createStarChart({
+  companions,
+  unlocked,
+  active,
+  busy = [],
+  constellations,
+  onToggle,
+  inspectMode = false,
+  inspectedId = null,
+  onInspect,
+}) {
   const root=document.createElement('div');
-  root.className='star-chart-layout';
+  root.className=`star-chart-layout${inspectMode?' inspect-mode':''}`;
   root.innerHTML=`
     <section class="star-chart-sky">
       <canvas class="star-chart-canvas"></canvas>
@@ -65,22 +75,26 @@ function createStarChart({ companions, unlocked, active, busy = [], constellatio
     if (!companion || !position) continue;
     const button=document.createElement('button');
     button.type='button';
-    button.className=`star-chart-main-star${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}`;
+    button.className=`star-chart-main-star${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}${inspectedId===id?' inspect-selected':''}`;
     button.dataset.companion=id;
     if(companion.color) button.style.setProperty('--star-color', companion.color);
     button.innerHTML=`<span class="star-chart-light"></span><em class="star-chart-name">${companion.starName ?? companion.name}</em>`;
     button.addEventListener('click',()=>{
       if(Date.now()<suppressStarClickUntil)return;
-      onToggle(id,!active.includes(id));
+      if(inspectMode) onInspect?.(id);
+      else onToggle(id,!active.includes(id));
     });
     starsLayer.appendChild(button);
 
     const railButton=document.createElement('button');
     railButton.type='button';
-    railButton.className=`star-chart-rail-person${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}`;
+    railButton.className=`star-chart-rail-person${active.includes(id)?' active':''}${busy.includes(id)?' busy':''}${inspectedId===id?' inspect-selected':''}`;
     railButton.dataset.companion=id;
     railButton.innerHTML=`<span>${companion.mark??'✦'}</span><small>${companion.name}</small>`;
-    railButton.addEventListener('click',()=>onToggle(id,!active.includes(id)));
+    railButton.addEventListener('click',()=>{
+      if(inspectMode) onInspect?.(id);
+      else onToggle(id,!active.includes(id));
+    });
     rail.appendChild(railButton);
   }
   for(let index=unlocked.filter(id=>companions[id]&&STAR_POSITIONS[id]).length;index<5;index+=1){
@@ -185,25 +199,16 @@ function createStarChart({ companions, unlocked, active, busy = [], constellatio
     else {const point=[...pointers.values()][0];gesture={type:'pan',x:point.x,y:point.y,yaw:view.yaw,pitch:view.pitch,moved:true};}
   }
   sky.addEventListener('pointerup',finish);sky.addEventListener('pointercancel',finish);
-  const subPanel=document.getElementById('sub-panel');
   if(globalThis.ResizeObserver){
     const canvasObserver=new ResizeObserver(()=>{
       if(!root.isConnected){canvasObserver.disconnect();return;}
+      const available=Math.max(64,root.clientHeight);
+      root.classList.toggle('compact',available<180);
+      root.classList.toggle('ultra-compact',available<105);
       draw();
     });
     canvasObserver.observe(canvas);
-
-    if(subPanel){
-      const panelObserver=new ResizeObserver(()=>{
-        if(!root.isConnected){panelObserver.disconnect();return;}
-        const available=Math.max(64,Math.min(269,subPanel.clientHeight-24));
-        root.style.setProperty('--star-chart-height',`${available}px`);
-        root.classList.toggle('compact',available<180);
-        root.classList.toggle('ultra-compact',available<105);
-        draw();
-      });
-      panelObserver.observe(subPanel);
-    }
+    canvasObserver.observe(root);
   }
   return root;
 }

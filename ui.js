@@ -110,10 +110,6 @@ function computeRevealedPages(pages, unlockedParas) {
   return revealedPages;
 }
 
-function companionLvTagHtml(level) {
-  return level > 0 ? ` <span class="companion-lv">Lv ${level}</span>` : '';
-}
-
 // ── ユーティリティ ──
 function placeNameHtml(label) {
   return `<span class="place-name">${label}</span>`;
@@ -3205,19 +3201,6 @@ function openConvertPopup(companionId) {
 }
 
 // キャラ詳細パネル用タブアイコン(暫定の線画アイコン)
-const _DETAIL_TAB_ICONS = {
-  profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="1.5"/><line x1="7.5" y1="8.5" x2="16.5" y2="8.5"/><line x1="7.5" y1="12" x2="16.5" y2="12"/><line x1="7.5" y1="15.5" x2="13" y2="15.5"/></svg>',
-  items:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="9" width="14" height="11" rx="2"/><path d="M9 9 V6.5 a3 3 0 0 1 6 0 V9"/></svg>',
-  level:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 4 L14.5 9.5 L20.5 10.2 L16 14.2 L17.2 20 L12 17 L6.8 20 L8 14.2 L3.5 10.2 L9.5 9.5 Z"/></svg>',
-  memory:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5 C6 4.5 9 4.5 11 5.5 V18.5 C9 17.5 6 17.5 4 18.5 Z"/><path d="M20 5.5 C18 4.5 15 4.5 13 5.5 V18.5 C15 17.5 18 17.5 20 18.5 Z"/></svg>',
-};
-const _DETAIL_TABS = [
-  { id: 'profile', label: 'プロフィール' },
-  { id: 'items',   label: '持ち物' },
-  { id: 'level',   label: 'レベル・異能' },
-  { id: 'memory',  label: '記憶' },
-];
-const _companionDetailTab = new Map();
 const _companionTaskTickers = new Map();
 
 function _buildCompanionDetailProfile(id, state) {
@@ -3484,86 +3467,28 @@ function _buildCompanionDetailMemory(id, state) {
   return wrap;
 }
 
-const _DETAIL_TAB_BUILDERS = {
-  profile: _buildCompanionDetailProfile,
-  items: _buildCompanionDetailItems,
-  level: _buildCompanionDetailLevel,
-  memory: _buildCompanionDetailMemory,
-};
-
-// キャラ詳細パネル: 左にタブアイコン、右に選択中タブの内容を表示
 function _buildCompanionDetail(id, state) {
   const detail = document.createElement('div');
   detail.className = 'companion-detail';
 
-  const activeTab = _companionDetailTab.get(id) ?? 'profile';
-
-  const nav = document.createElement('div');
-  nav.className = 'companion-detail-nav';
-  for (const tab of _DETAIL_TABS) {
-    const btn = document.createElement('button');
-    btn.className = 'companion-detail-nav-btn' + (tab.id === activeTab ? ' active' : '');
-    btn.innerHTML = _DETAIL_TAB_ICONS[tab.id];
-    btn.title = tab.label;
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      _companionDetailTab.set(id, tab.id);
-      renderCharTab(getState());
-    });
-    nav.appendChild(btn);
-  }
-  detail.appendChild(nav);
-
   const content = document.createElement('div');
   content.className = 'companion-detail-content';
-  content.appendChild(_DETAIL_TAB_BUILDERS[activeTab](id, state));
-  _attachSwipeTabHandlers(content, id, activeTab);
+  const groups = [
+    _buildCompanionDetailProfile(id, state),
+    _buildCompanionDetailItems(id, state),
+    _buildCompanionDetailLevel(id, state),
+    _buildCompanionDetailMemory(id, state),
+  ];
+  for (const group of groups) {
+    while (group.firstChild) content.appendChild(group.firstChild);
+  }
   detail.appendChild(content);
 
   return detail;
 }
 
-// サブパネル(プロフィール/持ち物/レベル・異能/記憶)を横フリックで切り替える
-const _SWIPE_MOVE_THRESHOLD = 40;
-
-function _attachSwipeTabHandlers(content, companionId, activeTab) {
-  let startX = 0, startY = 0;
-  let lastX = 0, lastY = 0;
-  let tracking = false;
-
-  function finish() {
-    if (!tracking) return;
-    tracking = false;
-    const dx = lastX - startX;
-    const dy = lastY - startY;
-    if (Math.abs(dx) < _SWIPE_MOVE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
-    const idx = _DETAIL_TABS.findIndex(t => t.id === activeTab);
-    const nextIdx = dx < 0 ? idx + 1 : idx - 1;
-    if (nextIdx < 0 || nextIdx >= _DETAIL_TABS.length) return;
-    _companionDetailTab.set(companionId, _DETAIL_TABS[nextIdx].id);
-    renderCharTab(getState());
-  }
-
-  content.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('button, input')) return;
-    startX = lastX = e.clientX;
-    startY = lastY = e.clientY;
-    tracking = true;
-  });
-
-  content.addEventListener('pointermove', (e) => {
-    if (!tracking) return;
-    lastX = e.clientX;
-    lastY = e.clientY;
-  });
-
-  content.addEventListener('pointerup', finish);
-  content.addEventListener('pointercancel', finish);
-}
-
 const renderCharTab = createCompanionTabRenderer({
   getState,
-  levelTagHtml: companionLvTagHtml,
   buildDetail: _buildCompanionDetail,
   showTabToast,
   changeCompanion: _changeCompanionFromChart,
