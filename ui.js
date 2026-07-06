@@ -1019,6 +1019,9 @@ function renderEffectList(state) {
   if (restBuffStacks > 0) {
     effects.push(`【宿屋】報酬2倍 — 残り${restBuffStacks}回分`);
   }
+  if ((state.activeCompanions ?? []).length > 0) {
+    effects.push('【同行】フラグメント×2 — 仲間が同行中');
+  }
 
   document.getElementById('effect-tab-btn')?.classList.toggle('glow', effects.length > 0);
 
@@ -2369,6 +2372,13 @@ function _handleActionComplete(actionId, result) {
     const next = WORLD_LV_THRESHOLDS[worldLvUp];
     const nextStr = next != null ? `（次: ${next}lg）` : '（最大）';
     addLog(`【世界】worldLv が ${worldLvUp} になった ${nextStr}`, true);
+    if (worldLvUp === 1) {
+      addTutorialLog(
+        'world-lv-1',
+        '世界の再生',
+        'フラグメントを集めると、記憶を取り戻し、世界を再生することができます。worldLvは、世界再生の指標です。また、フラグメントを使って、各場所の再生Lvをあげることができます。',
+      );
+    }
   }
 
   if (discovered.some(item => item.type === 'action' && item.id === 'nostalgia_flower')) {

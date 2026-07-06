@@ -148,6 +148,8 @@ function showActionGuide() {
 // [title: タイトル]    → { type: 'title', text: 'タイトル' }
 // [name_input]         → { type: 'name_input' }
 // [end: ラベル]        → { type: 'end_button', label: 'ラベル' }
+// [fadeTitle: A → B]   → { type: 'fade_title', from: 'A', to: 'B' }(Aを表示→フェードアウト→Bにフェードイン。
+//                          記憶ビューアの真タイトル復元と同じ1秒フェードアウト/1秒フェードイン)
 // ${name} を含む行     → { type: 'text', text: (name) => `...` }
 // それ以外の行         → { type: 'text', text: '...' }
 function parseScript(src) {
@@ -163,6 +165,8 @@ function parseScript(src) {
       if (endMatch) return { type: 'end_button', label: endMatch[1] };
       const btnMatch = line.match(/^\[button:\s*(.+)\]$/);
       if (btnMatch) return { type: 'advance_button', label: btnMatch[1] };
+      const fadeTitleMatch = line.match(/^\[fadeTitle:\s*(.+?)\s*→\s*(.+)\]$/);
+      if (fadeTitleMatch) return { type: 'fade_title', from: fadeTitleMatch[1], to: fadeTitleMatch[2] };
       if (line.includes('${name}')) return { type: 'text', text: (name) => line.replace(/\$\{name\}/g, name) };
       return { type: 'text', text: line };
     });
@@ -300,6 +304,22 @@ function runLogSt(steps, mainPanel, { onNameDecided, onComplete, initialName = '
       });
       wrap.appendChild(btn);
       mainPanel.scrollTop = mainPanel.scrollHeight;
+
+    } else if (step.type === 'fade_title') {
+      currentTw = null;
+      const el = addEntry();
+      el.classList.add('story-log-fade-title');
+      el.textContent = step.from;
+      stepIndex++;
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => {
+          el.textContent = step.to;
+          el.style.opacity = '1';
+          waitingForTap = true;
+          showTapIndicator();
+        }, 1000);
+      }, 1400);
 
     } else if (step.type === 'end_button') {
       currentTw = null;
@@ -995,12 +1015,12 @@ function runFacilityMenu(mainPanel, {
 // ── ノスタルジア発見シーン ──
 // 「再生された世界」が「ノスタルジア」へと変化する瞬間の演出
 const NOSTALGIA_DISCOVERY_STEPS = parseScript(`
-[title: ノスタルジア]
+[title: 空間変異]
 （仮）気がつくと、街の輪郭が滲んでいた。
 （仮）ここはどこだろう。なにもなかったはずなのに。
 （仮）石畳。路地。明かりのない窓。
 （仮）まるで、誰かがここにいたことを、世界が覚えているようだ。
-（仮）―― ノスタルジア。
+[fadeTitle: 再生された世界 → 宵闇の都　ノスタルジア]
 [end: 先へ進む]
 `);
 

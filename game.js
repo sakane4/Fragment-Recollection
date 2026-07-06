@@ -106,8 +106,8 @@ function resolveTable(tableNameOrArray, locationId, actionId) {
 const LOCATION_DEFS = [
   {
     id: 'nostalgia',
-    label: 'ノスタルジア',
-    description: '宵闇の都　ノスタルジア。静かな街だ。',
+    label: '宵闇の都　ノスタルジア',
+    description: '失われた記憶や存在があつまってできた都。',
     // 拠点エリア。探索を進める(ActionLvが上がる)ごとに施設をランダムな順で発見する。
     // 4施設(宿屋/花屋/図書館/骨董屋)は通常の行動ではなく「施設」(FACILITIES参照)。
     // 入店するとメインパネルに専用メニューが開き、そこから個別の行動(下記)や買い物を選ぶ
@@ -115,7 +115,7 @@ const LOCATION_DEFS = [
       {
         id: 'nostalgia_explore',
         label: '探索',
-        description: 'ノスタルジアの街を歩き回る。',
+        description: 'ノスタルジアの街を歩く。',
         duration: 15000,
         rewardTable: 'fragment_fixed',
         rewardTableRandom: ['fragment_random', 'nostalgia_coin_random', 'nostalgia_rumor_random', 'observatory_rumor_random', 'chronicle_record_random'],
@@ -128,7 +128,7 @@ const LOCATION_DEFS = [
       {
         id: 'nostalgia_inn_rest',
         label: '休む',
-        description: '旅の宿でゆっくり休む。(30分かかるが、完了後しばらく報酬が2倍になる)',
+        description: '旅の宿でゆっくり休む。',
         duration: 1800000,
         rewardTable: 'fragment_fixed',
         rewardTableRandom: 'fragment_random',
@@ -166,7 +166,7 @@ const LOCATION_DEFS = [
   {
     id: 'wherever',
     label: '再生された世界',
-    description: 'なにもない世界。ここから、すべてははじまる。',
+    description: 'なにもない世界。星空だけが、果てなくひろがっている。',
     actions: [
       {
         id: 'explore',
@@ -292,13 +292,13 @@ const LOCATION_DEFS = [
   },
   {
     id: 'knights',
-    label: '王立騎士団本部',
-    description: '規律と鋼の気配。騎士たちが行き交う本部。',
+    label: '王立機兵都市 アルタイル',
+    description: '王立機兵軍の兵たちの拠点。',
     actions: [
       {
         id: 'knights_explore',
         label: '探索',
-        description: '騎士団本部のまわりを調べる。',
+        description: '騎士団本部を調べる。',
         duration: 20000,
         rewardTable: 'fragment_fixed',
         rewardTableRandom: 'chronicle_record_random',
@@ -325,8 +325,9 @@ for (const loc of LOCATION_DEFS) {
   }
 }
 
-// レベル系コスト・閾値の共通計算式（n段目→n+1段目に必要な量。LocationLv/worldLvで共用）
-const _levelCostFormula = (n) => 50 * (n * n + n + 1);
+// LocationLvのn段目→n+1段目に必要なフラグメント量。worldLvキャップ撤廃(続き10)により、
+// このコスト自体が唯一のペース制御になったため、係数を50→100に引き上げて序盤の伸びを緩やかにした
+const _levelCostFormula = (n) => 100 * (n * n + n + 1);
 
 // 場所レベルシステム
 // LOCATION_LV_MAX=25は仮の上限(将来伸ばす可能性がある)。コスト自体は配列で区切らず、
@@ -347,13 +348,16 @@ function getLocationLvCost(locationId, lv) {
 }
 
 // ── 場所発見スケジュール ──
-// ログストーリー004以降、再生された世界(wherever)のLocationLvが各ステップの閾値に達すると発見イベントが起きる。
-// ステップ: 0=Lv3 序盤2択 / 1=Lv5 塔都(固定) / 2=Lv6 序盤の残り＋終盤の1/2抽選 / 3=Lv7 残り2つ / 4=Lv8 残り1つ
-// キャラはテーマで場所に固定: 旧校舎→シズク, レンリル→カオル, メフィスト→ユキカ, 騎士団本部→ラビ
-const DISCOVERY_EARLY = ['kyusha', 'renril'];
-const DISCOVERY_LATE = ['mephisto', 'knights'];
-const DISCOVERY_CHAR_LOCATIONS = [...DISCOVERY_EARLY, ...DISCOVERY_LATE];
-const DISCOVERY_STEP_LV = [3, 5, 6, 7, 8];
+// 2026-07-07修正: 雪架(メフィスト)はストーリー上の理由で今回の流れから除外(加入時期は未定、後日折を見て
+// 別途追加)。同行者3人(シズク/カオル/ラビ)の加入ペースを上げるため、ノスタルジア発見より前に1箇所目の
+// 同行者ロケーションを出す構成に変更(試験的な数値、様子を見て調整する)。
+// ステップ0(Lv2, wherever基準): 残り3箇所から2択で1箇所発見
+// ステップ1(Lv3, wherever基準): ノスタルジア発見(固定)
+// ステップ2(Lv4, nostalgia基準): 残りから1箇所発見(候補が1つならそのまま固定解放)
+// ステップ3(Lv5, nostalgia基準): 最後の1箇所を固定解放
+// キャラはテーマで場所に固定: 旧校舎→シズク, レンリル→カオル, 騎士団本部→ラビ
+const DISCOVERY_CHAR_LOCATIONS = ['kyusha', 'renril', 'knights'];
+const DISCOVERY_STEP_LV = [2, 3, 4, 5];
 const DISCOVERY_LABELS = {
   kyusha:   '黄昏の旧校舎',
   renril:   '翼竜の都 レンリル',
@@ -376,14 +380,13 @@ const NOSTALGIA_FACILITIES = ['nostalgia_inn', 'nostalgia_flower', 'nostalgia_li
 // 指定ステップで提示する選択肢（まだ解放していない場所IDの配列）
 function getDiscoveryOptions(state, step) {
   const unlocked = state.unlockedLocations ?? [];
-  const remaining = (ids) => ids.filter(id => !unlocked.includes(id));
-  if (step === 0) return remaining(DISCOVERY_EARLY);
-  if (step === 2) {
-    const earlyLeft = remaining(DISCOVERY_EARLY);
-    const late = state.discoveryLatePick ? remaining([state.discoveryLatePick]) : [];
-    return [...earlyLeft, ...late];
+  const pool = DISCOVERY_CHAR_LOCATIONS.filter(id => !unlocked.includes(id));
+  if (step === 0 && pool.length > 2) {
+    // 3箇所から2択(残り1つは後のステップで自動的に出てくる)
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 2);
   }
-  return remaining(DISCOVERY_CHAR_LOCATIONS); // step 3, 4
+  return pool;
 }
 
 // いま発生すべき発見イベントを返す。なければ null
@@ -391,14 +394,15 @@ function getDiscoveryOptions(state, step) {
 function getPendingDiscovery(state) {
   const step = state.discoveryStep ?? 0;
   if (step >= DISCOVERY_STEP_LV.length) return null;
-  // step0(nostalgia)はlogSt4不要、step1以降はlogSt4完了後のみ
-  if (step > 0 && !state.logSt4Done) return null;
-  // step0はwhereverのLvで判定、step1以降はnostalgiaのLvで判定
-  const baseLoc = step === 0 ? 'wherever' : 'nostalgia';
+  // step0/1(ノスタルジア発見まで)はlogSt4不要、step2以降はlogSt4完了後のみ
+  if (step >= 2 && !state.logSt4Done) return null;
+  // step0/1はwhereverのLvで判定(ノスタルジアがまだ無いため)、step2以降はnostalgiaのLvで判定
+  const baseLoc = step <= 1 ? 'wherever' : 'nostalgia';
   if ((state.LocationLv?.[baseLoc] ?? 0) < DISCOVERY_STEP_LV[step]) return null;
-  if (step === 0) return { step, kind: 'fixed', locationId: 'nostalgia' };
+  if (step === 1) return { step, kind: 'fixed', locationId: 'nostalgia' };
   const options = getDiscoveryOptions(state, step);
   if (options.length === 0) return null;
+  if (options.length === 1) return { step, kind: 'fixed', locationId: options[0] };
   return { step, kind: 'choice', options };
 }
 
@@ -411,14 +415,11 @@ function resolveDiscovery(chosenLocationId) {
     : [...state.unlockedLocations, chosenLocationId];
   const newActions = [...state.unlockedActions];
   for (const a of actions) if (!newActions.includes(a)) newActions.push(a);
-  // step1以降の終盤場所抽選（旧step1→現step1: 序盤2択解決時）
-  let latePick = state.discoveryLatePick;
-  if (step === 1 && !latePick) latePick = DISCOVERY_LATE[Math.random() < 0.5 ? 0 : 1];
   // このロケーションが解放された時点の再生Lv(=このステップの閾値)を、LocationLvコスト換算の
   // オフセットとして記録する(_locationLvCostOffset参照)
   const newDiscoveryLv = { ...state.locationDiscoveryLv };
   if (newDiscoveryLv[chosenLocationId] == null) newDiscoveryLv[chosenLocationId] = DISCOVERY_STEP_LV[step] ?? 0;
-  // nostalgia発見時(step0)：whereverのLocationLvを引き継いで開始
+  // nostalgia発見時：whereverのLocationLvを引き継いで開始
   const newLocationLv = { ...state.LocationLv };
   if (chosenLocationId === 'nostalgia' && newLocationLv['nostalgia'] == null) {
     newLocationLv['nostalgia'] = newLocationLv['wherever'] ?? 0;
@@ -428,7 +429,6 @@ function resolveDiscovery(chosenLocationId) {
     unlockedLocations: newLocations,
     unlockedActions: newActions,
     discoveryStep: step + 1,
-    discoveryLatePick: latePick,
     locationDiscoveryLv: newDiscoveryLv,
     LocationLv: newLocationLv,
   };
@@ -816,7 +816,6 @@ const INITIAL_STATE = {
   actionCount: {},
   ActionLv: {},
   discoveryStep: 0,
-  discoveryLatePick: null,
   locationDiscoveryLv: {},
   nostalgiaFacilityOrder: null,
   companionTasks: {},
@@ -1341,7 +1340,9 @@ function completeAction(actionId, onComplete) {
   const newResources = { ...state.resources };
   // 宿屋の休息バフ: 残っていれば1スタック消費して報酬2倍(このactionId自身が休息で新たに付与する分は対象外)
   const hadRestBuff = (state.restBuffStacks ?? 0) > 0;
-  const multiplier = hadRestBuff ? 2 : 1;
+  // 同行ボーナス: 同行者が1人でもいれば固定報酬2倍(星座導入時に一度廃止したが、序盤の同行motivationとして復活)
+  const hasCompanionBonus = (state.activeCompanions?.length ?? 0) > 0;
+  const multiplier = (hadRestBuff ? 2 : 1) * (hasCompanionBonus ? 2 : 1);
   const allRewards = [...resolveTable(action.rewardTable, action.locationId, action.id), ...(action.rewards ?? [])];
   const appliedRewards = [];
   let fragmentsGained = 0;
@@ -1413,7 +1414,8 @@ function completeAction(actionId, onComplete) {
     unlockedActions: newActions,
     discoveredResources: newDiscovered,
     restBuffStacks: newRestBuffStacks,
-    effectsUnlocked: state.effectsUnlocked || actionId === 'nostalgia_inn_rest',
+    // 同行ボーナス復活により宿屋を使う前から効果が発生しうるため、同行者がいる時点でも解放する
+    effectsUnlocked: state.effectsUnlocked || actionId === 'nostalgia_inn_rest' || hasCompanionBonus,
   };
   const prevLv = state.worldLv;
   if (fragmentsGained > 0) _addTotalFragments(fragmentsGained);
@@ -1653,7 +1655,6 @@ function init() {
     actionCount: saved.actionCount ?? INITIAL_STATE.actionCount,
     ActionLv: saved.ActionLv ?? INITIAL_STATE.ActionLv,
     discoveryStep: saved.discoveryStep ?? INITIAL_STATE.discoveryStep,
-    discoveryLatePick: saved.discoveryLatePick ?? INITIAL_STATE.discoveryLatePick,
     locationDiscoveryLv: saved.locationDiscoveryLv ?? INITIAL_STATE.locationDiscoveryLv,
     nostalgiaFacilityOrder: saved.nostalgiaFacilityOrder ?? INITIAL_STATE.nostalgiaFacilityOrder,
     companionTasks: saved.companionTasks ?? INITIAL_STATE.companionTasks,
@@ -1839,9 +1840,11 @@ function revealStoryTitle(storyId) {
   notify();
 }
 
-// LocationLvの上限。worldLvが天井になる（worldLv0なら0、最大はLOCATION_LV_MAX=5）
+// LocationLvの上限。以前はworldLvが天井だったが、worldLvもLocationLvのコストも結局は
+// フラグメント総量という同じ指標から決まるため、二重にブレーキをかけているだけで
+// 意味のある制御になっていなかった(相談の結果、廃止)。上限はLOCATION_LV_MAX(場所ごとの最大Lv)のみ
 function getLocationLvCap() {
-  return Math.min(LOCATION_LV_MAX, state.worldLv);
+  return LOCATION_LV_MAX;
 }
 
 function levelUpLocation(locationId, prepaid = 0, { silent = false } = {}) {

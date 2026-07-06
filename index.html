@@ -93,14 +93,15 @@
       height: 100%;
     }
 
-    /* ── 導きパネル(スライドオーバーレイ) ── */
-    #guide-panel {
+    /* ── サイドパネル共通(導き/効果/依頼で共有。パネルごとの差分はアクセントカラーとtab-btnのtopのみ) ── */
+    #main-panel-wrap {
+      --tab-h: clamp(18px, calc((var(--panel-h, 300px) - 20px) / 3), 64px);
+    }
+    .side-panel {
       position: absolute;
       top: 0; right: 0; bottom: 0;
-      width: 82%;
-      max-width: 320px;
+      width: 75%;
       background: var(--panel);
-      border-left: 1px solid var(--border);
       box-shadow: -6px 0 16px rgba(0,0,0,0.4);
       transform: translateX(100%);
       transition: transform 0.3s ease;
@@ -108,9 +109,9 @@
       display: flex;
       flex-direction: column;
     }
-    #guide-panel.open { transform: translateX(0); }
-    #guide-panel.hidden { display: none; }
-    #guide-panel-inner {
+    .side-panel.open { transform: translateX(0); }
+    .side-panel.hidden { display: none; }
+    .side-panel-inner {
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -118,24 +119,43 @@
       gap: 0.5rem;
       overflow-y: auto;
     }
-    #main-panel-wrap {
-      --tab-h: clamp(18px, calc((var(--panel-h, 300px) - 20px) / 3), 64px);
+    .side-panel-header {
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
     }
-    #guide-tab-btn {
+    .side-panel-tab {
       position: absolute;
-      top: 4px;
       left: -28px;
       width: 28px;
       height: var(--tab-h);
-      background: rgba(126, 200, 216, 0.14);
-      border: 1px solid rgba(126, 200, 216, 0.5);
       border-right: none;
       border-radius: 8px 0 0 8px;
-      color: var(--accent);
       writing-mode: vertical-rl;
       letter-spacing: 0.1em;
       font-size: 0.78rem;
       cursor: pointer;
+    }
+    /* いずれかのサイドパネルを開いた時は、開いているパネル自身のタブだけを残す */
+    #main-panel-wrap.side-panel-open .side-panel-tab { display: none; }
+    #main-panel-wrap.side-panel-open .side-panel.open .side-panel-tab { display: block; }
+    #main-panel-wrap.compact-side-tabs .side-panel-tab {
+      padding: 0;
+      writing-mode: horizontal-tb;
+      letter-spacing: 0;
+      font-size: 0.55rem;
+      line-height: var(--tab-h);
+    }
+
+    /* ── 導きパネル(スライドオーバーレイ) ── */
+    #guide-panel { border-left: 1px solid var(--border); }
+    #guide-panel-header { color: var(--accent); }
+    #guide-tab-btn {
+      top: calc(var(--tab-h) + 8px);
+      background: rgba(126, 200, 216, 0.14);
+      border: 1px solid rgba(126, 200, 216, 0.5);
+      color: var(--accent);
     }
     /* 導きの内容が更新されたとき、タブを発光させて気づかせる */
     #guide-tab-btn.glow {
@@ -144,13 +164,6 @@
     @keyframes guide-glow {
       0%, 100% { box-shadow: -2px 0 4px rgba(126,200,216,0.3); }
       50%      { box-shadow: -2px 0 16px 4px var(--accent); }
-    }
-    #guide-panel-header {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--accent);
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0.4rem;
     }
     .guide-hint-item {
       font-size: 0.8rem;
@@ -162,45 +175,13 @@
     .guide-hint-item:last-child { border-bottom: none; }
 
     /* ── 効果パネル(導きパネルと同じ仕組み、タブは下に並べる) ── */
-    #effect-panel {
-      position: absolute;
-      top: 0; right: 0; bottom: 0;
-      width: 82%;
-      max-width: 320px;
-      background: var(--panel);
-      border-left: 1px solid rgba(61, 220, 132, 0.45);
-      box-shadow: -6px 0 16px rgba(0,0,0,0.4);
-      transform: translateX(100%);
-      transition: transform 0.3s ease;
-      z-index: 5;
-      display: flex;
-      flex-direction: column;
-    }
-    #effect-panel.open { transform: translateX(0); }
-    #effect-panel.hidden { display: none; }
-    #effect-panel-inner {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 0.7rem;
-      gap: 0.5rem;
-      overflow-y: auto;
-    }
+    #effect-panel { border-left: 1px solid rgba(61, 220, 132, 0.45); }
+    #effect-panel-header { color: #6fe3a0; }
     #effect-tab-btn {
-      position: absolute;
-      top: calc(var(--tab-h) * 2 + 16px);
-      left: -28px;
-      width: 28px;
-      height: var(--tab-h);
+      top: 4px;
       background: rgba(61, 220, 132, 0.16);
       border: 1px solid rgba(61, 220, 132, 0.45);
-      border-right: none;
-      border-radius: 8px 0 0 8px;
       color: #6fe3a0;
-      writing-mode: vertical-rl;
-      letter-spacing: 0.1em;
-      font-size: 0.78rem;
-      cursor: pointer;
     }
     /* 効果が発動中はタブを発光させる */
     #effect-tab-btn.glow {
@@ -209,16 +190,6 @@
     @keyframes effect-glow {
       0%, 100% { box-shadow: -1px 0 3px rgba(61,220,132,0.2); }
       50%      { box-shadow: -2px 0 8px 1px rgba(61,220,132,0.5); }
-    }
-    /* いずれかのサイドパネルを開いた時は、開いているパネル自身のタブだけを残す */
-    #main-panel-wrap.side-panel-open .side-panel-tab { display: none; }
-    #main-panel-wrap.side-panel-open .side-panel.open .side-panel-tab { display: block; }
-    #effect-panel-header {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #6fe3a0;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0.4rem;
     }
     .effect-item {
       font-size: 0.8rem;
@@ -236,45 +207,15 @@
 
     /* ── 依頼パネル ── */
     #quest-panel {
-      position: absolute;
-      top: 0; right: 0; bottom: 0;
-      width: 82%;
-      max-width: 320px;
       font-family: 'KokuGL', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
-      background: var(--panel);
       border-left: 1px solid rgba(232, 192, 122, 0.5);
-      box-shadow: -6px 0 16px rgba(0,0,0,0.4);
-      transform: translateX(100%);
-      transition: transform 0.3s ease;
-      z-index: 5;
-      display: flex;
-      flex-direction: column;
     }
-    #quest-panel.open { transform: translateX(0); }
-    #quest-panel.hidden { display: none; }
-    #quest-panel-inner {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 0.7rem;
-      gap: 0.5rem;
-      overflow-y: auto;
-    }
+    #quest-panel-header { color: #e8c07a; }
     #quest-tab-btn {
-      position: absolute;
-      top: calc(var(--tab-h) + 8px);
-      left: -28px;
-      width: 28px;
-      height: var(--tab-h);
+      top: calc(var(--tab-h) * 2 + 16px);
       background: rgba(232, 192, 122, 0.14);
       border: 1px solid rgba(232, 192, 122, 0.5);
-      border-right: none;
-      border-radius: 8px 0 0 8px;
       color: #e8c07a;
-      writing-mode: vertical-rl;
-      letter-spacing: 0.1em;
-      font-size: 0.78rem;
-      cursor: pointer;
     }
     #quest-tab-btn.glow,
     #quest-tab-btn.ready {
@@ -283,20 +224,6 @@
     @keyframes quest-glow {
       0%, 100% { box-shadow: -1px 0 4px rgba(232,192,122,0.25); }
       50%      { box-shadow: -2px 0 12px 2px rgba(232,192,122,0.65); }
-    }
-    #main-panel-wrap.compact-side-tabs .side-panel-tab {
-      padding: 0;
-      writing-mode: horizontal-tb;
-      letter-spacing: 0;
-      font-size: 0.55rem;
-      line-height: var(--tab-h);
-    }
-    #quest-panel-header {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #e8c07a;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0.4rem;
     }
     #quest-filter {
       display: grid;
@@ -927,6 +854,14 @@
       font-family: 'BIZ UDPMincho', 'Shippori Mincho', 'Hiragino Mincho ProN', serif;
       font-weight: 400;
       letter-spacing: 0;
+    }
+    /* ログ本文中に出てくる地名・行動名は、システムUIのフォントに切り替えず周囲の文章と揃える
+       (視認性優先。一覧・見出し側の見た目はそのまま) */
+    .log-entry .place-name,
+    .log-entry .action-name {
+      font-family: inherit;
+      font-weight: inherit;
+      letter-spacing: inherit;
     }
 
     .action-rows {
@@ -1835,6 +1770,15 @@
     }
     .story-log.story-log-title.line-drawn::after {
       transform: scaleX(1);
+    }
+    /* 記憶ビューアの真タイトル復元と同じ、1秒フェードアウト→1秒フェードインの文字入れ替え演出 */
+    .story-log.story-log-fade-title {
+      text-align: center;
+      color: var(--accent);
+      font-size: 0.95rem;
+      letter-spacing: 0.1em;
+      border-left: 0;
+      transition: opacity 1s;
     }
 
     .story-tap-indicator {
@@ -3206,22 +3150,22 @@
     </div>
     <div id="guide-panel" class="side-panel hidden">
       <button id="guide-tab-btn" class="side-panel-tab">導き</button>
-      <div id="guide-panel-inner">
-        <div id="guide-panel-header">導き</div>
+      <div id="guide-panel-inner" class="side-panel-inner">
+        <div id="guide-panel-header" class="side-panel-header">導き</div>
         <div id="guide-list"></div>
       </div>
     </div>
     <div id="effect-panel" class="side-panel hidden">
       <button id="effect-tab-btn" class="side-panel-tab">効果</button>
-      <div id="effect-panel-inner">
-        <div id="effect-panel-header">効果</div>
+      <div id="effect-panel-inner" class="side-panel-inner">
+        <div id="effect-panel-header" class="side-panel-header">効果</div>
         <div id="effect-list"></div>
       </div>
     </div>
     <div id="quest-panel" class="side-panel hidden">
       <button id="quest-tab-btn" class="side-panel-tab">依頼</button>
-      <div id="quest-panel-inner">
-        <div id="quest-panel-header">依頼</div>
+      <div id="quest-panel-inner" class="side-panel-inner">
+        <div id="quest-panel-header" class="side-panel-header">依頼</div>
         <div id="quest-filter" role="tablist" aria-label="依頼の絞り込み">
           <button class="quest-filter-btn active" type="button" data-quest-filter="all">すべて</button>
           <button class="quest-filter-btn" type="button" data-quest-filter="rumor">噂</button>
