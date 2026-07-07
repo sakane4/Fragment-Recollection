@@ -2601,7 +2601,7 @@ function openConstellationRecordPopup() {
           ※この星座は編成に使えなくなります。`, () => {
           const result = deleteCustomConstellation(record.id);
           if (result.ok) {
-            addLog(`【星座記録】「${record.name}」を削除した`, true);
+            addLog(`【星座】「${record.name}」を記録した`, true);
             render();
             renderCharTab(getState());
             renderEffectList(getState());
