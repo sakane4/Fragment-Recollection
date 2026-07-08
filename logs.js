@@ -301,4 +301,4 @@ function startFlavorScheduler(actionId, onLog, { minMs = 3000, maxMs = 7000, com
   };
 }
 
-export { ACTION_LOGS, createLogManager, startFlavorScheduler };
+export { createLogManager, startFlavorScheduler };

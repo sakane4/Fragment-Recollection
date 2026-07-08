@@ -44,4 +44,4 @@ function effectSummary(effect) {
   return (effect.effects ?? []).map(item => item.label).join(' / ');
 }
 
-export { CONSTELLATION_EFFECT_RULES, resolveConstellationEffect, effectSummary };
+export { resolveConstellationEffect, effectSummary };

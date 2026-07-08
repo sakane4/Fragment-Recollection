@@ -1,5 +1,5 @@
 // constellation-editor.js — 星図盤の天球を利用する星座編集画面
-import { BACKGROUND_STARS, STAR_POSITIONS, createStarChart } from './star-chart.js';
+import { starVector, createStarChart } from './star-chart.js';
 import { effectSummary, resolveConstellationEffect } from './constellation-effects.js';
 
 function escapeHtml(value) {
@@ -8,13 +8,6 @@ function escapeHtml(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
-}
-
-function vector(lon, lat) {
-  const a = lon * Math.PI / 180;
-  const b = lat * Math.PI / 180;
-  const c = Math.cos(b);
-  return { x: c * Math.sin(a), y: Math.sin(b), z: c * Math.cos(a) };
 }
 
 function openConstellationEditor({
@@ -77,17 +70,8 @@ function openConstellationEditor({
       .join('');
   }
 
-  function pathVector(id) {
-    if (id.startsWith('companion:')) {
-      const position = STAR_POSITIONS[id.slice(10)];
-      return position ? vector(position.lon, position.lat) : null;
-    }
-    if (id.startsWith('background:')) return BACKGROUND_STARS[Number(id.slice(11))]?.point ?? null;
-    return null;
-  }
-
   function constellationPreviewSvg() {
-    const rawPoints = path.map(pathVector).filter(Boolean);
+    const rawPoints = path.map(starVector).filter(Boolean);
     if (rawPoints.length === 0) return '';
 
     const points = rawPoints.map(point => ({ x: point.x, y: -point.y }));

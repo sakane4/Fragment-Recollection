@@ -196,7 +196,7 @@ export function getChildQuests(parentId) {
   return QUESTS.filter(quest => quest.parentId === parentId);
 }
 
-export function isQuestTaskComplete(state, quest, task) {
+function isQuestTaskComplete(state, quest, task) {
   if (task.type === 'state_flag') return !!state[task.stateFlag];
   if (task.type === 'child_quest_count') {
     const completed = getChildQuests(quest.id).filter(child =>

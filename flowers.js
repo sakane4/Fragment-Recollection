@@ -37,7 +37,3 @@ export const FLOWERS = [
 export function getSymbolicFlower(companionId) {
   return FLOWERS.find(flower => flower.companions.includes(companionId)) ?? null;
 }
-
-export function getFlowerDefinition(flowerId) {
-  return FLOWERS.find(flower => flower.id === flowerId) ?? null;
-}

@@ -1,5 +1,52 @@
 Fragment Recollection — 開発ログ 2026-06-18（更新: 2026-07-07）
 ============================================
+2026-07-07(続き6): 最適化第2弾: 同型ボイラープレートの共通化(挙動・仕様の変更なし)。
+  続き5と合わせて累計 149行追加/297行削除(正味148行削減)。
+  - ui.js: カットシーン起動関数13個のうち12個が「enqueueLogStory→cleanup変数→runシーン→onCompleteで
+    処理してfinish」という完全に同型の定型(各12〜14行)だったため、共通ヘルパーenqueueScene(id,
+    runScene, {makeOpts, onDone, afterFinish})に集約。各関数は4〜8行になった。
+    makeOptsはシーン開始時(キューから取り出された時)に評価されるので、initialName等の評価タイミングも
+    従来と同一。startLogSt_1のみモジュール変数_logStCleanup・onNameDecided・_waitingForPrologueの
+    リセットという固有処理があるため従来のまま残置。
+  - game.js: 「stateの真偽フラグを一度だけtrueにする」だけのセッター10個(setTutorialDone/
+    setLogSt1〜4Done/setCompanionTutorialDone/unlockGuide/unlockWorldChronicle/
+    markFlowerClerkTalkSeen/setAllCompanionsMetDone)をファクトリ_setFlagTrue(key, notifyAfter)による
+    const定義1ブロックへ集約。notify()を呼ぶ/呼ばないの違いは第2引数で従来どおり維持。
+    (従来ガードなしだったsetLogSt*Doneにもガードが付くが、既にtrueのフラグを再セット+再保存する
+    無駄が消えるだけで観測可能な挙動は同一)
+  - ブラウザpreviewで動作確認済み: 新規セーブ→jumpToLogSt(3)→003シーンをタップで完走→
+    setLogSt3Done(ファクトリ製)→ルール経由ではじまりの森解放、続けてjumpToLogSt(4)→004シーン完走→
+    afterFinishで導きのイヤリング+1とログ→unlockGuide(notifyありファクトリ製)で【導き】解放ログ+
+    autoRepeat ON、まで全て従来仕様どおり。コンソールエラーなし。
+
+2026-07-07(続き5): コード全体のデッドコード掃除・最適化(挙動・仕様の変更なし。23行追加/105行削除)。
+  全関数・全export・全importについて、他ファイル+index.htmlのインラインスクリプトまで含めて
+  参照を機械的に照合した上で、以下を削除・整理した。
+  - 完全に死んでいた関数を削除:
+    - _addToResources(game.js): どこからも呼ばれていなかった
+    - completeStoryQuest(game.js): 旧・星空研究所依頼の完了処理。completeObservatoryReportに置換済み
+      だった(quests.jsのautoCompleteStoryフィールド自体はui.jsの表示分岐で使用中のため残置)
+    - unlockFlowerHelp(game.js): 「手伝う」常時ロック化(将来解放予定)で呼び出し元が消滅していた。
+      state.flowerHelpUnlockedフラグと会話の段階分岐は将来の解放用にそのまま残置
+    - getFlowerDefinition(flowers.js)、isGuideCompleted(guides.js): export専用で利用者なし
+  - worldLvキャップ撤廃(続き10)の名残を一掃: getLocationLvCap()(定数を返すだけになっていた)を削除し、
+    levelUpLocationの重複チェック、ui.jsの絶対に到達しないatWorldCap分岐(「今はこれ以上再生できない...」
+    表示)、長押しガードのcapped判定、index.htmlの.capped系CSS(2ルール)を削除。
+  - export整理(内部では使用中のため、exportリストから外しただけ):
+    game.js: COMPANION_RANDOM_REWARDS/ACTION_LV_THRESHOLDS/OBSERVATORY_RESEARCH_MS、
+    scenario.js: typewriter、logs.js: ACTION_LOGS、quests.js: isQuestTaskComplete、
+    constellation-effects.js: CONSTELLATION_EFFECT_RULES
+  - 重複ロジックの統合: constellation-editor.jsがstar-chart.jsと同一の「パスID→3Dベクトル」変換
+    (vector+pathVector)を再実装していたのを、star-chart.jsのeditorVectorをモジュールスコープへ
+    移動・starVectorと改名してexportし共有化。これに伴いSTAR_POSITIONS/BACKGROUND_STARSのexportは
+    不要になったため削除(exportはstarVector/createStarChartのみに)。
+  - 残置と判断したもの: quest.discover機構(現在使う依頼は無いが、テンプレート含む将来の依頼追加用の
+    汎用機構)、escapeHtmlの3箇所重複(logs.js/ui.js/constellation-editor.js。統合には新モジュールが
+    必要で削減幅より構造変更が大きいため見送り)、GUIDESのcompletedフィールド(データ定義として残置)。
+  - ブラウザpreviewで動作確認済み: 新規セーブ起動→004ジャンプ→場所レベルアップ→場所詳細ポップアップ
+    表示→同行ボーナス付き探索完了→星座エディタで星を繋いで確認モーダル(プレビューSVG=共有starVector
+    経由)→名前付け→効果判明→完成、効果/導き/依頼パネルの開閉、まで一通り疎通。コンソールエラーなし。
+
 2026-07-07(続き4): 星座エディタ中の未選択キャラ星(主星)の明滅を、汎用の青灰色から各キャラの
   固有色(--star-color、COMPANION_DATAのcolor)ベースに変更。color-mix(in srgb)で固有色を
   コア(40%を白に混ぜた淡色)とグロー(45%〜90%の透明度違い2層)に展開し、サイズも7px→9pxに拡大。

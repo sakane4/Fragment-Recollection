@@ -1,6 +1,6 @@
 // ui.js — DOM操作・表示更新
 
-import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, deleteCustomConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId } from './game.js';
+import { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, levelUpLocation, getState, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, deleteCustomConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, forceAppearStory, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId } from './game.js';
 import { WORLD_CHRONICLE_ENTRIES } from './chronicles/world.js';
 import { parseStoryPages, parseStoryCostOverrides, setStoryCostMap, getCostForParagraph, parseMilestones, setStoryMilestoneMap } from './stories.js';
 import { createLogManager, startFlavorScheduler } from './logs.js';
@@ -572,11 +572,10 @@ function _storyIsNotable(story, state) {
   return _storyIsNew(story, state) || _storyIsUpdatable(story, state);
 }
 
-// 場所のLocationLvを今すぐ上げられるか(worldLv上限・最大Lv・フラグメント所持で判定)
+// 場所のLocationLvを今すぐ上げられるか(最大Lv・フラグメント所持で判定)
 function _canLevelUpLocation(locationId, state) {
   const lv = state.LocationLv?.[locationId] ?? 0;
   if (lv >= LOCATION_LV_MAX) return false;
-  if (lv >= getLocationLvCap()) return false;
   return (state.resources.fragment ?? 0) >= getLocationLvCost(locationId, lv);
 }
 
@@ -1738,10 +1737,7 @@ const _lvupState = {}; // { [locationId]: { progress, consumed } }
 function _renderLocationPopup(location) {
   const state = getState();
   const lv = state.LocationLv?.[location.id] ?? 0;
-  const cap = getLocationLvCap();
   const isMax = lv >= LOCATION_LV_MAX;
-  const atWorldCap = !isMax && lv >= cap;
-  const cost = (isMax || atWorldCap) ? null : getLocationLvCost(location.id, lv);
   const have = state.resources.fragment ?? 0;
 
   document.getElementById('location-popup-name').textContent = location.label;
@@ -1752,17 +1748,11 @@ function _renderLocationPopup(location) {
 
   const btn = document.getElementById('location-popup-lvup-btn');
   const haveEl = document.getElementById('location-popup-lvup-have');
-  btn.classList.remove('capped');
   if (isMax) {
     btn.hidden = true;
     haveEl.textContent = '';
-  } else if (atWorldCap) {
-    // worldLvが足りずレベルアップ不可。ボタン内にメッセージを表示
-    btn.hidden = false;
-    btn.classList.add('capped');
-    haveEl.textContent = '';
-    btn.innerHTML = `<span class="lvup-btn-capped">今はこれ以上再生できない...</span>`;
   } else {
+    const cost = getLocationLvCost(location.id, lv);
     btn.hidden = false;
     btn.disabled = false;
     const label = resLabel('fragment');
@@ -1817,7 +1807,6 @@ function showLocationPopup(location, btnEl) {
   const FILL_DURATION = 2500;
 
   function startFill() {
-    if (btn.classList.contains('capped')) return;
     if (btn.classList.contains('ready') || _raf) return;
     _lastTime = null;
     function tick(now) {
@@ -2449,80 +2438,55 @@ function _handleEncounter(actionId, { evaded, enemyLabel } = {}) {
 
 // レアドロップ後の同行者加入イベントを再生し、完了後にunlockCompanionする
 function startCompanionJoin(companionId) {
-  enqueueLogStory(`companion_join:${companionId}`, (finish) => {
-    let cleanup = null;
-    cleanup = runCompanionJoin(companionId, els.mainPanel, {
-      initialName: getState().playerName,
-      onComplete: () => {
-        unlockCompanion(companionId);
-        const compName = COMPANION_DATA[companionId]?.name ?? companionId;
-        addLog(`【同行】${compName} が仲間になった`, true);
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
-      },
-    });
+  enqueueScene(`companion_join:${companionId}`, (panel, opts) => runCompanionJoin(companionId, panel, opts), {
+    makeOpts: () => ({ initialName: getState().playerName }),
+    onDone: () => {
+      unlockCompanion(companionId);
+      addLog(`【同行】${COMPANION_DATA[companionId]?.name ?? companionId} が仲間になった`, true);
+    },
   });
 }
 
 function startFlowerShopDiscovery() {
-  enqueueLogStory('facility_discovery:nostalgia_flower', (finish) => {
-    let cleanup = null;
-    cleanup = runFlowerShopDiscovery(els.mainPanel, {
-      onComplete: () => {
-        addLog('【施設発見】花屋 竜の鱗', true, false, false, 'log-rare');
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
-      },
-    });
+  enqueueScene('facility_discovery:nostalgia_flower', runFlowerShopDiscovery, {
+    onDone: () => addLog('【施設発見】花屋 竜の鱗', true, false, false, 'log-rare'),
   });
 }
 
 function startLostFlowersIntro() {
   if (getQuestStatus(getState(), 'lost_flowers') !== QUEST_STATUS.UNAVAILABLE) return;
-  enqueueLogStory('quest_intro:lost_flowers', (finish) => {
-    let cleanup = null;
-    cleanup = runLostFlowersIntro(els.mainPanel, {
-      initialName: getState().playerName,
-      onComplete: () => {
-        activateQuest('lost_flowers');
-        addLog('【長期依頼】「失われた花」を引き受けた', true, false, false, 'log-rare');
-        _flashQuestTab();
-        finish(
-          () => { if (cleanup) { cleanup(); cleanup = null; } },
-          () => addLog('て言っても、どうやって調べればいいんだろう。花に詳しい人か、花の図鑑みたいなものがどこかにないかな？', false),
-        );
-      },
-    });
+  enqueueScene('quest_intro:lost_flowers', runLostFlowersIntro, {
+    makeOpts: () => ({ initialName: getState().playerName }),
+    onDone: () => {
+      activateQuest('lost_flowers');
+      addLog('【長期依頼】「失われた花」を引き受けた', true, false, false, 'log-rare');
+      _flashQuestTab();
+    },
+    afterFinish: () => addLog('て言っても、どうやって調べればいいんだろう。花に詳しい人か、花の図鑑みたいなものがどこかにないかな？', false),
   });
 }
 
 function startStarlitObservatoryDiscovery() {
-  enqueueLogStory('quest_story:starlit_observatory_discovery', (finish) => {
-    let cleanup = null;
-    cleanup = runStarlitObservatoryDiscovery(els.mainPanel, {
-      onComplete: () => {
-        unlockAction('starlit_observatory');
-        startObservatoryResearch();
-        addLog('【別行動】シズクが星空研究所で資料の調査を始めた', true);
-        addTutorialLog(
-          'separate-action',
-          '別行動',
-          '仲間が別行動を始めました。別行動は、ゲームを閉じている間も進行します。別行動中の仲間は、探索へ同行できません。同行メニューから、様子を確認することができます。',
-        );
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
-      },
-    });
+  enqueueScene('quest_story:starlit_observatory_discovery', runStarlitObservatoryDiscovery, {
+    onDone: () => {
+      unlockAction('starlit_observatory');
+      startObservatoryResearch();
+      addLog('【別行動】シズクが星空研究所で資料の調査を始めた', true);
+      addTutorialLog(
+        'separate-action',
+        '別行動',
+        '仲間が別行動を始めました。別行動は、ゲームを閉じている間も進行します。別行動中の仲間は、探索へ同行できません。同行メニューから、様子を確認することができます。',
+      );
+    },
   });
 }
 
 function startObservatoryReport() {
-  enqueueLogStory('quest_story:observatory_report', (finish) => {
-    let cleanup = null;
-    cleanup = runObservatoryReport(els.mainPanel, {
-      onComplete: () => {
-        completeObservatoryReport();
-        addLog('【依頼完了】「星空研究所を探す」', true, false, false, 'log-rare');
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
-      },
-    });
+  enqueueScene('quest_story:observatory_report', runObservatoryReport, {
+    onDone: () => {
+      completeObservatoryReport();
+      addLog('【依頼完了】「星空研究所を探す」', true, false, false, 'log-rare');
+    },
   });
 }
 
@@ -2616,30 +2580,18 @@ function openConstellationRecordPopup() {
 }
 
 function startTericiaVisit() {
-  enqueueLogStory('quest_story:tericia_visit', (finish) => {
-    let cleanup=null;
-    cleanup=runTericiaVisit(els.mainPanel,{
-      onComplete:()=>{
-        beginTericiaConstellationEditing();
-        finish(
-          ()=>{if(cleanup){cleanup();cleanup=null;}},
-          ()=>openTericiaConstellationEditor({storyOrigin:true}),
-        );
-      },
-    });
+  enqueueScene('quest_story:tericia_visit', runTericiaVisit, {
+    onDone: beginTericiaConstellationEditing,
+    afterFinish: () => openTericiaConstellationEditor({ storyOrigin: true }),
   });
 }
 
 function startTericiaJoin() {
-  enqueueLogStory('quest_story:tericia_join', (finish) => {
-    let cleanup=null;
-    cleanup=runTericiaJoin(els.mainPanel,{
-      onComplete:()=>{
-        completeTericiaJoin();
-        addLog('【同行者】テリシアが仲間になった', true, false, false, 'log-rare');
-        finish(()=>{if(cleanup){cleanup();cleanup=null;}});
-      },
-    });
+  enqueueScene('quest_story:tericia_join', runTericiaJoin, {
+    onDone: () => {
+      completeTericiaJoin();
+      addLog('【同行者】テリシアが仲間になった', true, false, false, 'log-rare');
+    },
   });
 }
 
@@ -2956,6 +2908,24 @@ function enqueueLogStory(id, start) {
   drainLogStoryQueue();
 }
 
+// カットシーンをキューに積む定型(クリーンアップ管理+完了処理)。ほとんどのシーンはこの形で足りる。
+//   runScene:    (mainPanel, opts) => cleanup関数 を返すシーン実行関数
+//   makeOpts:    シーン開始時に評価する追加オプション(initialName等)を返す関数
+//   onDone:      シーン完了時(finish直前)に行う処理
+//   afterFinish: 行動再開後に行う処理(finishの第2引数に渡る)
+function enqueueScene(id, runScene, { makeOpts, onDone, afterFinish } = {}) {
+  enqueueLogStory(id, (finish) => {
+    let cleanup = null;
+    cleanup = runScene(els.mainPanel, {
+      ...(makeOpts?.() ?? {}),
+      onComplete: () => {
+        onDone?.();
+        finish(() => { if (cleanup) { cleanup(); cleanup = null; } }, afterFinish);
+      },
+    });
+  });
+}
+
 function drainLogStoryQueue() {
   if (_storyLogPlaying || _activeLogStoryId || _logStoryQueue.length === 0) return;
   const next = _logStoryQueue.shift();
@@ -3076,17 +3046,9 @@ function _onLogStComplete(cleanup, extraFn) {
 
 function startLogSt_2(state) {
   if (state.logSt2Done) return;
-  enqueueLogStory('log_st_2', (finish) => {
-    let cleanup = null;
-    cleanup = runLogSt_2(els.mainPanel, {
-      onComplete: () => {
-        setLogSt2Done();
-        finish(
-          () => { if (cleanup) { cleanup(); cleanup = null; } },
-          () => addLog('フラグメントをもっと集めてみよう...', false),
-        );
-      },
-    });
+  enqueueScene('log_st_2', runLogSt_2, {
+    onDone: setLogSt2Done,
+    afterFinish: () => addLog('フラグメントをもっと集めてみよう...', false),
   });
 }
 
@@ -3112,64 +3074,38 @@ function startLogSt_1() {
 }
 
 function startLogSt_3() {
-  const state = getState();
-  if (state.logSt3Done) return;
-  enqueueLogStory('log_st_3', (finish) => {
-    let cleanup = null;
-    cleanup = runLogSt_3(els.mainPanel, {
-      onComplete: () => {
-        setLogSt3Done();
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
-      },
-    });
-  });
+  if (getState().logSt3Done) return;
+  enqueueScene('log_st_3', runLogSt_3, { onDone: setLogSt3Done });
 }
 
 function startLogSt_4() {
-  const state = getState();
-  if (state.logSt4Done) return;
-  enqueueLogStory('log_st_4', (finish) => {
-    let cleanup = null;
-    cleanup = runLogSt_4(els.mainPanel, {
-      onComplete: () => {
-        setLogSt4Done();
-        finish(
-          () => { if (cleanup) { cleanup(); cleanup = null; } },
-          () => {
-            addResources('guide_earring', 1);
-            addLog(`【！】${resourceSpan('guide_earring', resLabel('guide_earring'))} を手に入れた`, true, true);
-          },
-        );
-      },
-    });
+  if (getState().logSt4Done) return;
+  enqueueScene('log_st_4', runLogSt_4, {
+    onDone: setLogSt4Done,
+    afterFinish: () => {
+      addResources('guide_earring', 1);
+      addLog(`【！】${resourceSpan('guide_earring', resLabel('guide_earring'))} を手に入れた`, true, true);
+    },
   });
 }
 
 function startWorldChronicleIntro() {
   if (getState().worldChronicleUnlocked) return;
-  enqueueLogStory('world_chronicle_intro', (finish) => {
-    let cleanup = null;
-    cleanup = runWorldChronicleIntro(els.mainPanel, {
-      onComplete: () => {
-        unlockWorldChronicle();
-        addLog('【依頼】「大陸誌の復元」を引き受けた', true, false, false, 'log-rare');
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
-      },
-    });
+  enqueueScene('world_chronicle_intro', runWorldChronicleIntro, {
+    onDone: () => {
+      unlockWorldChronicle();
+      addLog('【依頼】「大陸誌の復元」を引き受けた', true, false, false, 'log-rare');
+    },
   });
 }
 
 function startAllCompanionsMet() {
   if (getState().allCompanionsMetDone) return;
-  enqueueLogStory('all_companions_met', (finish) => {
-    let cleanup = null;
-    cleanup = runAllCompanionsMet(els.mainPanel, {
-      onComplete: () => {
-        setAllCompanionsMetDone();
-        addLog('【仲間】5人が揃い、世界の再生が新たな段階へ進んだ', true);
-        finish(() => { if (cleanup) { cleanup(); cleanup = null; } });
-      },
-    });
+  enqueueScene('all_companions_met', runAllCompanionsMet, {
+    onDone: () => {
+      setAllCompanionsMetDone();
+      addLog('【仲間】5人が揃い、世界の再生が新たな段階へ進んだ', true);
+    },
   });
 }
 

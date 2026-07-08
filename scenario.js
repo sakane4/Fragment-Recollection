@@ -1147,4 +1147,4 @@ const TERICIA_JOIN_STEPS = parseScript(`
 function runTericiaVisit(mainPanel, opts) { return runLogSt(TERICIA_VISIT_STEPS, mainPanel, opts); }
 function runTericiaJoin(mainPanel, opts) { return runLogSt(TERICIA_JOIN_STEPS, mainPanel, opts); }
 
-export { typewriter, startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery, runObservatoryReport, runTericiaVisit, runTericiaJoin };
+export { startOpeningTutorial, runLogSt_1, runLogSt_2, runLogSt_3, runLogSt_4, runWorldChronicleIntro, runAllCompanionsMet, runLocationChoice, runCompanionJoin, runFlowerShopDiscovery, runLostFlowersIntro, runFacilityMenu, runNostalgiaDiscovery, runStarlitObservatoryDiscovery, runObservatoryReport, runTericiaVisit, runTericiaJoin };

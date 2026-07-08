@@ -37,6 +37,16 @@ const BACKGROUND_STARS=Array.from({length:520},() => {
 });
 const FUTURE_VECTORS=FUTURE_STARS.map(([lon,lat])=>vector(lon,lat));
 
+// パスID('companion:xxx' / 'background:N')を天球上の3Dベクトルへ解決する(星座エディタと共用)
+function starVector(id) {
+  if(id.startsWith('companion:')){
+    const position=STAR_POSITIONS[id.slice(10)];
+    return position?vector(position.lon,position.lat):null;
+  }
+  if(id.startsWith('background:'))return BACKGROUND_STARS[Number(id.slice(11))]?.point??null;
+  return null;
+}
+
 
 function createStarChart({
   companions,
@@ -149,17 +159,8 @@ function createStarChart({
     context.shadowColor='rgba(100,160,240,.9)';context.shadowBlur=10;context.stroke();context.shadowBlur=0;
   }
 
-  function editorVector(id) {
-    if(id.startsWith('companion:')){
-      const position=STAR_POSITIONS[id.slice(10)];
-      return position?vector(position.lon,position.lat):null;
-    }
-    if(id.startsWith('background:'))return BACKGROUND_STARS[Number(id.slice(11))]?.point??null;
-    return null;
-  }
-
   function editorPoint(id,f) {
-    const point=editorVector(id);
+    const point=starVector(id);
     return point?project(point,f):null;
   }
 
@@ -326,7 +327,7 @@ function createStarChart({
     });
     if(editor.path.length>prevPathLength){
       lastSegmentAddedAt=performance.now();
-      const point=editorVector(editor.path[editor.path.length-1]);
+      const point=starVector(editor.path[editor.path.length-1]);
       if(point)ripples.push({point,bornAt:lastSegmentAddedAt});
     }
     prevPathLength=editor.path.length;
@@ -348,4 +349,4 @@ function createStarChart({
   return root;
 }
 
-export { STAR_POSITIONS, BACKGROUND_STARS, createStarChart };
+export { starVector, createStarChart };

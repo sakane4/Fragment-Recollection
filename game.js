@@ -870,11 +870,6 @@ function isDevMode() {
   return devMode;
 }
 
-// リソースを追加し、初入手なら discoveredResources にも登録する
-function _addToResources(resources, resourceId, amount) {
-  resources[resourceId] = (resources[resourceId] ?? 0) + amount;
-}
-
 function _markDiscovered(resourceId) {
   if (state.discoveredResources.includes(resourceId)) return false;
   state = { ...state, discoveredResources: [...state.discoveredResources, resourceId] };
@@ -942,22 +937,6 @@ function turnInQuest(questId) {
   saveToStorage(state);
   notify();
   return { ok: true, questId, rewards: (quest.rewards ?? []).map(reward => ({ ...reward })) };
-}
-
-// 発見ストーリーの読了をもって、自動的に完了扱いとなる依頼。
-function completeStoryQuest(questId) {
-  const quest = getQuestDefinition(questId);
-  const status = getQuestStatus(state, questId);
-  if (!quest?.autoCompleteStory || ![QUEST_STATUS.ACTIVE, QUEST_STATUS.COMPLETED].includes(status)) {
-    return { ok: false };
-  }
-  state = {
-    ...state,
-    questStatus: { ...state.questStatus, [questId]: QUEST_STATUS.REPORTED },
-  };
-  saveToStorage(state);
-  notify();
-  return { ok: true, questId };
 }
 
 function unlockQuest(questId) {
@@ -1048,12 +1027,25 @@ function unlockAction(actionId) {
   notify();
 }
 
-function unlockGuide() {
-  if (state.guideUnlocked) return;
-  state = { ...state, guideUnlocked: true };
+// stateの真偽フラグを一度だけtrueにするセッターを生成する。
+// notifyAfter=true のものは購読者(render)へ即時通知が必要なフラグ(UI解放など)
+const _setFlagTrue = (key, notifyAfter = false) => () => {
+  if (state[key]) return;
+  state = { ...state, [key]: true };
   saveToStorage(state);
-  notify();
-}
+  if (notifyAfter) notify();
+};
+const setTutorialDone = _setFlagTrue('tutorialDone');
+const setLogSt1Done = _setFlagTrue('logSt1Done');
+const setLogSt2Done = _setFlagTrue('logSt2Done');
+const setLogSt3Done = _setFlagTrue('logSt3Done');
+const setLogSt4Done = _setFlagTrue('logSt4Done');
+const setCompanionTutorialDone = _setFlagTrue('companionTutorialDone');
+const unlockGuide = _setFlagTrue('guideUnlocked', true);
+const unlockWorldChronicle = _setFlagTrue('worldChronicleUnlocked', true);
+// 花屋店員との最初の会話を最後まで見た(スキップ含む)時に呼ぶ。次の花クエストのautoStart条件になる
+const markFlowerClerkTalkSeen = _setFlagTrue('flowerClerkTalkSeen', true);
+const setAllCompanionsMetDone = _setFlagTrue('allCompanionsMetDone', true);
 
 function setAutoRepeat(v) {
   state = { ...state, autoRepeat: !!v };
@@ -1725,44 +1717,6 @@ function init() {
 
 init();
 
-function setTutorialDone() {
-  state = { ...state, tutorialDone: true };
-  saveToStorage(state);
-}
-
-function setLogSt1Done() {
-  state = { ...state, logSt1Done: true };
-  saveToStorage(state);
-}
-
-function setLogSt2Done() {
-  state = { ...state, logSt2Done: true };
-  saveToStorage(state);
-}
-
-function unlockWorldChronicle() {
-  if (state.worldChronicleUnlocked) return;
-  state = { ...state, worldChronicleUnlocked: true };
-  saveToStorage(state);
-  notify();
-}
-
-function unlockFlowerHelp() {
-  if (state.flowerHelpUnlocked) return;
-  state = { ...state, flowerHelpUnlocked: true };
-  saveToStorage(state);
-  notify();
-}
-
-// 花屋店員との最初の会話(店員トークが解放されて以降の初回)を最後まで見た(スキップ含む)時に呼ぶ。
-// これをもって次の花クエスト(orsis_seed_requestなど)がautoStartする
-function markFlowerClerkTalkSeen() {
-  if (state.flowerClerkTalkSeen) return;
-  state = { ...state, flowerClerkTalkSeen: true };
-  saveToStorage(state);
-  notify();
-}
-
 function completeObservatoryReport() {
   if (state.observatoryReportRead) return { ok: false };
   state = {
@@ -1896,33 +1850,10 @@ function resetQuestsAndFacilities() {
   notify();
 }
 
-function setCompanionTutorialDone() {
-  if (state.companionTutorialDone) return;
-  state = { ...state, companionTutorialDone: true };
-  saveToStorage(state);
-}
-
 // 行動ピッカーで選択中の行動/施設idを記憶する(リロード後も選んでいたものに復元するため)
 function setSelectedActionId(id) {
   if (state.selectedActionId === id) return;
   state = { ...state, selectedActionId: id };
-  saveToStorage(state);
-}
-
-function setAllCompanionsMetDone() {
-  if (state.allCompanionsMetDone) return;
-  state = { ...state, allCompanionsMetDone: true };
-  saveToStorage(state);
-  notify();
-}
-
-function setLogSt3Done() {
-  state = { ...state, logSt3Done: true };
-  saveToStorage(state);
-}
-
-function setLogSt4Done() {
-  state = { ...state, logSt4Done: true };
   saveToStorage(state);
 }
 
@@ -1958,17 +1889,9 @@ function revealStoryTitle(storyId) {
   notify();
 }
 
-// LocationLvの上限。以前はworldLvが天井だったが、worldLvもLocationLvのコストも結局は
-// フラグメント総量という同じ指標から決まるため、二重にブレーキをかけているだけで
-// 意味のある制御になっていなかった(相談の結果、廃止)。上限はLOCATION_LV_MAX(場所ごとの最大Lv)のみ
-function getLocationLvCap() {
-  return LOCATION_LV_MAX;
-}
-
 function levelUpLocation(locationId, prepaid = 0, { silent = false } = {}) {
   const currentLv = state.LocationLv?.[locationId] ?? 0;
   if (currentLv >= LOCATION_LV_MAX) return { ok: false, reason: 'max_level' };
-  if (currentLv >= getLocationLvCap()) return { ok: false, reason: 'world_lv_cap' };
   const cost = getLocationLvCost(locationId, currentLv);
   const remaining = cost - prepaid;
   if ((state.resources.fragment ?? 0) < remaining) return { ok: false, reason: 'insufficient_resources' };
@@ -2060,4 +1983,4 @@ function resetTutorial() {
   notify();
 }
 
-export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RANDOM_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, ACTION_LV_THRESHOLDS, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, OBSERVATORY_RESEARCH_MS, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, getLocationLvCap, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, completeStoryQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, unlockFlowerHelp, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, deleteCustomConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId };
+export { LOCATIONS, ACTIONS, FACILITIES, getShopItems, buyShopItem, STORIES, COMPANION_REWARDS, COMPANION_RELICS, EQUIP_BONUS, WORLD_LV_THRESHOLDS, getLocationLvCost, LOCATION_LV_MAX, DISCOVERY_LABELS, DISCOVERY_STEP_LV, NOSTALGIA_FACILITIES, ELV_MAX, ELV_COSTS, BOND_LV_MAX, BOND_LV_COSTS, GIFT_ITEMS, giveGift, COMPANION_SKILLS, COMPANION_TRAITS, levelUpCompanion, startFragmentConvert, startObservatoryResearch, getCompanionTaskProgress, FRAGMENT_CONVERT_MS_PER_UNIT, UNIQUE_FRAGMENTS, getPendingDiscovery, resolveDiscovery, levelUpLocation, getState, forceAppearStory, subscribe, notify, startAction, restoreActiveActionCallbacks, cancelAction, pauseAction, resumeAction, getProgress, unlockStory, unlockNextPage, setDevMode, isDevMode, addResources, unlockQuest, activateQuest, turnInQuest, unlockAllStories, lockAllStories, unlockLocation, unlockAction, unlockAllActions, lockAllActions, unlockGuide, unlockWorldChronicle, markFlowerClerkTalkSeen, completeObservatoryReport, beginTericiaConstellationEditing, completeTericiaConstellation, deleteCustomConstellation, completeTericiaJoin, setAllCompanionsMetDone, setAutoRepeat, setTutorialDone, setLogSt1Done, setLogSt2Done, setLogSt3Done, setLogSt4Done, setPlayerName, unlockCompanion, setCompanionLevel, setCompanionEquipment, revealStoryTitle, setActiveCompanion, setActiveCompanions, resetTutorial, jumpToLogSt, resetQuestsAndFacilities, setCompanionTutorialDone, setSelectedActionId };

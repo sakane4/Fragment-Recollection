@@ -162,8 +162,3 @@ export function getActiveGuides(state, ctx) {
   }
   return active;
 }
-
-export function isGuideCompleted(guideId, state, ctx) {
-  const guide = GUIDES.find(candidate => candidate.id === guideId);
-  return !!guide?.completed?.(state, ctx);
-}
