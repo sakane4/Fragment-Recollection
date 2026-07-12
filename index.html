@@ -12,7 +12,7 @@
     }
     @font-face {
       font-family: 'KokuGL';
-      src: url('font/font_1_kokugl_1.15_rls.ttf') format('truetype');
+      src: url('font/font_1_kokumr_1.00_rls.ttf') format('truetype');
       font-display: swap;
     }
     .star-chart-layout.editor-mode { height:100%; grid-template-columns:1fr; }
@@ -1092,19 +1092,12 @@
 
     #action-btn {
       flex-shrink: 0;
-      padding: 0.45rem 1rem;
-      background: var(--accent-dim);
-      color: var(--accent);
-      border: 1px solid var(--accent-border);
-      border-radius: 5px;
+      padding: 0.45rem 1.2rem;
       font-size: 0.85rem;
-      cursor: pointer;
+      letter-spacing: 0.08em;
       white-space: nowrap;
-      transition: background 0.15s, opacity 0.15s;
     }
-
-    #action-btn:hover:not(:disabled) { background: var(--accent-hover); }
-    #action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* 枠の見た目(角の鉤形飾り・ホバー時の拡張)は共通ブロック(.story-end-btn等と併記)側で定義 */
 
     #world-lv-display { cursor: pointer; }
     #worldlv-popup .location-popup-inner {
@@ -1890,6 +1883,7 @@
     .story-log {
       text-align: center;
       color: var(--text);
+      font-family: 'KoburiMincho', 'Shippori Mincho', serif;
       font-size: 0.88rem;
       line-height: 1.9;
       border-left: none !important;
@@ -1964,29 +1958,56 @@
     }
 
     .story-name-row button {
-      background: var(--accent-dim);
-      color: var(--accent);
-      border: 1px solid var(--accent-border);
-      border-radius: 4px;
       padding: 0.3rem 0.7rem;
       font-size: 0.85rem;
-      cursor: pointer;
+      letter-spacing: 0.06em;
     }
 
-    .story-end-btn {
-      margin-top: 0.5rem;
-      padding: 0.45rem 1.5rem;
-      background: var(--accent-dim);
+    /* ── 装飾枠ボタン(アンティーク調・角の鉤形飾り) ──
+       ホバーで角の「」がにゅっと伸びて対角と重なり、□の全周枠になる共通意匠。
+       個別サイズ(padding/font-size等)は各セレクタの専用ブロックで上書きする。 */
+    .story-end-btn,
+    #action-btn,
+    .story-name-row button {
+      position: relative;
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
       color: var(--accent);
-      border: 1px solid var(--accent-border);
-      border-radius: 6px;
-      font-size: 0.85rem;
+      border: 1px solid color-mix(in srgb, var(--accent-border) 60%, transparent);
+      border-radius: 1px;
+      font-family: 'KoburiMincho', 'Shippori Mincho', serif;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, opacity 0.15s, border-color 0.15s;
     }
+    .story-end-btn::before, .story-end-btn::after,
+    #action-btn::before, #action-btn::after,
+    .story-name-row button::before, .story-name-row button::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border: 1px solid var(--accent);
+      opacity: 0.7;
+      pointer-events: none;
+      transition: opacity 0.15s, width 0.3s cubic-bezier(0.22, 1, 0.36, 1), height 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .story-end-btn::before, #action-btn::before, .story-name-row button::before { top: -3px; left: -3px; border-right: none; border-bottom: none; }
+    .story-end-btn::after, #action-btn::after, .story-name-row button::after { bottom: -3px; right: -3px; border-left: none; border-top: none; }
 
-    .story-end-btn:hover { background: var(--accent-hover); }
-    .story-end-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .story-end-btn:hover,
+    #action-btn:hover:not(:disabled),
+    .story-name-row button:hover { background: var(--accent-hover); }
+    .story-end-btn:hover::before, .story-end-btn:hover::after,
+    #action-btn:hover:not(:disabled)::before, #action-btn:hover:not(:disabled)::after,
+    .story-name-row button:hover::before, .story-name-row button:hover::after {
+      opacity: 1;
+      width: calc(100% + 6px);
+      height: calc(100% + 6px);
+    }
+    .story-end-btn:disabled, #action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .story-end-btn:disabled::before, .story-end-btn:disabled::after,
+    #action-btn:disabled::before, #action-btn:disabled::after { opacity: 0.3; }
+
+    .story-end-btn { margin-top: 0.5rem; padding: 0.55rem 2rem; font-size: 0.85rem; letter-spacing: 0.12em; }
 
     .story-choice-wrap {
       display: flex;
