@@ -10,9 +10,9 @@ const CONSTELLATION_EFFECT_RULES = [
     priority: 100,
     description: 'ユウヤとラビの星が互いを呼び、探索の道を短く照らす。',
     effects: [
-      { type: 'fragmentMultiplier', value: 3, label: 'フラグメント獲得量 ×3' },
-      { type: 'extraReward', resource: 'crescent_fragment', amount: 1, label: '三日月のフラグメントが獲得可能' },
-      { type: 'durationRate', value: 0.8, label: '探索時間 80%' },
+      { type: 'fragmentMultiplier', value: 3, resource: 'fragment', label: 'フラグメント×3' },
+      { type: 'extraReward', resource: 'crescent_fragment', amount: 1, label: '三日月のフラグメント' },
+      { type: 'durationRate', value: 0.8, label: '行動時間 80%' },
     ],
   },
 ];

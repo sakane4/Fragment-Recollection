@@ -2,8 +2,8 @@
 
 const RESOURCES = {
   fragment:        { label: 'フラグメント',       color: '#7ec8d8', category: 'fragment', unit: '片' },
-  blue_fragment:   { label: '青のフラグメント',   color: '#89b4fa', category: 'fragment', unit: '片' },
-  red_fragment:    { label: '赤のフラグメント',   color: '#f38ba8', category: 'fragment', unit: '片' },
+  blue_fragment:   { label: '月光のフラグメント', color: '#B2C8D4', category: 'fragment', unit: '片' },
+  red_fragment:    { label: '月影のフラグメント', color: '#5f6a9c', category: 'fragment', unit: '片' },
   clear_fragment:  { label: '無色のフラグメント', color: '#cdd6f4', category: 'fragment', unit: '片' },
   bubble_fragment: { label: '泡のフラグメント',   color: '#cba6f7', category: 'fragment', unit: '片' },
   sky_fragment:    { label: '空のフラグメント',   color: '#89dceb', category: 'fragment', unit: '片' },

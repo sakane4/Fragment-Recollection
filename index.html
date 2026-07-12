@@ -15,9 +15,16 @@
       src: url('font/font_1_kokumr_1.00_rls.ttf') format('truetype');
       font-display: swap;
     }
-    .star-chart-layout.editor-mode { height:100%; grid-template-columns:1fr; }
-    .star-chart-layout.editor-mode .star-chart-sky { height:100%; border:0; border-radius:0; }
-    .star-chart-layout.editor-mode .star-chart-rail { display:none; }
+    .star-chart-layout.editor-mode {
+      height:100%; display:flex; flex-direction:column; gap:0.35rem;
+    }
+    .star-chart-layout.editor-mode .star-chart-sky {
+      flex:1 1 auto; min-height:0; height:auto; border:0; border-radius:0;
+    }
+    .star-chart-layout.editor-mode .star-chart-rail {
+      flex:0 0 auto; flex-direction:row; height:4.4rem; width:100%;
+    }
+    .star-chart-layout.editor-mode .star-chart-rail-person { flex:1 1 0; min-width:0; }
     .star-chart-main-star.locked-origin .star-chart-light {
       box-shadow:0 0 0 6px rgba(181,157,255,.13),0 0 22px rgba(181,157,255,.72);
     }
@@ -34,10 +41,16 @@
     }
     .constellation-editor-head b { display:block; font-size:.9rem; letter-spacing:.12em; }
     .constellation-editor-head small { display:block; color:#71819a; font-size:.5rem; letter-spacing:.2em; }
-    .constellation-editor-head > span { color:#8294ad; font-size:.58rem; text-align:right; }
+    .constellation-editor-head > span { flex:1; min-width:0; color:#8294ad; font-size:.58rem; text-align:right; }
+    .constellation-editor-close {
+      flex-shrink:0; width:28px; height:28px; display:grid; place-items:center;
+      border:1px solid rgba(105,137,187,.3); border-radius:999px;
+      color:#8294ad; background:rgba(255,255,255,.03); font-size:.7rem; cursor:pointer;
+    }
+    .constellation-editor-close:hover { color:#dce7f5; border-color:rgba(105,137,187,.55); }
     .constellation-editor-chart { position:relative; min-height:0; overflow:hidden; }
     .constellation-editor-chart-tools {
-      position:absolute; right:12px; bottom:12px; z-index:8;
+      position:absolute; left:12px; bottom:calc(4.4rem + 12px); z-index:8;
       display:flex; gap:7px; pointer-events:auto;
     }
     .constellation-editor-chart-tools button {
@@ -195,6 +208,13 @@
       --accent-dim: #1c3a5e;
       --accent-border: #3a6491;
       --accent-hover: #2a5580;
+      --quest-gold: #e8c07a;
+      --effect-green: #6fe3a0;
+      --effect-green-core: #3ddc84;
+      --effect-panel-bg: #132a20;
+      --dev-green: #7aaa7a;
+      --dev-green-bg: #1a3a1a;
+      --dev-green-border: #2a6a2a;
     }
 
     html, body {
@@ -238,9 +258,13 @@
       height: 100%;
     }
 
-    /* ── サイドパネル共通(導き/効果/依頼で共有。パネルごとの差分はアクセントカラーとtab-btnのtopのみ) ── */
+    /* ── サイドパネル共通(導き/効果/依頼で共有。パネルごとの差分はアクセントカラーとtab indexのみ) ── */
     #main-panel-wrap {
-      --tab-h: clamp(18px, calc((var(--panel-h, 300px) - 20px) / 3), 64px);
+      --side-tab-top: 4px;
+      --effect-tab-size: 34px;
+      --slide-tab-size: clamp(18px, calc((var(--panel-h, 300px) - 20px) / 3), 64px);
+      --side-tab-gap: 4px;
+      --side-tab-base: var(--panel);
     }
     .side-panel {
       position: absolute;
@@ -255,6 +279,7 @@
       flex-direction: column;
     }
     .side-panel.open { transform: translateX(0); }
+    .side-panel.open:not(#effect-panel) { z-index: 6; }
     .side-panel.hidden { display: none; }
     .side-panel-inner {
       flex: 1;
@@ -274,13 +299,25 @@
       position: absolute;
       left: -28px;
       width: 28px;
-      height: var(--tab-h);
+      height: var(--slide-tab-size);
+      top: calc(var(--side-tab-top) + var(--effect-tab-size) + var(--side-tab-gap) + (var(--side-tab-index, 1) - 1) * (var(--slide-tab-size) + var(--side-tab-gap)));
+      border: 1px solid color-mix(in srgb, var(--side-tab-tone, var(--accent)) 50%, transparent);
       border-right: none;
       border-radius: 8px 0 0 8px;
       writing-mode: vertical-rl;
       letter-spacing: 0.1em;
       font-size: 0.78rem;
+      color: var(--side-tab-tone, var(--accent));
       cursor: pointer;
+      background:
+        linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--side-tab-tone, var(--accent)) 22%, var(--side-tab-base)),
+          color-mix(in srgb, var(--side-tab-tone, var(--accent)) 9%, var(--side-tab-base))
+        );
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--side-tab-tone, var(--accent)) 18%, transparent),
+        inset 0 0 18px color-mix(in srgb, var(--side-tab-tone, var(--accent)) 10%, transparent);
     }
     /* いずれかのサイドパネルを開いた時は、開いているパネル自身のタブだけを残す */
     #main-panel-wrap.side-panel-open .side-panel-tab { display: none; }
@@ -290,18 +327,16 @@
       writing-mode: horizontal-tb;
       letter-spacing: 0;
       font-size: 0.55rem;
-      line-height: var(--tab-h);
+      line-height: var(--slide-tab-size);
     }
 
     /* ── 導きパネル(スライドオーバーレイ) ── */
-    #guide-panel { border-left: 1px solid var(--border); }
-    #guide-panel-header { color: var(--accent); }
-    #guide-tab-btn {
-      top: calc(var(--tab-h) + 8px);
-      background: rgba(126, 200, 216, 0.14);
-      border: 1px solid rgba(126, 200, 216, 0.5);
-      color: var(--accent);
+    #guide-panel {
+      --side-tab-index: 1;
+      --side-tab-tone: var(--accent);
+      border-left: 1px solid var(--border);
     }
+    #guide-panel-header { color: var(--accent); }
     /* 導きの内容が更新されたとき、タブを発光させて気づかせる */
     #guide-tab-btn.glow {
       animation: guide-glow 1.4s ease-in-out infinite;
@@ -319,56 +354,127 @@
     }
     .guide-hint-item:last-child { border-bottom: none; }
 
-    /* ── 効果パネル(導きパネルと同じ仕組み、タブは下に並べる) ── */
-    #effect-panel { border-left: 1px solid rgba(61, 220, 132, 0.45); }
-    #effect-panel-header { color: #6fe3a0; }
-    #effect-tab-btn {
-      top: 4px;
-      background: rgba(61, 220, 132, 0.16);
-      border: 1px solid rgba(61, 220, 132, 0.45);
-      color: #6fe3a0;
+    /* ── 効果パネル(アイコン1行→全幅の帯に展開する独自レイアウト。導き/依頼のside-panelとは
+       開閉の仕組みが異なる: 縦のtranslateXスライドではなく、横幅のtransitionで一行→全幅に広がる) ── */
+    #effect-panel {
+      --side-tab-index: 0;
+      --side-tab-tone: var(--effect-green-core);
+      --side-tab-base: var(--effect-panel-bg);
+      top: var(--side-tab-top);
+      bottom: auto;
+      height: var(--effect-tab-size);
+      width: var(--effect-tab-size);
+      min-width: var(--effect-tab-size);
+      transform: none;
+      flex-direction: row;
+      align-items: stretch;
+      z-index: 4;
+      background:
+        linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--side-tab-tone) 22%, var(--side-tab-base)),
+          color-mix(in srgb, var(--side-tab-tone) 9%, var(--side-tab-base))
+        );
+      border-left: 1px solid color-mix(in srgb, var(--side-tab-tone) 45%, transparent);
+      border-radius: 8px 0 0 8px;
+      overflow: hidden;
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--side-tab-tone) 18%, transparent),
+        inset 0 0 18px color-mix(in srgb, var(--side-tab-tone) 10%, transparent);
+      transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1);
     }
+    #effect-panel.open { width: 100%; border-radius: 0; }
+    #effect-tab-btn {
+      position: static;
+      left: auto;
+      flex: 0 0 var(--effect-tab-size);
+      width: var(--effect-tab-size);
+      height: var(--effect-tab-size);
+      display: grid;
+      place-items: center;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--effect-green);
+    }
+    #effect-tab-btn svg { width: 13px; height: 13px; }
     /* 効果が発動中はタブを発光させる */
     #effect-tab-btn.glow {
       animation: effect-glow 1.4s ease-in-out infinite;
     }
     @keyframes effect-glow {
-      0%, 100% { box-shadow: -1px 0 3px rgba(61,220,132,0.2); }
-      50%      { box-shadow: -2px 0 8px 1px rgba(61,220,132,0.5); }
+      0%, 100% { box-shadow: -1px 0 3px color-mix(in srgb, var(--effect-green-core) 20%, transparent); }
+      50%      { box-shadow: -2px 0 8px 1px color-mix(in srgb, var(--effect-green-core) 50%, transparent); }
     }
-    .effect-item {
-      font-size: 0.8rem;
+    #effect-panel-inner {
+      flex: 1 1 auto;
+      min-width: 0;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0 0.5rem;
+      overflow: hidden;
+    }
+    #effect-close-btn {
+      flex: 0 0 auto;
+      align-self: stretch;
+      width: 38px;
+      height: auto;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-left: 1px solid color-mix(in srgb, var(--effect-green-core) 16%, transparent);
+      border-radius: 0;
+      background: transparent;
+      color: var(--effect-green);
+      cursor: pointer;
+      opacity: .75;
+    }
+    #effect-close-btn:hover { background: color-mix(in srgb, var(--effect-green-core) 28%, transparent); opacity: 1; }
+    .effect-band-ticker {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 100%;
+      overflow: hidden;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      font-size: 0.78rem;
       color: var(--text);
-      line-height: 1.6;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--border);
     }
-    .effect-item:last-child { border-bottom: none; }
-    .effect-empty {
-      font-size: 0.8rem;
-      color: var(--muted);
-      padding: 0.5rem 0;
+    .effect-band-empty { color: var(--muted); }
+    .effect-band-track {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      will-change: transform;
+    }
+    .effect-band-track.scrolling {
+      animation-name: effect-ticker-scroll;
+      animation-timing-function: linear;
+      animation-iteration-count: infinite;
+    }
+    .effect-band-track > span { padding-right: 2.5em; }
+    @keyframes effect-ticker-scroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
     }
 
     /* ── 依頼パネル ── */
     #quest-panel {
+      --side-tab-index: 2;
+      --side-tab-tone: var(--quest-gold);
       font-family: 'KokuGL', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
-      border-left: 1px solid rgba(232, 192, 122, 0.5);
+      border-left: 1px solid color-mix(in srgb, var(--quest-gold) 50%, transparent);
     }
-    #quest-panel-header { color: #e8c07a; }
-    #quest-tab-btn {
-      top: calc(var(--tab-h) * 2 + 16px);
-      background: rgba(232, 192, 122, 0.14);
-      border: 1px solid rgba(232, 192, 122, 0.5);
-      color: #e8c07a;
-    }
+    #quest-panel-header { color: var(--quest-gold); }
     #quest-tab-btn.glow,
     #quest-tab-btn.ready {
       animation: quest-glow 1.4s ease-in-out infinite;
     }
     @keyframes quest-glow {
-      0%, 100% { box-shadow: -1px 0 4px rgba(232,192,122,0.25); }
-      50%      { box-shadow: -2px 0 12px 2px rgba(232,192,122,0.65); }
+      0%, 100% { box-shadow: -1px 0 4px color-mix(in srgb, var(--quest-gold) 25%, transparent); }
+      50%      { box-shadow: -2px 0 12px 2px color-mix(in srgb, var(--quest-gold) 65%, transparent); }
     }
     #quest-filter {
       display: grid;
@@ -388,9 +494,9 @@
       color: var(--text);
     }
     .quest-filter-btn.active {
-      border-color: rgba(232, 192, 122, 0.42);
-      background: rgba(232, 192, 122, 0.09);
-      color: #e8c07a;
+      border-color: color-mix(in srgb, var(--quest-gold) 42%, transparent);
+      background: color-mix(in srgb, var(--quest-gold) 9%, transparent);
+      color: var(--quest-gold);
     }
     .quest-filter-empty {
       padding: 1.25rem 0.5rem;
@@ -455,7 +561,7 @@
       padding: 0.28rem 0.55rem;
       font-size: 0.7rem;
     }
-    .quest-requester { color: #e8c07a; font-size: 0.68rem; margin-top: 0.12rem; }
+    .quest-requester { color: var(--quest-gold); font-size: 0.68rem; margin-top: 0.12rem; }
     .quest-layout {
       display: grid;
       grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -515,7 +621,7 @@
     button.quest-task-row { cursor: pointer; }
     button.quest-task-row:hover { background: rgba(255,255,255,0.035); }
     .quest-task-row.done { color: #8da99b; }
-    .quest-task-marker { color: #e8c07a; }
+    .quest-task-marker { color: var(--quest-gold); }
     .quest-task-row.done .quest-task-marker { color: #83b89c; }
     .quest-task-label { font-size: 0.72rem; }
     .quest-task-count {
@@ -708,7 +814,7 @@
     }
     .quest-reward-list::before {
       content: '+';
-      color: #e8c07a;
+      color: var(--quest-gold);
       font-size: 0.65rem;
     }
     .quest-layout--reported .quest-goal-main,
@@ -734,10 +840,10 @@
       width: 100%;
       margin-top: 0.55rem;
       padding: 0.42rem;
-      border: 1px solid rgba(232,192,122,0.5);
+      border: 1px solid color-mix(in srgb, var(--quest-gold) 50%, transparent);
       border-radius: 6px;
-      background: rgba(232,192,122,0.12);
-      color: #e8c07a;
+      background: color-mix(in srgb, var(--quest-gold) 12%, transparent);
+      color: var(--quest-gold);
       font-family: inherit;
       cursor: pointer;
     }
@@ -1883,7 +1989,6 @@
     .story-log {
       text-align: center;
       color: var(--text);
-      font-family: 'KoburiMincho', 'Shippori Mincho', serif;
       font-size: 0.88rem;
       line-height: 1.9;
       border-left: none !important;
@@ -2337,7 +2442,7 @@
     .facility-shop-balance b { color: var(--accent); font-weight: bold; }
     .facility-talk-speaker {
       margin-bottom: 0.45rem;
-      color: #e8c07a;
+      color: var(--quest-gold);
       font-size: 0.72rem;
     }
     .facility-talk-dialogue {
@@ -2828,8 +2933,8 @@
     }
 
     .tab-btn--dev { color: #4a6a4a; }
-    .tab-btn--dev:hover { color: #7aaa7a; }
-    .tab-btn--dev.active { color: #7aaa7a; border-top-color: #7aaa7a; }
+    .tab-btn--dev:hover { color: var(--dev-green); }
+    .tab-btn--dev.active { color: var(--dev-green); border-top-color: var(--dev-green); }
 
     /* ── 開発メニュー ── */
     .dev-row {
@@ -2843,7 +2948,7 @@
 
     .dev-label { font-size: 0.82rem; color: var(--muted); }
     .dev-label-sub { font-size: 0.72rem; }
-    .dev-btn--on { background: #1a3a1a; color: #7aaa7a; border-color: #2a6a2a; }
+    .dev-btn--on { background: var(--dev-green-bg); color: var(--dev-green); border-color: var(--dev-green-border); }
 
     .dev-btn {
       flex-shrink: 0;
@@ -3122,7 +3227,7 @@
     .star-chart-layout.ultra-compact .star-chart-overlay button,
     .star-chart-layout.ultra-compact .star-chart-caption { display: none; }
     .star-chart-discovered-heading { margin-top: 1rem; }
-    .star-chart-discovered-list { display: grid; gap: 0.45rem; }
+    .star-chart-discovered-list { display: grid; gap: 0.45rem; align-content: start; }
     .star-chart-preset {
       width: 100%; display: flex; align-items: center; gap: 0.65rem;
       padding: 0.65rem 0.75rem;
@@ -3413,10 +3518,19 @@
       </div>
     </div>
     <div id="effect-panel" class="side-panel hidden">
-      <button id="effect-tab-btn" class="side-panel-tab">効果</button>
+      <button id="effect-tab-btn" class="side-panel-tab" aria-label="効果">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M12 2 L14.2 9.8 L22 12 L14.2 14.2 L12 22 L9.8 14.2 L2 12 L9.8 9.8 Z" fill="currentColor"/>
+        </svg>
+      </button>
       <div id="effect-panel-inner" class="side-panel-inner">
-        <div id="effect-panel-header" class="side-panel-header">効果</div>
-        <div id="effect-list"></div>
+        <div id="effect-list" class="effect-band-ticker"></div>
+        <button id="effect-close-btn" type="button" aria-label="閉じる" title="閉じる">
+          <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
+            <line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
     </div>
     <div id="quest-panel" class="side-panel hidden">
@@ -3726,31 +3840,43 @@
 <script>
   const sidePanelWrap = document.getElementById('main-panel-wrap');
   const sidePanels = [...document.querySelectorAll('.side-panel')];
+  const effectPanel = document.getElementById('effect-panel');
+  const slidePanels = sidePanels.filter(panel => panel.id !== 'effect-panel');
   function syncSidePanelState() {
-    sidePanelWrap.classList.toggle('side-panel-open', sidePanels.some(panel => panel.classList.contains('open')));
+    sidePanelWrap.classList.toggle('side-panel-open', slidePanels.some(panel => panel.classList.contains('open')));
   }
   for (const panel of sidePanels) {
     const tab = panel.querySelector('.side-panel-tab');
     tab.addEventListener('click', () => {
-      if (mainPanelWrap.getBoundingClientRect().height < 240) {
+      if (panel.id !== 'effect-panel' && mainPanelWrap.getBoundingClientRect().height < 240) {
         const app = document.getElementById('app');
         mainPanelWrap.style.height = `${app.clientHeight * 0.45}px`;
         document.dispatchEvent(new CustomEvent('fr:close-companion-lower'));
       }
       const willOpen = !panel.classList.contains('open');
-      for (const other of sidePanels) other.classList.remove('open');
+      if (panel.id === 'effect-panel') {
+        panel.classList.toggle('open', willOpen);
+        syncSidePanelState();
+        return;
+      }
+      for (const other of slidePanels) other.classList.remove('open');
       panel.classList.toggle('open', willOpen);
       syncSidePanelState();
     });
   }
   document.addEventListener('click', (e) => {
-    const openPanel = sidePanels.find(panel => panel.classList.contains('open'));
+    const openPanel = slidePanels.find(panel => panel.classList.contains('open'));
     // パネル内の操作で中身が再描画され、クリック元がDOMから外れても閉じない。
     // contains(e.target) ではなく、クリック時点の伝播経路で内外を判定する。
     if (openPanel && !e.composedPath().includes(openPanel)) {
       openPanel.classList.remove('open');
       syncSidePanelState();
     }
+  });
+  document.getElementById('effect-close-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    effectPanel?.classList.remove('open');
+    syncSidePanelState();
   });
 
   const resizer = document.getElementById('resizer');

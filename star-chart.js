@@ -134,7 +134,7 @@ function createStarChart({
     const yaw=view.yaw*Math.PI/180,pitch=view.pitch*Math.PI/180;
     return {
       width:Math.max(1,rect.width),height:Math.max(1,rect.height),
-      scale:Math.min(rect.width,rect.height)*.53*view.zoom,
+      scale:rect.width*.53*view.zoom,
       forward:{x:Math.cos(pitch)*Math.sin(yaw),y:Math.sin(pitch),z:Math.cos(pitch)*Math.cos(yaw)},
       right:{x:Math.cos(yaw),y:0,z:-Math.sin(yaw)},
       up:{x:-Math.sin(pitch)*Math.sin(yaw),y:Math.cos(pitch),z:-Math.sin(pitch)*Math.cos(yaw)},
@@ -146,7 +146,7 @@ function createStarChart({
     const horizontal=point.x*f.right.x+point.y*f.right.y+point.z*f.right.z;
     const vertical=point.x*f.up.x+point.y*f.up.y+point.z*f.up.z;
     const angle=Math.acos(Math.max(-1,Math.min(1,depth)));
-    if (angle>1.92) return null;
+    if (angle>1.45) return null;
     const length=Math.hypot(horizontal,vertical),radius=f.scale*angle;
     return {x:f.width/2+radius*(length?horizontal/length:0),y:f.height/2-radius*(length?vertical/length:0),depth};
   }

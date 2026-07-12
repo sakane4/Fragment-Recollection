@@ -32,7 +32,8 @@ function openConstellationEditor({
   overlay.innerHTML = `
     <div class="constellation-editor-head">
       <div><b>星座を作る</b><small>CONSTELLATION EDITOR</small></div>
-      <span>テリシアの星から、星を結んでください</span>
+      <span>${lockedId ? 'テリシアの星から、星を結んでください' : '星と星を結んでください'}</span>
+      <button type="button" class="constellation-editor-close" data-editor-action="cancel" aria-label="閉じる">✕</button>
     </div>
     <div class="constellation-editor-chart">
       <div class="constellation-editor-chart-tools">
@@ -107,7 +108,6 @@ function openConstellationEditor({
   function renderControls() {
     const members = companionMembers();
     controls.innerHTML = `
-      <div class="constellation-editor-selection">${selectionHtml()}</div>
       <div class="constellation-editor-actions edit-actions">
         <button type="button" class="constellation-editor-complete">星座を作る</button>
       </div>`;
@@ -231,6 +231,10 @@ function openConstellationEditor({
 
   overlay.querySelector('[data-editor-action="undo"]').addEventListener('click', undo);
   overlay.querySelector('[data-editor-action="clear"]').addEventListener('click', clear);
+  overlay.querySelector('[data-editor-action="cancel"]').addEventListener('click', () => {
+    if (confirmOpen) return;
+    overlay.remove();
+  });
 
   document.body.appendChild(overlay);
   renderControls();

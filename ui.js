@@ -13,7 +13,7 @@ import { COMPANION_DATA, createCompanionTabRenderer } from './companion-ui.js';
 import { FLOWERS } from './flowers.js';
 import { openConstellationEditor } from './constellation-editor.js';
 import { sameMembers } from './constellations.js';
-import { effectSummary } from './constellation-effects.js';
+import { effectSummary, resolveConstellationEffect } from './constellation-effects.js';
 
 const DEFAULT_LOCKED_TITLE = 'あいまいな記憶';
 
@@ -1006,10 +1006,11 @@ function render(state) {
 }
 
 // 効果パネルの中身。現在かかっている時限効果・バフを一覧表示する
+let _prevEffectSig = null;
+
 function renderEffectList(state) {
-  const list = document.getElementById('effect-list');
-  if (!list) return;
-  list.innerHTML = '';
+  const track = document.getElementById('effect-list');
+  if (!track) return;
 
   const effects = [];
   const restBuffStacks = state.restBuffStacks ?? 0;
@@ -1017,31 +1018,78 @@ function renderEffectList(state) {
     effects.push(`【宿屋】報酬2倍 — 残り${restBuffStacks}回分`);
   }
   if ((state.activeCompanions ?? []).length > 0) {
-    effects.push('【同行】フラグメント×2 — 仲間が同行中');
+    effects.push(`【同行】${resourceSpan('fragment', resLabel('fragment'))}×2`);
   }
   const activeConstellation = (state.customConstellations ?? []).find(item =>
     sameMembers(state.activeCompanions ?? [], item.members ?? [])
   );
   if (activeConstellation?.effect) {
-    const summary = effectSummary(activeConstellation.effect);
-    effects.push(`【星座】${activeConstellation.name}：${activeConstellation.effect.name}${summary ? ` — ${summary}` : ''}`);
+    // セーブにはeffectが作成時点のラベルごとスナップショットされているため、表示は常に
+    // 現在の定義(constellation-effects.js)からメンバー構成で引き直す。定義の文言や
+    // resourceフィールドを後から直しても、既存セーブの星座にそのまま反映される。
+    const effect = resolveConstellationEffect(activeConstellation.members ?? []);
+    // 効果サマリー中に登場するリソース名は、他の場面と同じアイテム名フォント(resourceSpan)に差し替える。
+    // 「フラグメント」は「三日月のフラグメント」の部分文字列でもあるため、長い名前から先に一旦プレース
+    // ホルダーへ退避してから置換することで、短い名前が置換済み箇所に再度マッチしないようにする。
+    let summary = effectSummary(effect);
+    const resourceEntries = (effect.effects ?? [])
+      .filter(entry => entry.resource)
+      .sort((a, b) => resLabel(b.resource).length - resLabel(a.resource).length);
+    const placeholders = resourceEntries.map((entry, i) => ({ entry, token: `__RES${i}__` }));
+    for (const { entry, token } of placeholders) {
+      summary = summary.split(resLabel(entry.resource)).join(token);
+    }
+    for (const { entry, token } of placeholders) {
+      summary = summary.split(token).join(resourceSpan(entry.resource, resLabel(entry.resource)));
+    }
+    effects.push(`【星座】${activeConstellation.name}：${effect.name}${summary ? ` — ${summary}` : ''}`);
   }
 
   document.getElementById('effect-tab-btn')?.classList.toggle('glow', effects.length > 0);
 
+  // 内容が変わっていなければ再描画しない(ティッカーのスクロールアニメーションが
+  // 毎回頭出しされてリセットされてしまうのを防ぐ)
+  const sig = JSON.stringify(effects);
+  if (sig === _prevEffectSig) return;
+  _prevEffectSig = sig;
+  track.innerHTML = '';
+
   if (effects.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'effect-empty';
+    const empty = document.createElement('span');
+    empty.className = 'effect-band-empty';
     empty.textContent = '今はかかっている効果はない';
-    list.appendChild(empty);
+    track.appendChild(empty);
     return;
   }
-  for (const text of effects) {
-    const item = document.createElement('div');
-    item.className = 'effect-item';
-    item.textContent = text;
-    list.appendChild(item);
-  }
+
+  // 帯の幅に収まらない場合だけ、内容を2連結してtranslateX(-50%)でシームレスに流す。
+  const lineHtml = effects.join('　　');
+  const plainLength = lineHtml.replace(/<[^>]*>/g, '').length;
+  const probe = document.createElement('div');
+  probe.className = 'effect-band-track';
+  const probeSpan = document.createElement('span');
+  probeSpan.innerHTML = lineHtml;
+  probe.appendChild(probeSpan);
+  track.appendChild(probe);
+  requestAnimationFrame(() => {
+    if (!track.isConnected) return;
+    const overflowing = probe.scrollWidth > track.clientWidth;
+    track.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'effect-band-track';
+    const a = document.createElement('span');
+    a.innerHTML = lineHtml;
+    wrap.appendChild(a);
+    if (overflowing) {
+      const b = document.createElement('span');
+      b.innerHTML = lineHtml;
+      wrap.appendChild(b);
+      wrap.classList.add('scrolling');
+      // 文字数に応じて速度を揃える(短すぎる/長すぎるで体感速度が変わらないように)
+      wrap.style.animationDuration = `${Math.max(6, plainLength * 0.28)}s`;
+    }
+    track.appendChild(wrap);
+  });
 }
 
 const _typedQuestComments = new Set();
