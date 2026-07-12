@@ -8,7 +8,7 @@ const COMPANION_DATA = {
   shizuku:{ name: 'シズク', starName: 'Helianthus', mark:'□', color: '#b0bac4', desc: '寡黙な青年。' },
   kaoru:  { name: 'カオル', starName: 'pensée',     mark:'○', color: '#ff6fa8', desc: 'いつも笑顔のお姉さん。' },
   yukika: { name: '雪架',   starName: 'Pieris',     mark:'△', color: '#3fd4ff', desc: 'なにか秘密を知っているようだ。' },
-  tericia:{ name: 'テリシア',starName: '未命名星',   mark:'✦', color: '#9d8cff', desc: '星に名前をつけることを愛する少女。' },
+  tericia:{ name: 'テリシア',starName: 'Cineraria',   mark:'✦', color: '#9d8cff', desc: '星と魔法を愛する少女。' },
 };
 
 function createCompanionTabRenderer({
@@ -21,6 +21,9 @@ function createCompanionTabRenderer({
   let previousUnlocked = null;
   let openSection = null;
   let selectedRecordId = null;
+  // 下部パネル(発見した星座/人物詳細)のスクロール位置を再描画をまたいで保つための記録。
+  // 探索中の報酬tickでrenderCharTabが頻繁に走るため、同じ内容の再描画では巻き戻さない。
+  let renderedLowerKey = null;
   document.addEventListener('fr:close-companion-lower', () => {
     if (!openSection) return;
     openSection = null;
@@ -41,6 +44,13 @@ function createCompanionTabRenderer({
     ];
     const constellationUnlocked = (state.customConstellations?.length ?? 0) > 0 || !!state.tericiaConstellationCreated;
     if (!constellationUnlocked && openSection === 'constellations') openSection = null;
+
+    // 再描画で.companion-lower-contentが作り直される前に、現在のスクロール位置を退避する。
+    // 復元は「同じセクション・同じ人物」を描き直す時だけ(下のlowerKey一致判定)。
+    const prevLowerScroll = view.querySelector('.companion-lower-content')?.scrollTop ?? 0;
+    const lowerKey = openSection === 'records'
+      ? `records:${selectedRecordId ?? ''}`
+      : (openSection === 'constellations' ? 'constellations' : null);
 
     view.innerHTML = '';
     view.classList.toggle('lower-section-open', !!openSection);
@@ -68,7 +78,7 @@ function createCompanionTabRenderer({
     const constellationTabAttrs = constellationUnlocked ? '' : ' disabled aria-disabled="true"';
     const constellationTabCount = constellationUnlocked ? discovered.length : 'LOCK';
     tabs.innerHTML = `
-      <button type="button" data-section="constellations" class="${constellationTabClass}"${constellationTabAttrs}>発見した星座 <small>${constellationTabCount}</small></button>
+      <button type="button" data-section="constellations" class="${constellationTabClass}"${constellationTabAttrs}>星座 <small>${constellationTabCount}</small></button>
       <button type="button" data-section="records" class="${openSection === 'records' ? 'active' : ''}">人物詳細</button>`;
     tabs.querySelectorAll('button').forEach(button => {
       button.addEventListener('click', () => {
@@ -113,6 +123,13 @@ function createCompanionTabRenderer({
       }
       view.appendChild(detailArea);
     }
+
+    // 同じ内容を描き直した時だけスクロール位置を復元する(人物/セクションを切り替えた時は先頭のまま)
+    const newLower = view.querySelector('.companion-lower-content');
+    if (newLower && lowerKey && lowerKey === renderedLowerKey) {
+      newLower.scrollTop = prevLowerScroll;
+    }
+    renderedLowerKey = lowerKey;
 
     if (previousUnlocked !== null) {
       const newlyUnlocked = unlocked.filter(id => !previousUnlocked.includes(id));
