@@ -1289,6 +1289,58 @@
       border-bottom: 1px solid var(--border);
     }
 
+    #resource-list {
+      min-width: 0;
+    }
+
+    .resource-paper-main {
+      display: grid;
+      grid-template-columns: minmax(0, auto) auto;
+      justify-content: center;
+      align-items: baseline;
+      justify-items: center;
+      gap: 0.7rem;
+      padding: 0.15rem 0.05rem 0.7rem;
+      border-bottom: 2px solid var(--border);
+      text-align: center;
+    }
+
+    .resource-paper-kicker {
+      margin-bottom: 0.1rem;
+      color: var(--muted);
+      font-size: 0.6rem;
+      letter-spacing: 0.16em;
+    }
+
+    .resource-paper-main-name {
+      color: var(--text);
+      font-family: 'KokuGL', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.04em;
+    }
+
+    .resource-paper-main-val {
+      color: var(--accent);
+      font-size: 1rem;
+      line-height: 0.92;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .resource-paper-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+      gap: 0.95rem;
+      align-items: start;
+      padding-top: 0.7rem;
+    }
+
+    .resource-paper-col {
+      min-width: 0;
+      display: grid;
+      gap: 0.95rem;
+    }
+
     .resource-row {
       display: flex;
       justify-content: space-between;
@@ -1300,14 +1352,33 @@
 
     .resource-row:last-child { border-bottom: none; }
 
+    #resource-list .resource-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.55rem;
+      min-height: 2rem;
+      padding: 0.35rem 0;
+      font-size: 0.82rem;
+    }
+
     .resource-section + .resource-section { margin-top: 0.9rem; }
     .resource-section-title {
-      font-size: 0.72rem;
-      color: var(--muted);
-      letter-spacing: 0.15em;
-      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.45rem;
+      font-size: 0.68rem;
+      color: var(--text);
+      letter-spacing: 0.12em;
+      margin-bottom: 0.1rem;
       padding-bottom: 0.3rem;
       border-bottom: 1px solid var(--border);
+    }
+    .resource-section-title small {
+      color: var(--muted);
+      font-size: 0.6rem;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
     }
 
     .resource-name { color: var(--muted); }
@@ -1319,10 +1390,45 @@
       font-family: 'KokuGL', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
       font-size: 1.05em;
     }
+    #resource-list .resource-name {
+      font-size: 1.12em;
+    }
+    #resource-list .resource-row.feature .resource-name { color: var(--quest-gold); }
     .resource-val {
       font-variant-numeric: tabular-nums;
       color: var(--accent);
       font-size: 1rem;
+    }
+    .resource-info-btn {
+      width: 1.55rem;
+      height: 1.55rem;
+      display: grid;
+      place-items: center;
+      border: 1px solid color-mix(in srgb, var(--resource-info-color, var(--accent)) 44%, transparent);
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--resource-info-color, var(--accent)) 10%, transparent);
+      color: var(--resource-info-color, var(--accent));
+      cursor: pointer;
+    }
+    .resource-info-btn svg {
+      width: 0.9rem;
+      height: 0.9rem;
+      display: block;
+    }
+    .resource-info-btn:hover {
+      background: color-mix(in srgb, var(--resource-info-color, var(--accent)) 18%, transparent);
+    }
+    #resource-list .resource-row.feature .resource-val {
+      color: var(--quest-gold);
+    }
+
+    @media (max-width: 360px) {
+      .resource-paper-grid {
+        gap: 0.75rem;
+      }
+      #resource-list .resource-row {
+        font-size: 0.76rem;
+      }
     }
 
     .placeholder {
@@ -2555,6 +2661,57 @@
       cursor: pointer;
     }
     .equip-popup-item:hover { background: var(--accent-dim); }
+    .resource-info-popup-inner {
+      width: min(86vw, 360px);
+      max-height: 70vh;
+      overflow-y: auto;
+      background:
+        linear-gradient(180deg, rgba(18, 26, 44, 0.64), rgba(8, 12, 24, 0.56));
+      border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+      box-shadow:
+        0 18px 52px rgba(0,0,0,0.46),
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        inset 0 0 28px rgba(47,156,255,0.06);
+      backdrop-filter: blur(8px);
+    }
+    .resource-info-popup-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.7rem;
+      margin-bottom: 0.55rem;
+    }
+    .resource-info-popup-head .equip-popup-title {
+      margin-bottom: 0;
+    }
+    .resource-info-popup-close {
+      width: 1.8rem;
+      height: 1.8rem;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .resource-info-popup-close:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+    .resource-info-popup-body {
+      display: grid;
+      gap: 0.6rem;
+      color: var(--text);
+      font-family: 'kokuriMincho', 'Shippori Mincho', serif;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.42);
+    }
+    .resource-info-popup-body p {
+      margin: 0;
+    }
     .constellation-record-popup { z-index: 190; }
     .constellation-record-popup-inner {
       width: min(88vw, 380px);
@@ -2576,6 +2733,7 @@
       color: var(--text);
       font-size: 0.84rem;
       font-weight: 500;
+      font-family: 'kokuriMincho', 'Shippori Mincho', serif;
     }
     .constellation-record-info small {
       display: block;
@@ -3570,7 +3728,7 @@
   <!-- サブパネル -->
   <div id="sub-panel">
     <div id="view-items" class="sub-view active">
-      <div class="sub-title">持ち物</div>
+      <div class="sub-title items-title" hidden>持ち物</div>
       <div id="resource-list"></div>
     </div>
     <div id="view-stories" class="sub-view">
@@ -3790,6 +3948,17 @@
         <button class="equip-popup-item" id="confirm-popup-yes">はい</button>
         <button class="equip-popup-item" id="confirm-popup-no">いいえ</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 情報アイテム詳細ポップアップ -->
+  <div id="resource-info-popup" class="equip-popup">
+    <div class="equip-popup-inner resource-info-popup-inner">
+      <div class="resource-info-popup-head">
+        <div class="equip-popup-title" id="resource-info-popup-title"></div>
+        <button type="button" class="resource-info-popup-close" id="resource-info-popup-close" aria-label="閉じる">×</button>
+      </div>
+      <div class="resource-info-popup-body" id="resource-info-popup-body"></div>
     </div>
   </div>
 

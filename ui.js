@@ -732,12 +732,41 @@ let _autoRestartEnabled = false; // 開発メニューからのみON可
 const _resourceValueEls = new Map();
 let _prevResourceStructureKey = null;
 
+function openResourceInfoPopup(resourceKey) {
+  const info = RESOURCES[resourceKey]?.info;
+  if (!info) return;
+  const popup = document.getElementById('resource-info-popup');
+  const title = document.getElementById('resource-info-popup-title');
+  const body = document.getElementById('resource-info-popup-body');
+  const closeBtn = document.getElementById('resource-info-popup-close');
+  if (!popup || !title || !body || !closeBtn) return;
+
+  title.textContent = info.title ?? resLabel(resourceKey);
+  body.innerHTML = '';
+  const paragraphs = Array.isArray(info.body) ? info.body : [info.body ?? ''];
+  for (const text of paragraphs.filter(Boolean)) {
+    const p = document.createElement('p');
+    p.textContent = text;
+    body.appendChild(p);
+  }
+
+  popup.classList.add('open');
+  closeBtn.onclick = () => popup.classList.remove('open');
+  popup.onclick = (event) => {
+    if (event.target === popup) popup.classList.remove('open');
+  };
+}
+
 function renderResources(resources) {
   const visible = [];
   for (const cat of RESOURCE_CATEGORY_ORDER) {
     for (const [key, amount] of Object.entries(resources)) {
       if (amount !== 0 && resCategory(key) === cat) visible.push([cat, key, amount]);
     }
+  }
+  for (const [key, amount] of Object.entries(resources)) {
+    const cat = resCategory(key);
+    if (amount !== 0 && !RESOURCE_CATEGORY_ORDER.includes(cat)) visible.push([cat, key, amount]);
   }
   // どのリソースが見えているか(種類・並び順)が前回と同じなら、数量の差し替えだけで済ませる
   const structureKey = visible.map(([cat, key]) => `${cat}:${key}`).join(',');
@@ -752,31 +781,121 @@ function renderResources(resources) {
 
   els.resourceList.innerHTML = '';
   _resourceValueEls.clear();
-  let currentCat = null;
-  let section = null;
-  for (const [cat, key, amount] of visible) {
-    if (cat !== currentCat) {
-      section = document.createElement('div');
-      section.className = 'resource-section';
-      const title = document.createElement('div');
-      title.className = 'resource-section-title';
-      title.textContent = RESOURCE_CATEGORY_LABELS[cat] ?? cat;
-      section.appendChild(title);
-      els.resourceList.appendChild(section);
-      currentCat = cat;
+
+  if (visible.length === 0) {
+    _prevResourceStructureKey = structureKey;
+    return;
+  }
+
+  const byKey = new Map(visible.map(entry => [entry[1], entry]));
+  const used = new Set();
+  const mainFragment = byKey.get('fragment');
+
+  if (mainFragment) {
+    const [, key, amount] = mainFragment;
+    const main = document.createElement('div');
+    main.className = 'resource-paper-main';
+    const labelWrap = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'resource-paper-main-name';
+    name.textContent = resLabel(key);
+    name.style.color = resColor(key);
+    labelWrap.appendChild(name);
+    const val = document.createElement('div');
+    val.className = 'resource-paper-main-val resource-val';
+    val.textContent = amount;
+    val.style.color = resColor(key);
+    main.appendChild(labelWrap);
+    main.appendChild(val);
+    els.resourceList.appendChild(main);
+    _resourceValueEls.set(key, val);
+    used.add(key);
+  }
+
+  const paper = document.createElement('div');
+  paper.className = 'resource-paper-grid';
+  const leftCol = document.createElement('div');
+  leftCol.className = 'resource-paper-col';
+  const rightCol = document.createElement('div');
+  rightCol.className = 'resource-paper-col';
+  paper.appendChild(leftCol);
+  paper.appendChild(rightCol);
+  els.resourceList.appendChild(paper);
+
+  function appendSection(parent, titleText, entries, subText = '') {
+    if (entries.length === 0) return;
+    const section = document.createElement('div');
+    section.className = 'resource-section';
+    const title = document.createElement('div');
+    title.className = 'resource-section-title';
+    const titleLabel = document.createElement('span');
+    titleLabel.textContent = titleText;
+    title.appendChild(titleLabel);
+    if (subText) {
+      const small = document.createElement('small');
+      small.textContent = subText;
+      title.appendChild(small);
     }
-    const row = document.createElement('div');
-    row.className = 'resource-row';
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'resource-name';
-    nameSpan.textContent = resLabel(key);
-    const valSpan = document.createElement('span');
-    valSpan.className = 'resource-val';
-    valSpan.textContent = amount;
-    row.appendChild(nameSpan);
-    row.appendChild(valSpan);
-    section.appendChild(row);
-    _resourceValueEls.set(key, valSpan);
+    section.appendChild(title);
+    for (const [cat, key, amount] of entries) {
+      const row = document.createElement('div');
+      row.className = 'resource-row' + (RESOURCES[key]?.highlight || key === 'crescent_fragment' ? ' feature' : '');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'resource-name';
+      nameSpan.textContent = resLabel(key);
+      nameSpan.style.color = resColor(key);
+      const valSpan = document.createElement('span');
+      valSpan.className = 'resource-val';
+      if (cat === 'information' && RESOURCES[key]?.info) {
+        valSpan.className = 'resource-info-slot';
+        const infoBtn = document.createElement('button');
+        infoBtn.type = 'button';
+        infoBtn.className = 'resource-info-btn';
+        infoBtn.style.setProperty('--resource-info-color', resColor(key));
+        infoBtn.setAttribute('aria-label', `${resLabel(key)}を読む`);
+        infoBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>';
+        infoBtn.addEventListener('click', () => openResourceInfoPopup(key));
+        valSpan.appendChild(infoBtn);
+      } else {
+        valSpan.textContent = amount;
+        valSpan.style.color = resColor(key);
+        _resourceValueEls.set(key, valSpan);
+      }
+      row.appendChild(nameSpan);
+      row.appendChild(valSpan);
+      section.appendChild(row);
+      used.add(key);
+    }
+    parent.appendChild(section);
+  }
+
+  const uniqueFragments = visible.filter(([cat, key]) => cat === 'fragment' && key !== 'fragment');
+  const elements = visible.filter(([cat]) => cat === 'element');
+  const rumors = visible.filter(([cat]) => cat === 'rumor');
+  const surveys = visible.filter(([cat]) => cat === 'survey');
+  const information = visible.filter(([cat]) => cat === 'information');
+  const relics = visible.filter(([cat, key]) => cat === 'relic' && key !== 'magcoin');
+  const tools = visible.filter(([cat, key]) => cat === 'tool' && key !== 'magcoin');
+  const flowers = visible.filter(([cat]) => cat === 'flower');
+  const coins = visible.filter(([, key]) => key === 'magcoin');
+  const materials = visible.filter(([cat, key]) => !used.has(key) && !['fragment', 'element', 'flower', 'rumor', 'survey', 'relic', 'information', 'tool'].includes(cat) && key !== 'magcoin');
+
+  appendSection(leftCol, '特別なフラグメント', uniqueFragments, `${uniqueFragments.length}種`);
+  appendSection(leftCol, 'エレメント', elements, `${elements.length}種`);
+  appendSection(leftCol, '道具', tools, 'TOOLS');
+  appendSection(rightCol, '通貨', coins, 'COIN');
+  appendSection(rightCol, '噂話', rumors, `${rumors.length}種`);
+  appendSection(rightCol, '調査記録', surveys, `${surveys.length}種`);
+  appendSection(rightCol, '情報', information, `${information.length}種`);
+  appendSection(rightCol, 'レリック', relics, 'RELIC');
+  appendSection(rightCol, '素材', materials, 'MATERIAL');
+  appendSection(rightCol, '花', flowers, `${flowers.length}種`);
+
+  const leftovers = visible.filter(([, key]) => !used.has(key));
+  appendSection(rightCol, 'その他', leftovers, `${leftovers.length}種`);
+
+  if (paper.childElementCount === 0 || (leftCol.childElementCount === 0 && rightCol.childElementCount === 0)) {
+    paper.remove();
   }
   _prevResourceStructureKey = structureKey;
 }
@@ -1064,32 +1183,53 @@ function renderEffectList(state) {
 
   // 帯の幅に収まらない場合だけ、内容を2連結してtranslateX(-50%)でシームレスに流す。
   const lineHtml = effects.join('　　');
-  const plainLength = lineHtml.replace(/<[^>]*>/g, '').length;
-  const probe = document.createElement('div');
-  probe.className = 'effect-band-track';
-  const probeSpan = document.createElement('span');
-  probeSpan.innerHTML = lineHtml;
-  probe.appendChild(probeSpan);
-  track.appendChild(probe);
-  requestAnimationFrame(() => {
-    if (!track.isConnected) return;
-    const overflowing = probe.scrollWidth > track.clientWidth;
-    track.innerHTML = '';
-    const wrap = document.createElement('div');
-    wrap.className = 'effect-band-track';
-    const a = document.createElement('span');
-    a.innerHTML = lineHtml;
-    wrap.appendChild(a);
-    if (overflowing) {
-      const b = document.createElement('span');
-      b.innerHTML = lineHtml;
-      wrap.appendChild(b);
-      wrap.classList.add('scrolling');
-      // 文字数に応じて速度を揃える(短すぎる/長すぎるで体感速度が変わらないように)
-      wrap.style.animationDuration = `${Math.max(6, plainLength * 0.28)}s`;
-    }
-    track.appendChild(wrap);
-  });
+  const wrap = document.createElement('div');
+  wrap.className = 'effect-band-track';
+  const a = document.createElement('span');
+  a.innerHTML = lineHtml;
+  wrap.appendChild(a);
+  track.appendChild(wrap);
+  // 幅の判定はパネルの開閉(=帯幅の変化)後に行う必要があるため、実際の切り替えは
+  // _applyTickerScroll に集約し、ここと ResizeObserver の両方から呼ぶ。
+  track._effectLineHtml = lineHtml;
+  _applyTickerScroll(track);
+}
+
+// ティッカーが帯幅に収まるかを測り、はみ出す時だけ内容を2連結してスクロールさせる。
+// パネル開閉で帯幅が変わると収まり方も変わるため、renderEffectList とResizeObserver の両方から呼ぶ。
+function _applyTickerScroll(track) {
+  const wrap = track.querySelector('.effect-band-track');
+  if (!wrap) return;
+  const lineHtml = track._effectLineHtml ?? '';
+  const first = wrap.firstElementChild;
+  if (!first) return;
+  // 1コピー分の幅で判定(2コピー目がある状態のscrollWidthではなく、単体の幅を測る)
+  const contentWidth = first.getBoundingClientRect().width;
+  const overflowing = contentWidth > track.clientWidth + 1;
+  const already = wrap.classList.contains('scrolling');
+  if (overflowing === already) return;
+  if (overflowing) {
+    const b = document.createElement('span');
+    b.innerHTML = lineHtml;
+    wrap.appendChild(b);
+    wrap.classList.add('scrolling');
+    const plainLength = lineHtml.replace(/<[^>]*>/g, '').length;
+    // 文字数に応じて速度を揃える(短すぎる/長すぎるで体感速度が変わらないように)
+    wrap.style.animationDuration = `${Math.max(6, plainLength * 0.28)}s`;
+  } else {
+    wrap.classList.remove('scrolling');
+    wrap.style.animationDuration = '';
+    // 2コピー目を除去して単体表示に戻す
+    while (wrap.children.length > 1) wrap.lastElementChild.remove();
+  }
+}
+
+// 効果帯の幅が変わったら(パネル開閉など)スクロール要否を測り直す
+{
+  const _effectList = document.getElementById('effect-list');
+  if (_effectList && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => _applyTickerScroll(_effectList)).observe(_effectList);
+  }
 }
 
 const _typedQuestComments = new Set();
@@ -2041,9 +2181,9 @@ function _enterFacility(facility) {
     } else if (constellationUnlocked) {
       options.push({
         id: 'constellation_editor',
-        label: '星を編む',
+        label: '星座を生み出す',
         type: 'constellation_editor',
-        icon: actionIconSvg('星を編む'),
+        icon: actionIconSvg('星座を生み出す'),
         description: '望遠鏡を覗き、星と星を結んで星座を作る。',
       });
     } else {
