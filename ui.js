@@ -1713,6 +1713,11 @@ function switchTab(viewId) {
   if (tabBtn) tabBtn.classList.add('active');
   document.getElementById(viewId).classList.add('active');
 
+  // 同行タブ以外へ移ったら、下部セクション(星座/人物詳細)の展開を閉じて規定サイズへ戻す
+  if (viewId !== 'view-chars') {
+    document.dispatchEvent(new CustomEvent('fr:close-companion-lower'));
+  }
+
   // 記憶タブ/地図タブを開いたら新着を既読化
   if (viewId === 'view-stories') _markStoriesSeen(getState());
   if (viewId === 'view-actions') { _markDiscoveriesSeen(getState()); renderActionList(); }

@@ -24,9 +24,17 @@ function createCompanionTabRenderer({
   // 下部パネル(発見した星座/人物詳細)のスクロール位置を再描画をまたいで保つための記録。
   // 探索中の報酬tickでrenderCharTabが頻繁に走るため、同じ内容の再描画では巻き戻さない。
   let renderedLowerKey = null;
+  // 下部セクションを閉じた時にメインパネルを規定サイズ(45%)へ戻す
+  function restoreMainPanelHeight() {
+    const mainPanelWrap = document.getElementById('main-panel-wrap');
+    if (!mainPanelWrap) return;
+    const app = document.getElementById('app');
+    mainPanelWrap.style.height = `${(app?.clientHeight ?? window.innerHeight) * 0.45}px`;
+  }
   document.addEventListener('fr:close-companion-lower', () => {
     if (!openSection) return;
     openSection = null;
+    restoreMainPanelHeight();
     renderCharTab(getState());
   });
 
@@ -86,12 +94,11 @@ function createCompanionTabRenderer({
         if (next === 'constellations' && !constellationUnlocked) return;
         openSection = openSection === next ? null : next;
         if (openSection === 'records') selectedRecordId = null;
-        const mainPanelWrap = document.getElementById('main-panel-wrap');
         if (openSection) {
+          const mainPanelWrap = document.getElementById('main-panel-wrap');
           if (mainPanelWrap) mainPanelWrap.style.height = '60px';
-        } else if (mainPanelWrap) {
-          const app = document.getElementById('app');
-          mainPanelWrap.style.height = `${(app?.clientHeight ?? window.innerHeight) * 0.45}px`;
+        } else {
+          restoreMainPanelHeight();
         }
         renderCharTab(getState());
         document.getElementById('sub-panel')?.scrollTo({ top:0, behavior:'auto' });

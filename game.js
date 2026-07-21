@@ -1912,7 +1912,8 @@ function setActiveCompanion(id, active) {
   const next = active
     ? (current.includes(id) ? current : [...current, id])
     : current.filter(c => c !== id);
-  state = { ...state, activeCompanions: next };
+  // 効果パネルはボーナス発動(行動完了)を待たず、同行者を初めて加えた瞬間に解放する
+  state = { ...state, activeCompanions: next, effectsUnlocked: state.effectsUnlocked || next.length > 0 };
   saveToStorage(state);
   notify();
   return { ok: true };
@@ -1922,7 +1923,7 @@ function setActiveCompanions(ids) {
   const unique = [...new Set(ids)].slice(0, 5);
   if (unique.some(id => !state.unlockedCompanions.includes(id))) return { ok: false, reason: 'locked' };
   if (unique.some(id => state.companionTasks?.[id])) return { ok: false, reason: 'busy' };
-  state = { ...state, activeCompanions: unique };
+  state = { ...state, activeCompanions: unique, effectsUnlocked: state.effectsUnlocked || unique.length > 0 };
   saveToStorage(state);
   notify();
   return { ok: true };

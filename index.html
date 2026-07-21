@@ -359,7 +359,10 @@
     #effect-panel {
       --side-tab-index: 0;
       --side-tab-tone: var(--effect-green-core);
-      --side-tab-base: var(--effect-panel-bg);
+      /* 擦りガラス: ベース色を半透明にし、backdrop-filterで背後のログをぼかして透かす */
+      --side-tab-base: color-mix(in srgb, var(--effect-panel-bg) 55%, transparent);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
       top: var(--side-tab-top);
       bottom: auto;
       height: var(--effect-tab-size);
